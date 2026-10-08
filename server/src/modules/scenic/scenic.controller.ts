@@ -11,6 +11,8 @@ class CreateAreaDto {
   @IsOptional() @IsString() intro?: string;
   @IsOptional() @IsString() @MaxLength(64) openTime?: string;
   @IsOptional() @IsInt() @Min(1) @Max(1000000) maxCapacity?: number;
+  /** 1 开放 / 2 关闭（ValidationPipe 开启 whitelist，未声明字段会被剥离） */
+  @IsOptional() @IsIn([1, 2]) status?: number;
 }
 
 class CreateAnnouncementDto {

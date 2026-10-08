@@ -30,6 +30,9 @@ const guards: Provider[] = [
         synchronize: false,
         timezone: '+08:00',
         charset: 'utf8mb4',
+        // BIGINT 主键以 number 返回（默认会转成字符串，导致前端类型不一致）；
+        // 业务 id 远小于 2^53，安全
+        extra: { supportBigNumbers: true, bigNumberStrings: false },
       }),
     }),
     RedisModule,
