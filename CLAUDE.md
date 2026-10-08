@@ -60,6 +60,8 @@ miniprogram/         未搭建
 
 前端把后端 profile 映射成模板的 `UserInfo`：`roles` = 后端角色 code（驱动路由 `meta.roles` 过滤，超管经 `VITE_STATIC_SUPER_ROLE=super` 直通），`buttons` = 后端权限字符串（`useAuth().hasAuth('ticket:create')` 校验按钮）。因此**后端新增 `@Permissions('x:y')` 后前端可直接复用该标识，不需要额外映射表**。前端环境变量 `VITE_SERVICE_SUCCESS_CODE=0`、`VITE_SERVICE_LOGOUT_CODES=40100` 与后端响应体规则耦合，改后端错误码规则时需同步。
 
+**`hasAuth()` 已做超管通配放行**（`buttons.includes('*')` 直接返回 true，与后端 `AdminAuthGuard` 一致）。后端超管的权限就是 `['*']`，若去掉这层判断，超管在所有业务页面上都会被判为无权限、看不到任何操作按钮。
+
 ### 表结构权威来源是 SQL，不是实体
 
 `deploy/sql/init.sql` 是**唯一权威 schema**（32 张表），TypeORM `synchronize: false`。
