@@ -1,0 +1,7 @@
+{
+  "serverUrl": "http://localhost:3000",
+  "gateNo": "GATE001",
+  "secretKey": "dev-gate-secret-change-me",
+  "direction": 1,
+  "heartbeatIntervalMs": 30000
+}

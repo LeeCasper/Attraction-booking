@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+unpackage/
+*.local
+
+# env & secrets
+.env
+*.pem
+*.key
+!deploy/**/*.example
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

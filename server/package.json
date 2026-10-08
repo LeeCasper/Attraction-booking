@@ -1,0 +1,41 @@
+{
+  "name": "attraction-booking-server",
+  "version": "1.0.0",
+  "description": "景区预约管理及门禁联动系统服务端",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --watch src --ext ts,json --exec \"ts-node src/main.ts\"",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "seed": "ts-node --transpile-only scripts/seed.ts",
+    "smoke": "node scripts/smoke-test.mjs",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/swagger": "^11.0.0",
+    "@nestjs/typeorm": "^11.0.0",
+    "bcryptjs": "^2.4.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "dotenv": "^16.4.5",
+    "ioredis": "^5.4.1",
+    "mysql2": "^3.11.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.20"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

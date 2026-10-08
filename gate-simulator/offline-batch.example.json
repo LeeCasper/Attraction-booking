@@ -1,0 +1,18 @@
+{
+  "records": [
+    {
+      "credential": "模拟离线二维码Token",
+      "direction": 1,
+      "result": 1,
+      "passedAt": "2026-10-08T09:15:23+08:00",
+      "localVerify": true
+    },
+    {
+      "credential": "模拟离线身份证哈希",
+      "direction": 1,
+      "result": 1,
+      "passedAt": "2026-10-08T09:16:02+08:00",
+      "localVerify": true
+    }
+  ]
+}
