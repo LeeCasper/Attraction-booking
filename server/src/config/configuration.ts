@@ -7,6 +7,11 @@ export default () => ({
     user: process.env.DB_USER ?? 'root',
     password: process.env.DB_PASSWORD ?? '',
     database: process.env.DB_DATABASE ?? 'attraction_booking',
+    // 连接池大小。mysql2 默认只有 10 —— 下单/核验这类事务会持有连接直到提交，
+    // 高并发下请求全堵在连接池上排队（压测实测：1000 并发时 P50 达 3.7s）。
+    // 需要满足「单实例 1000+ 并发」，调大可显著降低排队时间，
+    // 上限受 MySQL max_connections（默认 151）与实例数约束：实例数 × poolSize < 151。
+    poolSize: Number(process.env.DB_POOL_SIZE ?? 20),
   },
   redis: {
     host: process.env.REDIS_HOST ?? '127.0.0.1',

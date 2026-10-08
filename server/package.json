@@ -12,6 +12,9 @@
     "smoke:order": "node scripts/smoke-order.mjs",
     "smoke:gate": "node scripts/smoke-gate.mjs",
     "smoke:m4": "node scripts/smoke-m4.mjs",
+    "loadtest:booking": "k6 run loadtest/booking.js",
+    "loadtest:oversell": "k6 run loadtest/oversell.js",
+    "loadtest:gate": "k6 run loadtest/gate.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

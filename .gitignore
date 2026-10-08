@@ -17,6 +17,9 @@ gate-simulator/config.json
 # 数据库备份产物
 backups/
 
+# 压测产物（k6 handleSummary 落盘的原始指标）
+server/loadtest/results/
+
 # logs
 logs/
 *.log
