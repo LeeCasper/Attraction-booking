@@ -180,6 +180,12 @@ const routeMap: RouteMap = {
   "403": "/403",
   "404": "/404",
   "500": "/500",
+  "dashboard": "/dashboard",
+  "dashboard_realtime": "/dashboard/realtime",
+  "gate": "/gate",
+  "gate_alarm": "/gate/alarm",
+  "gate_device": "/gate/device",
+  "gate_passage": "/gate/passage",
   "home": "/home",
   "iframe-page": "/iframe-page/:url",
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
@@ -199,7 +205,10 @@ const routeMap: RouteMap = {
   "ticket_stock": "/ticket/stock",
   "ticket_ticket-type": "/ticket/ticket-type",
   "ticket_time-slot": "/ticket/time-slot",
-  "user-center": "/user-center"
+  "user-center": "/user-center",
+  "verify": "/verify",
+  "verify_desk": "/verify/desk",
+  "verify_record": "/verify/record"
 };
 
 /**

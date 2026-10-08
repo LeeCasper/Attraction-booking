@@ -193,6 +193,15 @@ const local: App.I18n.Schema = {
     order: '订单管理',
     order_list: '订单查询',
     order_refund: '退款审核',
+    dashboard: '数据看板',
+    dashboard_realtime: '实时看板',
+    verify: '核销中心',
+    verify_desk: '核销台',
+    verify_record: '核销记录',
+    gate: '闸机管理',
+    gate_device: '闸机设备',
+    gate_passage: '通行记录',
+    gate_alarm: '告警中心',
   },
   page: {
     login: {

@@ -40,6 +40,64 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'dashboard',
+    path: '/dashboard',
+    component: 'layout.base',
+    meta: {
+      title: 'dashboard',
+      i18nKey: 'route.dashboard'
+    },
+    children: [
+      {
+        name: 'dashboard_realtime',
+        path: '/dashboard/realtime',
+        component: 'view.dashboard_realtime',
+        meta: {
+          title: 'dashboard_realtime',
+          i18nKey: 'route.dashboard_realtime'
+        }
+      }
+    ]
+  },
+  {
+    name: 'gate',
+    path: '/gate',
+    component: 'layout.base',
+    meta: {
+      title: 'gate',
+      i18nKey: 'route.gate'
+    },
+    children: [
+      {
+        name: 'gate_alarm',
+        path: '/gate/alarm',
+        component: 'view.gate_alarm',
+        meta: {
+          title: 'gate_alarm',
+          i18nKey: 'route.gate_alarm'
+        }
+      },
+      {
+        name: 'gate_device',
+        path: '/gate/device',
+        component: 'view.gate_device',
+        meta: {
+          title: 'gate_device',
+          i18nKey: 'route.gate_device'
+        }
+      },
+      {
+        name: 'gate_passage',
+        path: '/gate/passage',
+        component: 'view.gate_passage',
+        meta: {
+          title: 'gate_passage',
+          i18nKey: 'route.gate_passage'
+        }
+      }
+    ]
+  },
+  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
@@ -236,5 +294,34 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.user-center',
       hideInMenu: true
     }
+  },
+  {
+    name: 'verify',
+    path: '/verify',
+    component: 'layout.base',
+    meta: {
+      title: 'verify',
+      i18nKey: 'route.verify'
+    },
+    children: [
+      {
+        name: 'verify_desk',
+        path: '/verify/desk',
+        component: 'view.verify_desk',
+        meta: {
+          title: 'verify_desk',
+          i18nKey: 'route.verify_desk'
+        }
+      },
+      {
+        name: 'verify_record',
+        path: '/verify/record',
+        component: 'view.verify_record',
+        meta: {
+          title: 'verify_record',
+          i18nKey: 'route.verify_record'
+        }
+      }
+    ]
   }
 ];

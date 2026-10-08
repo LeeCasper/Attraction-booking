@@ -106,8 +106,10 @@ async function main() {
         direction: Number(args.direction ?? config.direction),
       });
       console.log(r.status, `(${r.cost}ms)`, JSON.stringify(r.json, null, 2));
-      if (r.json?.data?.open) console.log('>>> 开闸');
-      else console.log('>>> 拒绝通行：', r.json?.data?.rejectReason ?? r.json?.msg);
+      const d = r.json?.data ?? {};
+      // 服务端契约：open=true 即开闸；ok 为同义字段（管理端核销接口不含 open）
+      if (d.open === true || d.ok === true) console.log(`>>> 开闸（指令号 ${d.cmdId}，剩余可入园 ${d.remaining}）`);
+      else console.log(`>>> 拒绝通行 [${d.code}] ${d.message ?? r.json?.msg ?? ''}`);
       break;
     }
 

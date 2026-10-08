@@ -205,6 +205,17 @@ const customRoutes: CustomRoute[] = [
  *   （超管经 VITE_STATIC_SUPER_ROLE=super 直通）
  */
 const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
+  // 数据看板
+  dashboard: { title: '数据看板', icon: 'mdi:chart-line', order: 1 },
+  dashboard_realtime: {
+    title: '实时看板',
+    icon: 'mdi:monitor-dashboard',
+    roles: ['super', 'admin', 'finance', 'ops', 'leader']
+  },
+  // 核销中心（检票员日常使用，放在靠前位置）
+  verify: { title: '核销中心', icon: 'mdi:qrcode-scan', order: 2 },
+  verify_desk: { title: '核销台', icon: 'mdi:line-scan', roles: ['super', 'admin', 'checker'] },
+  verify_record: { title: '核销记录', icon: 'mdi:clipboard-check-outline', roles: ['super', 'admin', 'checker'] },
   // 景区管理
   scenic: { title: '景区管理', icon: 'mdi:map-marker-radius-outline', order: 3 },
   scenic_area: { title: '景区信息', icon: 'mdi:information-outline', roles: ['super', 'admin'] },
@@ -219,6 +230,11 @@ const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
   order: { title: '订单管理', icon: 'mdi:clipboard-text-outline', order: 5 },
   order_list: { title: '订单查询', icon: 'mdi:file-search-outline', roles: ['super', 'admin', 'finance'] },
   order_refund: { title: '退款审核', icon: 'mdi:cash-refund', roles: ['super', 'admin', 'finance'] },
+  // 闸机管理（运维）
+  gate: { title: '闸机管理', icon: 'mdi:gate', order: 6 },
+  gate_device: { title: '闸机设备', icon: 'mdi:devices', roles: ['super', 'admin', 'ops'] },
+  gate_passage: { title: '通行记录', icon: 'mdi:transit-connection-variant', roles: ['super', 'admin', 'ops'] },
+  gate_alarm: { title: '告警中心', icon: 'mdi:alert-octagon-outline', roles: ['super', 'admin', 'ops'] },
   // 系统管理
   system: { title: '系统管理', icon: 'mdi:cog-outline', order: 9 },
   system_role: { title: '角色权限', icon: 'mdi:shield-account-outline', roles: ['super'] },

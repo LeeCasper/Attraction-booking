@@ -202,7 +202,11 @@ async function main() {
   const presenceBefore = before.data?.presence ?? 0;
 
   const verify1 = await gateApi('POST', '/api/gate/verify', { credential: credentialToken, direction: 1 });
-  check('核验通过并返回开闸指令', verify1.data?.ok === true && !!verify1.data?.cmdId, JSON.stringify(verify1.json));
+  check(
+    '核验通过并返回开闸指令（open=true + cmdId）',
+    verify1.data?.ok === true && verify1.data?.open === true && !!verify1.data?.cmdId,
+    JSON.stringify(verify1.json),
+  );
   check('返回游客姓名与剩余人数', verify1.data?.visitorName === '核销测试甲' && verify1.data?.remaining === 1, JSON.stringify(verify1.data));
 
   // 在园人数以「通行回执」为准，核验通过本身不计数

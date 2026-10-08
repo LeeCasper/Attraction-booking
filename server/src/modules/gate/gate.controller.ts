@@ -65,17 +65,15 @@ export class GateController {
       direction: dto.direction ?? gate.direction,
     };
 
-    if (dto.credential) {
-      return this.verifyService.verifyByCredential(dto.credential, ctx);
-    }
-    if (dto.idCardHash) {
-      return this.verifyService.verifyByIdCard(dto.idCardHash, gate.scenicAreaId, ctx);
-    }
-    return {
-      ok: false,
-      code: 'INVALID_CREDENTIAL',
-      message: '缺少凭证',
-    };
+    const outcome = dto.credential
+      ? await this.verifyService.verifyByCredential(dto.credential, ctx)
+      : dto.idCardHash
+        ? await this.verifyService.verifyByIdCard(dto.idCardHash, gate.scenicAreaId, ctx)
+        : { ok: false, code: 'INVALID_CREDENTIAL' as const, message: '缺少凭证' };
+
+    // 对闸机的响应契约（设计 §5.3）：明确给出 open 开关，
+    // 真机对接时只需判断该字段，语音/屏幕提示取 code 与 message
+    return { ...outcome, open: outcome.ok };
   }
 
   @Post('heartbeat')

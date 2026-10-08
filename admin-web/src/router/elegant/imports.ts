@@ -20,6 +20,10 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   500: () => import("@/views/_builtin/500/index.vue"),
   "iframe-page": () => import("@/views/_builtin/iframe-page/[url].vue"),
   login: () => import("@/views/_builtin/login/index.vue"),
+  dashboard_realtime: () => import("@/views/dashboard/realtime/index.vue"),
+  gate_alarm: () => import("@/views/gate/alarm/index.vue"),
+  gate_device: () => import("@/views/gate/device/index.vue"),
+  gate_passage: () => import("@/views/gate/passage/index.vue"),
   home: () => import("@/views/home/index.vue"),
   order_list: () => import("@/views/order/list/index.vue"),
   order_refund: () => import("@/views/order/refund/index.vue"),
@@ -34,4 +38,6 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "ticket_ticket-type": () => import("@/views/ticket/ticket-type/index.vue"),
   "ticket_time-slot": () => import("@/views/ticket/time-slot/index.vue"),
   "user-center": () => import("@/views/user-center/index.vue"),
+  verify_desk: () => import("@/views/verify/desk/index.vue"),
+  verify_record: () => import("@/views/verify/record/index.vue"),
 };

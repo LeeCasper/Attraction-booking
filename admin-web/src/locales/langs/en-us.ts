@@ -193,6 +193,15 @@ const local: App.I18n.Schema = {
     order: 'Orders',
     order_list: 'Order Search',
     order_refund: 'Refunds',
+    dashboard: 'Dashboard',
+    dashboard_realtime: 'Realtime Board',
+    verify: 'Verification',
+    verify_desk: 'Verify Desk',
+    verify_record: 'Verify Records',
+    gate: 'Gates',
+    gate_device: 'Gate Devices',
+    gate_passage: 'Passages',
+    gate_alarm: 'Alarms',
   },
   page: {
     login: {

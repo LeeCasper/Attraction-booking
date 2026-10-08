@@ -43,10 +43,10 @@ server/src/
 ├── common/          全局守卫、响应封装、异常过滤、加密工具、分页 DTO
 ├── config/          环境变量读取（configuration.ts，全部走 ConfigService）
 ├── database/entities/   TypeORM 实体（表结构权威来源见下）
-├── jobs/            定时任务（支付超时取消、查单补偿）
+├── jobs/            定时任务（支付超时取消、查单补偿、闸机心跳巡检、在园人数校准、日统计）
 └── modules/         auth / admin / security / redis / scenic / ticket
-                     / order / pay / mini
-                     （规划中：verify、gate、stats、notify）
+                     / order / pay / mini / verify / gate / stats
+                     （规划中：notify）
 
 admin-web/           SoybeanAdmin(Element Plus 版) 二开，Vue3 + Element Plus，:9527
                      （集成约定见 admin-web/README.md）
@@ -118,7 +118,14 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
 ## 当前进度（对照设计文档 §9）
 
 - **M1 服务端 + 后台页面已完成**：认证/RBAC/景区/票种/时段/价格日历/库存 + admin-web 对应页面（票务、景区、系统管理），冒烟 25/25
-- **M2 服务端已完成**：下单（限购 → Redis Lua 预减 → MySQL 乐观锁）、小程序端接口（模拟登录/票种余票/订单/支付/退款申请）、微信支付 V3（JSAPI 下单、回调验签解密、退款、查单补偿）、支付超时取消任务、后台订单与退款审核接口，冒烟 28/28
-- **M2 待办**：admin-web 订单管理与退款审核页面
-- **未开工**：M3 动态凭证、闸机核验开闸、核销、在园人数；M4 看板、统计、告警、导出
+- **M2 服务端 + 后台页面已完成**：下单（限购 → Redis Lua 预减 → MySQL 乐观锁）、小程序端接口、微信支付 V3（JSAPI/回调/退款/查单补偿）、支付超时取消、订单与退款审核，冒烟 28/28
+- **M3 服务端已完成**：动态凭证（HMAC Token，60s）、闸机接口（验签/核验/开闸/心跳/通行/告警/离线同步）、核销（扫码/刷证/手动 + 部分核销）、在园人数与实时看板、闸机设备与告警管理，冒烟 33/33
+- **M3 待办**：admin-web 核销台、核销记录、闸机设备、通行记录、告警中心、实时看板页面
+- **未开工**：M4 数据看板增强、运营分析、报表导出、备份
+
+### 闸机模块：一期为模拟器驱动
+
+闸机接口（`/api/gate/*`）**按真机协议实现**（HMAC 签名 + 时间戳容差 + nonce 防重放 + cmdId 幂等），一期由 `gate-simulator/` CLI 驱动联调，接真机时只需按厂商协议实现 Adapter，服务端不用改。种子数据含两台示例闸机（GATE001 入口 / GATE002 出口，密钥 `dev-gate-secret-change-me`，与 `gate-simulator/config.example.json` 一致）。
+
+关键口径：**在园人数以闸机「通行回执」为准**（result=1 通过或 4 应急放行），核验通过但未实际通行不计数；每 5 分钟用 `passage_record` 校准 Redis 计数。
 - **微信支付当前处于本地模拟模式**：本机无商户证书文件，`.env` 中 `WXPAY_MOCK=true`（未配置 `WX_APPID` 时小程序登录也走 mock）。上线前需置 `WXPAY_MOCK=false` 并配置 `WXPAY_PRIVATE_KEY_PATH` / `WXPAY_API_V3_KEY` / `WX_APPID` / `WX_APP_SECRET`

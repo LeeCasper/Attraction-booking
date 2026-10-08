@@ -33,6 +33,20 @@ node gate.js offline-sync --file ./offline-batch.example.json
 | `secretKey` | 闸机密钥（与 `gate_device.secret_key` 一致），用于 HMAC 签名 |
 | `direction` | 1 入园 / 2 出园 / 3 双向 |
 
+## 联调命令
+
+```bash
+node gate.js heartbeat            # 上报心跳（服务端更新在线状态并返回规则版本）
+node gate.js heartbeat --loop     # 持续心跳，模拟在线闸机
+node gate.js verify --token "<凭证>"   # 扫码核验 → 返回 open/cmdId/剩余人数
+node gate.js passage --reservation-id N --direction 1 --result 1   # 通行回执（计入在园人数）
+node gate.js alarm --type tailgate --level 3   # 告警上报
+node gate.js offline-sync --file ./offline-batch.example.json      # 离线记录批量上传
+```
+
+`verify` 返回 `open: true` 即开闸，`cmdId` 为幂等指令号（同一指令号闸机只需开闸一次），
+失败时用 `code`（如 `ALREADY_VERIFIED` / `WRONG_DATE` / `EXPIRED`）驱动语音与屏幕提示。
+
 ## 签名算法（与服务端一致）
 
 请求头携带：
