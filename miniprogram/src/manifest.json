@@ -1,0 +1,32 @@
+{
+  "name": "枫林谷景区",
+  "appid": "",
+  "description": "景区预约管理及门禁联动系统 —— 游客端小程序",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "vueVersion": "3",
+  "mp-weixin": {
+    "appid": "wxcae10f2824a5193d",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "enhance": true,
+      "postcss": true,
+      "minified": true,
+      "skylineRenderEnable": false
+    },
+    "usingComponents": true,
+    "lazyCodeLoading": "requiredComponents",
+    "optimization": {
+      "subPackages": true
+    }
+  },
+  "h5": {
+    "router": {
+      "mode": "hash",
+      "base": "./"
+    },
+    "title": "枫林谷景区"
+  }
+}

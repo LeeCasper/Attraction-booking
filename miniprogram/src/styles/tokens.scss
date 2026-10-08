@@ -1,0 +1,204 @@
+// =============================================================================
+// 设计 token —— 来源：Stitch 设计系统「Cyan Ink & Bamboo Stone」
+// 这是唯一的手写事实来源；scripts/gen-utilities.mjs 会解析本文件取色值。
+// 改色值请只改这里，然后跑 `npm run gen:utilities` 重新生成 utilities.scss。
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 单位换算
+// 设计稿画布宽 390pt（Stitch 的 screenInstances.width=390，API 报的 780 是 2 倍图），
+// uni-app 约定 750rpx = 屏幕宽。故 1px(设计) = 750/390 = 1.9231rpx，
+// 这样在 390pt 机型上逐值等于设计稿。
+// 注意：不用约定俗成的 ×2 —— 那是按 375pt 基准算的，会让元素在 390pt 机型上大约 4%。
+// -----------------------------------------------------------------------------
+$design-width: 390;
+// 写成字面量而非 750 / $design-width：sass 已废弃斜杠除法（slash-div），
+// 且此处除号在部分上下文会被解析成选择器分隔符
+$rpx-per-px: 1.9230769231;
+
+@function px2rpx($px) {
+  @return $px * $rpx-per-px * 1rpx;
+}
+
+/// rem（Tailwind 的基准，1rem = 16px）转 rpx
+@function rem2rpx($rem) {
+  @return px2rpx($rem * 16);
+}
+
+// -----------------------------------------------------------------------------
+// 颜色（取自设计系统 namedColors，共 67 个；此处全量落盘，未用到的也保留，
+// 因为后续页面会继续用同一套设计系统）
+// -----------------------------------------------------------------------------
+
+// — 表面 / 背景（Paper Light 模式）—
+$c-surface: #effcf9;
+$c-surface-dim: #cfddd9;
+$c-surface-bright: #effcf9;
+$c-surface-container-lowest: #ffffff;
+$c-surface-container-low: #e9f7f3;
+$c-surface-container: #e3f1ed;
+$c-surface-container-high: #ddebe8;
+$c-surface-container-highest: #d8e5e2;
+$c-surface-variant: #d8e5e2;
+$c-on-surface: #121e1c;
+$c-on-surface-variant: #3d4947;
+$c-inverse-surface: #273331;
+$c-inverse-on-surface: #e6f4f0;
+$c-background: #effcf9;
+$c-on-background: #121e1c;
+$c-surface-tint: #006a61;
+
+// — 描边 —
+$c-outline: #6d7a77;
+$c-outline-variant: #bcc9c6;
+
+// — 主色（竹青）—
+$c-primary: #00685f;
+$c-on-primary: #ffffff;
+$c-primary-container: #008378;
+$c-on-primary-container: #f4fffc;
+$c-inverse-primary: #6bd8cb;
+$c-primary-fixed: #89f5e7;
+$c-primary-fixed-dim: #6bd8cb;
+$c-on-primary-fixed: #00201d;
+$c-on-primary-fixed-variant: #005049;
+
+// — 次色（墨竹青）—
+$c-secondary: #006a63;
+$c-on-secondary: #ffffff;
+$c-secondary-container: #99efe5;
+$c-on-secondary-container: #006f67;
+$c-secondary-fixed: #9cf2e8;
+$c-secondary-fixed-dim: #80d5cb;
+$c-on-secondary-fixed: #00201d;
+$c-on-secondary-fixed-variant: #00504a;
+
+// — 第三色（琥珀金）—
+$c-tertiary: #8d4b00;
+$c-on-tertiary: #ffffff;
+$c-tertiary-container: #b15f00;
+$c-on-tertiary-container: #fffbff;
+$c-tertiary-fixed: #ffdcc3;
+$c-tertiary-fixed-dim: #ffb77d;
+$c-on-tertiary-fixed: #2f1500;
+$c-on-tertiary-fixed-variant: #6e3900;
+
+// — 语义色 —
+$c-error: #ba1a1a;
+$c-on-error: #ffffff;
+$c-error-container: #ffdad6;
+$c-on-error-container: #93000a;
+
+// — 实例色（设计里大量使用的具名品牌色）—
+$c-mist-cyan-50: #f0fdf9;
+$c-bamboo-light-100: #ccfbee;
+$c-jade-bright-300: #5eead4;
+$c-deep-teal-800: #115e59;
+$c-amber-gold: #d97706;
+$c-cinnabar-red: #dc2626;
+$c-emerald-pass: #059669;
+$c-serene-blue: #0284c7;
+$c-paper-base: #f7f8f6;
+$c-paper-surface: #ffffff;
+$c-silk-border: #e2e8e4;
+$c-ink-charcoal-text: #1c2826;
+$c-ink-dark-gray: #374151;
+$c-ink-light-gray: #6b7280;
+
+// — 大屏 / 深色指挥台（本期小程序不用，保留以对齐设计系统全量）—
+$c-screen-xuanqing-bg: #08121e;
+$c-screen-panel-bg: rgba(13, 29, 49, 0.78);
+$c-screen-jade-border: rgba(45, 212, 191, 0.35);
+$c-screen-neon-jade: #2dd4bf;
+$c-screen-gilt-gold: #fbbf24;
+$c-screen-blaze-red: #f87171;
+
+// -----------------------------------------------------------------------------
+// 字体族
+// 中文走系统字体（Google Fonts 国内小程序不可用，中文字体子集又超主包限制）；
+// 拉丁与数字用自托管的子集字体，见 fonts.scss。
+// -----------------------------------------------------------------------------
+$font-serif: 'Noto Serif Subset', 'Songti SC', 'SimSun', serif;
+$font-body: 'Plus Jakarta Sans Subset', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+  'Helvetica Neue', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+// 等宽数字：设计系统要求核验倒计时、毫秒延迟、闸机计数「零跳变」
+$font-mono: 'Space Grotesk Subset', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+// -----------------------------------------------------------------------------
+// 字号体系（设计系统 typography；行高同比例换算成 rpx）
+// -----------------------------------------------------------------------------
+$t-display-kpi-screen-size: px2rpx(48);
+$t-display-kpi-screen-lh: px2rpx(56);
+$t-display-kpi-screen-ls: -0.02em;
+
+$t-headline-xl-size: px2rpx(28);
+$t-headline-xl-lh: px2rpx(36);
+
+$t-headline-xl-mobile-size: px2rpx(22);
+$t-headline-xl-mobile-lh: px2rpx(30);
+
+$t-headline-lg-size: px2rpx(22);
+$t-headline-lg-lh: px2rpx(30);
+
+$t-headline-md-size: px2rpx(18);
+$t-headline-md-lh: px2rpx(26);
+
+$t-body-lg-size: px2rpx(16);
+$t-body-lg-lh: px2rpx(24);
+
+$t-body-md-size: px2rpx(14);
+$t-body-md-lh: px2rpx(22);
+
+$t-body-sm-size: px2rpx(13);
+$t-body-sm-lh: px2rpx(18);
+
+$t-data-metric-lg-size: px2rpx(24);
+$t-data-metric-lg-lh: px2rpx(32);
+$t-data-metric-lg-ls: -0.01em;
+
+$t-data-metric-md-size: px2rpx(16);
+$t-data-metric-md-lh: px2rpx(22);
+
+$t-label-badge-size: px2rpx(12);
+$t-label-badge-lh: px2rpx(16);
+$t-label-badge-ls: 0.04em;
+
+$t-caption-sm-size: px2rpx(12);
+$t-caption-sm-lh: px2rpx(16);
+
+// -----------------------------------------------------------------------------
+// 间距刻度（设计系统 spacing，1rem = 16px）
+// -----------------------------------------------------------------------------
+$space-xs: rem2rpx(0.25); //  4px
+$space-sm: rem2rpx(0.5); //   8px
+$space-md: rem2rpx(1); //    16px
+$space-lg: rem2rpx(1.5); //  24px
+$space-xl: rem2rpx(2); //    32px
+$space-2xl: rem2rpx(3); //   48px
+
+$gutter: rem2rpx(1);
+$gutter-desktop: rem2rpx(1.5);
+$margin: rem2rpx(1);
+$margin-tablet: rem2rpx(1.5);
+$margin-desktop: rem2rpx(2);
+
+// -----------------------------------------------------------------------------
+// 圆角（设计系统 rounded：sm .25rem / DEFAULT .5rem / md .75rem / lg 1rem / xl 1.5rem）
+// -----------------------------------------------------------------------------
+$radius-sm: rem2rpx(0.25);
+$radius: rem2rpx(0.5);
+$radius-md: rem2rpx(0.75);
+$radius-lg: rem2rpx(1);
+$radius-xl: rem2rpx(1.5);
+$radius-full: 9999rpx;
+
+// -----------------------------------------------------------------------------
+// 阴影（设计系统 Elevation：Level 1/2/3）
+// -----------------------------------------------------------------------------
+$shadow-l1: 0 px2rpx(4) px2rpx(20) px2rpx(-2) rgba(13, 148, 136, 0.05);
+$shadow-l2: 0 px2rpx(10) px2rpx(25) px2rpx(-4) rgba(15, 118, 110, 0.12);
+$shadow-l3: 0 0 px2rpx(24) rgba(220, 38, 38, 0.45);
+
+// 安全区（设计稿的 pt-safe / pb-safe）
+$safe-top: env(safe-area-inset-top, 0px);
+$safe-bottom: env(safe-area-inset-bottom, 0px);

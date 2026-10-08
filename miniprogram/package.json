@@ -1,15 +1,39 @@
 {
-  "name": "miniprogram-ts-less-quickstart",
+  "name": "attraction-booking-miniprogram",
   "version": "1.0.0",
-  "description": "",
+  "private": true,
+  "description": "景区预约管理及门禁联动系统 —— 游客端小程序（uni-app + Vue3 + Vite + TS）",
   "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "dev:h5": "uni",
+    "build:h5": "uni build",
+    "type-check": "vue-tsc --noEmit",
+    "gen:utilities": "node scripts/gen-utilities.mjs",
+    "gen:icons": "node scripts/gen-icons.mjs",
+    "ref:shots": "bash scripts/render-reference.sh",
+    "gen:fonts": "node scripts/gen-fonts.mjs",
+    "gen": "npm run gen:utilities && npm run gen:icons && npm run gen:fonts && npm run gen:pages",
+    "gen:pages": "node scripts/gen-pages.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "",
   "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5030120260930001",
+    "vue": "3.4.21"
   },
   "devDependencies": {
-    "miniprogram-api-typings": "^2.8.3-1"
+    "@dcloudio/types": "^3.4.8",
+    "@dcloudio/uni-cli-shared": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5030120260930001",
+    "@vue/tsconfig": "^0.5.1",
+    "sass": "1.77.8",
+    "typescript": "^5.4.5",
+    "vite": "5.2.8",
+    "vue-tsc": "^2.0.19"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
