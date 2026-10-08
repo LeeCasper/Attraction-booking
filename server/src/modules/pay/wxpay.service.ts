@@ -1,6 +1,6 @@
 import { createDecipheriv, createSign, createVerify, randomBytes } from 'crypto';
-import { readFileSync } from 'fs';
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { existsSync, readFileSync } from 'fs';
+import { BadGatewayException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 const WXPAY_BASE = 'https://api.mch.weixin.qq.com';
@@ -30,7 +30,7 @@ interface EncryptedResource {
 }
 
 @Injectable()
-export class WxPayService {
+export class WxPayService implements OnModuleInit {
   private readonly logger = new Logger(WxPayService.name);
   private privateKey: string | null = null;
   /** 平台证书公钥缓存：serial → PEM */
@@ -38,6 +38,80 @@ export class WxPayService {
   private platformCertFetchedAt = 0;
 
   constructor(private readonly config: ConfigService) {}
+
+  /**
+   * 启动自检
+   *
+   * 微信支付的配置项多且散（商户号/证书/序列号/APIv3 密钥/回调地址），
+   * 漏配一项往往到第一笔真实支付才暴露。这里在启动时集中校验并明确报出缺失项。
+   */
+  onModuleInit() {
+    if (this.mock) {
+      this.logger.warn(
+        '微信支付处于【模拟模式】(WXPAY_MOCK=true)：不会产生真实交易，' +
+          '上线前请置为 false 并配置商户证书与 APIv3 密钥',
+      );
+      return;
+    }
+
+    const problems: string[] = [];
+
+    for (const key of ['mchid', 'appid', 'serialNo', 'apiV3Key']) {
+      if (!this.config.get<string>(`wxpay.${key}`)) {
+        problems.push(`${key} 未配置`);
+      }
+    }
+
+    // 证书序列号应为 40 位十六进制
+    const serialNo = this.config.get<string>('wxpay.serialNo') ?? '';
+    if (serialNo && !/^[0-9A-Fa-f]{40}$/.test(serialNo)) {
+      problems.push(`serialNo 格式可疑（应为 40 位十六进制，当前 ${serialNo.length} 位）`);
+    }
+
+    // APIv3 密钥必须是 32 位，否则回调报文无法解密
+    const apiV3Key = this.config.get<string>('wxpay.apiV3Key') ?? '';
+    if (apiV3Key && apiV3Key.length !== 32) {
+      problems.push(`apiV3Key 长度应为 32（当前 ${apiV3Key.length}）`);
+    }
+
+    // 商户私钥文件需存在且可读
+    const keyPath = this.config.get<string>('wxpay.privateKeyPath') ?? '';
+    if (!keyPath) {
+      problems.push('privateKeyPath 未配置');
+    } else if (!existsSync(keyPath)) {
+      problems.push(`privateKeyPath 文件不存在：${keyPath}`);
+    } else {
+      try {
+        const pem = readFileSync(keyPath, 'utf8');
+        if (!pem.includes('PRIVATE KEY')) {
+          problems.push(`privateKeyPath 内容不是 PEM 私钥：${keyPath}`);
+        }
+      } catch (err) {
+        problems.push(`privateKeyPath 读取失败：${(err as Error).message}`);
+      }
+    }
+
+    // 回调地址必须为公网 HTTPS（微信主动回调，localhost 无法联调）
+    for (const [key, label] of [
+      ['notifyUrl', '支付回调'],
+      ['refundNotifyUrl', '退款回调'],
+    ] as const) {
+      const url = this.config.get<string>(`wxpay.${key}`) ?? '';
+      if (!url.startsWith('https://')) {
+        problems.push(`${key}（${label}）必须是 https 地址，当前：${url || '(空)'}`);
+      } else if (url.includes('your-domain')) {
+        problems.push(`${key}（${label}）仍是占位域名，需替换为实际域名：${url}`);
+      }
+    }
+
+    if (problems.length > 0) {
+      this.logger.error(
+        `微信支付配置不完整（WXPAY_MOCK=false，真实支付将失败）：\n  - ${problems.join('\n  - ')}`,
+      );
+    } else {
+      this.logger.log('微信支付配置自检通过（真实模式）');
+    }
+  }
 
   /** 是否本地模拟模式（无商户证书时） */
   get mock(): boolean {

@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -16,7 +16,7 @@ interface Code2SessionResult {
 }
 
 @Injectable()
-export class MiniAuthService {
+export class MiniAuthService implements OnModuleInit {
   private readonly logger = new Logger(MiniAuthService.name);
 
   constructor(
@@ -24,6 +24,24 @@ export class MiniAuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
+
+  /** 启动自检：小程序登录配置（与微信支付同理，避免上线才发现漏配） */
+  onModuleInit() {
+    if (this.mock) {
+      this.logger.warn('小程序登录处于【模拟模式】(WX_MOCK=true)：任意 code 均可登录，上线前请置为 false');
+      return;
+    }
+
+    const problems: string[] = [];
+    if (!this.config.get<string>('wx.appid')) problems.push('WX_APPID 未配置');
+    if (!this.config.get<string>('wx.secret')) problems.push('WX_APP_SECRET 未配置');
+
+    if (problems.length > 0) {
+      this.logger.error(`小程序登录配置不完整（WX_MOCK=false）：\n  - ${problems.join('\n  - ')}`);
+    } else {
+      this.logger.log(`小程序登录配置自检通过（AppID=${this.config.get<string>('wx.appid')}）`);
+    }
+  }
 
   /** 是否走模拟登录（WX_MOCK 显式控制，未配置 AppID 时默认开启） */
   private get mock(): boolean {
