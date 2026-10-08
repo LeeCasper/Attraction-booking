@@ -43,9 +43,18 @@ server/src/
 ├── database/entities/   TypeORM 实体（表结构权威来源见下）
 └── modules/         auth / admin / redis / scenic / ticket
                      （规划中：order、pay、reservation、verify、gate、stats、notify）
+
+admin-web/           SoybeanAdmin(Element Plus 版) 二开，Vue3 + Element Plus，:9527
+                     （集成约定见 admin-web/README.md）
+gate-simulator/      零依赖闸机 CLI（node gate.js <cmd>），按设计 §5.4 实现 HMAC 签名
+miniprogram/         未搭建
 ```
 
-单体按业务域分模块，模块边界即未来微服务边界。`admin-web/`、`miniprogram/` 尚未搭建；`gate-simulator/` 是零依赖 CLI（`node gate.js <cmd>`），按设计 §5.4 实现 HMAC 签名，M3 接入闸机接口时可直接复用。
+单体按业务域分模块，模块边界即未来微服务边界。
+
+### admin-web 与前端的对接关系
+
+前端把后端 profile 映射成模板的 `UserInfo`：`roles` = 后端角色 code（驱动路由 `meta.roles` 过滤，超管经 `VITE_STATIC_SUPER_ROLE=super` 直通），`buttons` = 后端权限字符串（`useAuth().hasAuth('ticket:create')` 校验按钮）。因此**后端新增 `@Permissions('x:y')` 后前端可直接复用该标识，不需要额外映射表**。前端环境变量 `VITE_SERVICE_SUCCESS_CODE=0`、`VITE_SERVICE_LOGOUT_CODES=40100` 与后端响应体规则耦合，改后端错误码规则时需同步。
 
 ### 表结构权威来源是 SQL，不是实体
 
@@ -86,6 +95,6 @@ server/src/
 ## 当前进度（对照设计文档 §9）
 
 - **M1 服务端已完成**：认证/RBAC/景区/票种/时段/价格日历/库存（生成、调整含悲观锁与调整日志），冒烟测试 25/25 通过
-- **M1 待办**：`admin-web` 后台界面（出口标准：后台可配置票种与库存）
+- **M1 待办**：`admin-web` 业务页面（出口标准：后台可配置票种与库存）。脚手架与认证/权限对接待建部分已完成，业务页面待开发
 - **未开工**：M2 下单（Redis 预减 + MySQL 乐观锁防超卖）与微信支付 JSAPI/回调/退款；M3 动态凭证、闸机核验开闸、核销、在园人数；M4 看板、统计、告警、导出
 - 用户已具备微信支付商户资质，M2 可直接真实接入（`.env` 中 `WXPAY_*`）
