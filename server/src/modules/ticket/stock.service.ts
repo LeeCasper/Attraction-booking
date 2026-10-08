@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { StockChangeLog, TicketStock, TicketType, TimeSlot } from '../../database/entities/ticket.entity';
+import { StockCacheService } from './stock-cache.service';
 
 @Injectable()
 export class StockService {
@@ -9,6 +10,7 @@ export class StockService {
     @InjectRepository(TicketStock) private readonly stockRepo: Repository<TicketStock>,
     @InjectRepository(TicketType) private readonly typeRepo: Repository<TicketType>,
     private readonly dataSource: DataSource,
+    private readonly stockCache: StockCacheService,
   ) {}
 
   /** 库存查询：票种 × 日期范围，附带时段信息与剩余量 */
@@ -86,7 +88,7 @@ export class StockService {
 
   /** 手动调整库存（±），总库存不得低于已售+锁定，事务内行锁保护 */
   async adjust(stockId: number, changeValue: number, remark: string, operatorId: number) {
-    return this.dataSource.transaction(async (em) => {
+    const result = await this.dataSource.transaction(async (em) => {
       const stock = await em.findOne(TicketStock, {
         where: { id: stockId },
         lock: { mode: 'pessimistic_write' },
@@ -111,5 +113,10 @@ export class StockService {
       });
       return { id: stockId, total: newTotal, sold: stock.sold, locked: stock.locked };
     });
+
+    // total 变化会改变可用量，直接重算缓存避免增量漂移
+    await this.stockCache.resync(stockId);
+
+    return result;
   }
 }

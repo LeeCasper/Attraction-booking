@@ -39,12 +39,18 @@ export class AdminAuthGuard implements CanActivate {
 
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     if (!token) throw new UnauthorizedException('未登录');
-    let payload: { sub: number; username: string };
+    let payload: { sub: number; username?: string; typ?: string };
     try {
       payload = await this.jwt.verifyAsync(token);
     } catch {
       throw new UnauthorizedException('登录已失效');
     }
+
+    // 小程序 token 带 typ='mini'，不得用于管理端接口
+    if (!payload.username || payload.typ === 'mini') {
+      throw new UnauthorizedException('无效的管理端登录态');
+    }
+
     req.admin = { id: payload.sub, username: payload.username };
 
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [

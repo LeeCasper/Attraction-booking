@@ -8,6 +8,11 @@ import { AdminModule } from './modules/admin/admin.module';
 import { ScenicModule } from './modules/scenic/scenic.module';
 import { TicketModule } from './modules/ticket/ticket.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { SecurityModule } from './modules/security/security.module';
+import { OrderModule } from './modules/order/order.module';
+import { PayModule } from './modules/pay/pay.module';
+import { MiniModule } from './modules/mini/mini.module';
+import { JobsModule } from './jobs/jobs.module';
 import { AdminAuthGuard } from './common/guards/admin-auth.guard';
 
 const guards: Provider[] = [
@@ -36,10 +41,15 @@ const guards: Provider[] = [
       }),
     }),
     RedisModule,
+    SecurityModule,
     AuthModule,
     AdminModule,
     ScenicModule,
     TicketModule,
+    OrderModule,
+    PayModule,
+    MiniModule,
+    JobsModule,
   ],
   providers: guards,
 })

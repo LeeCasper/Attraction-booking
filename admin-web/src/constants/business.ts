@@ -36,3 +36,50 @@ export const needRealnameRecord: Record<number, string> = {
 
 /** 时段状态 */
 export const slotStatusRecord: Record<number, string> = enableStatusRecord;
+
+/** 订单状态（与服务端 OrderStatus 一致） */
+export const orderStatusRecord: Record<number, string> = {
+  10: '待支付',
+  20: '待核销',
+  30: '部分核销',
+  40: '已核销',
+  50: '已取消',
+  60: '已退款',
+  70: '已过期'
+};
+
+/** 订单状态对应的标签颜色 */
+export const orderStatusTagType: Record<number, UI.ThemeColor> = {
+  10: 'warning',
+  20: 'primary',
+  30: 'primary',
+  40: 'success',
+  50: 'info',
+  60: 'danger',
+  70: 'info'
+};
+
+/** 退款单状态（与服务端 RefundStatus 一致） */
+export const refundStatusRecord: Record<number, string> = {
+  10: '待审核',
+  20: '退款中',
+  30: '已退款',
+  40: '已拒绝',
+  50: '退款失败'
+};
+
+/** 退款状态标签颜色 */
+export const refundStatusTagType: Record<number, UI.ThemeColor> = {
+  10: 'warning',
+  20: 'primary',
+  30: 'success',
+  40: 'info',
+  50: 'danger'
+};
+
+/** 订单来源渠道 */
+export const orderChannelRecord: Record<string, string> = {
+  mini: '小程序',
+  ota: 'OTA',
+  window: '窗口'
+};

@@ -15,6 +15,9 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_SECRET ?? 'dev-secret',
     expiresIn: process.env.JWT_EXPIRES_IN ?? '8h',
+    /** 小程序端独立密钥（与设计文档「双 JWT 体系」一致） */
+    miniSecret: process.env.JWT_MINI_SECRET ?? `${process.env.JWT_SECRET ?? 'dev-secret'}:mini`,
+    miniExpiresIn: process.env.JWT_MINI_EXPIRES_IN ?? '7d',
   },
   cred: {
     secret: process.env.CRED_SECRET ?? 'dev-cred-secret',
@@ -33,7 +36,16 @@ export default () => ({
     appid: process.env.WXPAY_APPID ?? '',
     serialNo: process.env.WXPAY_SERIAL_NO ?? '',
     privateKeyPath: process.env.WXPAY_PRIVATE_KEY_PATH ?? '',
+    /** APIv3 密钥，用于回调报文 AES-256-GCM 解密 */
+    apiV3Key: process.env.WXPAY_API_V3_KEY ?? '',
     notifyUrl: process.env.WXPAY_NOTIFY_URL ?? '',
     refundNotifyUrl: process.env.WXPAY_REFUND_NOTIFY_URL ?? '',
+    /**
+     * 本地联调模式：本机无商户证书时置 true，
+     * 用模拟的 prepay_id / 回调驱动全链路，上线前务必设为 false
+     */
+    mock: (process.env.WXPAY_MOCK ?? 'true') === 'true',
+    /** 支付超时（分钟），与 order 模块一致 */
+    payTimeoutMinutes: Number(process.env.PAY_TIMEOUT_MINUTES ?? 15),
   },
 });

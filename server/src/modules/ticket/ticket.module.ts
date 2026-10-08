@@ -5,6 +5,7 @@ import { PurchaseRule } from './purchase-rule.entity';
 import { AuthModule } from '../auth/auth.module';
 import { TicketTypeController } from './ticket-type.controller';
 import { TicketTypeService } from './ticket-type.service';
+import { StockCacheService } from './stock-cache.service';
 import { TimeSlotController } from './time-slot.controller';
 import { PriceCalendarController } from './price-calendar.controller';
 import { StockController } from './stock.controller';
@@ -16,6 +17,8 @@ import { StockService } from './stock.service';
     AuthModule,
   ],
   controllers: [TicketTypeController, TimeSlotController, StockController, PriceCalendarController],
-  providers: [TicketTypeService, StockService],
+  providers: [TicketTypeService, StockService, StockCacheService],
+  // StockCacheService 供下单模块做 Redis 预减（设计 §4.2）
+  exports: [StockCacheService],
 })
 export class TicketModule {}
