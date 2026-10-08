@@ -14,6 +14,7 @@ import {
 import { OrderModule } from '../order/order.module';
 import { PayModule } from '../pay/pay.module';
 import { TicketModule } from '../ticket/ticket.module';
+import { VerifyModule } from '../verify/verify.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TicketModule } from '../ticket/ticket.module';
     OrderModule,
     PayModule,
     TicketModule,
+    VerifyModule,
   ],
   controllers: [MiniController],
   providers: [MiniAuthService, MiniTicketService],

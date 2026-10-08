@@ -143,6 +143,26 @@ async function main() {
     console.log('✓ 已存在景区数据，跳过示例数据');
   }
 
+  // ---- 示例闸机（供 gate-simulator 联调）----
+  const [gateArea]: any[] = await conn.query('SELECT id FROM scenic_area LIMIT 1');
+  if (gateArea.length > 0) {
+    const areaId = Number(gateArea[0].id);
+    const gates: [string, string, number, string][] = [
+      // gate_no, 名称, direction(1入/2出/3双向), 密钥
+      ['GATE001', '1号入口闸机', 1, 'dev-gate-secret-change-me'],
+      ['GATE002', '1号出口闸机', 2, 'dev-gate-secret-change-me'],
+    ];
+    for (const [gateNo, name, direction, secret] of gates) {
+      await conn.query(
+        `INSERT INTO gate_device (scenic_area_id, gate_no, name, location, ip, protocol, direction, status, secret_key)
+         VALUES (?,?,?,?,?,?,?,2,?)
+         ON DUPLICATE KEY UPDATE name=VALUES(name), direction=VALUES(direction), secret_key=VALUES(secret_key)`,
+        [areaId, gateNo, name, '示例景区入口', '127.0.0.1', 'http', direction, secret],
+      );
+    }
+    console.log('✓ 示例闸机已就绪（GATE001 入口 / GATE002 出口，密钥 dev-gate-secret-change-me）');
+  }
+
   // ---- 参数配置 ----
   const configs: [string, object, string][] = [
     ['reservation', { payTimeoutMinutes: 15, cancelOnTimeout: true }, '预约规则：支付超时时间'],

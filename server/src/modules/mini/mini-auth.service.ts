@@ -25,9 +25,9 @@ export class MiniAuthService {
     private readonly config: ConfigService,
   ) {}
 
-  /** 是否未配置小程序凭证（本地联调走模拟登录） */
+  /** 是否走模拟登录（WX_MOCK 显式控制，未配置 AppID 时默认开启） */
   private get mock(): boolean {
-    return !this.config.get<string>('wx.appid');
+    return this.config.get<boolean>('wx.mock') ?? true;
   }
 
   /**

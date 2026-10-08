@@ -27,6 +27,7 @@ npm run seed                # 幂等：角色/权限/超管/示例景区票种/�
 npm run dev                 # ts-node + nodemon 热重载，:3000，Swagger 在 /docs
 npm run smoke               # M1：25 项断言（认证/RBAC/票务/库存）
 npm run smoke:order         # M2：28 项断言（下单/防超卖/支付/退款）
+npm run smoke:gate          # M3：33 项断言（凭证/闸机核验/核销/通行/告警/看板）
 npm run lint                # tsc --noEmit
 npm run build && npm start  # 生产构建
 ```
@@ -112,6 +113,7 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
 3. **`REDIS_CLIENT` 是注入令牌，参数上必须写 `@Inject(REDIS_CLIENT)`** —— `RedisClient` 只是 `import('ioredis').default` 的类型别名，靠元数据推断会得到 `Object` 导致 DI 失败。
 4. **查询参数不做隐式转换** —— `PaginationDto` 用 `@Type(() => Number)`，其它数值 query 参数用 `ParseIntPipe`（可空时 `new ParseIntPipe({ optional: true })`）。
 5. 建表时 `NOT NULL` 的时间列记得给 `DEFAULT CURRENT_TIMESTAMP(3)`，否则 TypeORM 省略该字段时插入失败。
+6. **改 `.env` 后必须手动重启服务** —— `npm run dev` 的 nodemon 只监听 `src/`，配置改动不会触发热重载，进程会一直用旧环境变量（表现为「明明改了配置却不生效」）。
 
 ## 当前进度（对照设计文档 §9）
 

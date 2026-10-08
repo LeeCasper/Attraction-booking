@@ -12,6 +12,9 @@ import { SecurityModule } from './modules/security/security.module';
 import { OrderModule } from './modules/order/order.module';
 import { PayModule } from './modules/pay/pay.module';
 import { MiniModule } from './modules/mini/mini.module';
+import { VerifyModule } from './modules/verify/verify.module';
+import { GateModule } from './modules/gate/gate.module';
+import { StatsModule } from './modules/stats/stats.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AdminAuthGuard } from './common/guards/admin-auth.guard';
 
@@ -49,6 +52,9 @@ const guards: Provider[] = [
     OrderModule,
     PayModule,
     MiniModule,
+    VerifyModule,
+    GateModule,
+    StatsModule,
     JobsModule,
   ],
   providers: guards,

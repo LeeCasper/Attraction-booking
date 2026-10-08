@@ -22,6 +22,9 @@ export default () => ({
   cred: {
     secret: process.env.CRED_SECRET ?? 'dev-cred-secret',
     version: Number(process.env.CRED_SECRET_VERSION ?? 1),
+    /** 密钥轮换期：旧版本密钥在有效期内继续可验签 */
+    prevSecret: process.env.CRED_SECRET_PREV ?? '',
+    prevVersion: process.env.CRED_SECRET_PREV_VERSION ? Number(process.env.CRED_SECRET_PREV_VERSION) : 0,
   },
   security: {
     idcardHashSalt: process.env.IDCARD_HASH_SALT ?? 'dev-salt',
@@ -30,6 +33,17 @@ export default () => ({
   wx: {
     appid: process.env.WX_APPID ?? '',
     secret: process.env.WX_APP_SECRET ?? '',
+    /**
+     * 小程序登录模拟开关
+     *
+     * 显式由 WX_MOCK 控制；未设置时「未配置 AppID」才走模拟。
+     * 之所以独立于 AppID 是否存在，是因为本地开发即使配了真实 AppID
+     * 也拿不到合法 wx.login code，仍需要模拟登录来跑通链路。
+     */
+    mock:
+      process.env.WX_MOCK !== undefined
+        ? process.env.WX_MOCK === 'true'
+        : !(process.env.WX_APPID ?? ''),
   },
   wxpay: {
     mchid: process.env.WXPAY_MCHID ?? '',

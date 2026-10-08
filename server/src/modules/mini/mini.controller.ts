@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,6 +19,7 @@ import { OrderService } from '../order/order.service';
 import { PayService } from '../pay/pay.service';
 import { WxPayService } from '../pay/wxpay.service';
 import { CreateOrderDto } from '../order/dto/create-order.dto';
+import { CredentialService } from '../verify/credential.service';
 
 class MiniLoginDto {
   /** wx.login 返回的 code；本地模拟登录时任意字符串即可 */
@@ -37,6 +39,7 @@ export class MiniController {
     private readonly orderService: OrderService,
     private readonly payService: PayService,
     private readonly wxpay: WxPayService,
+    private readonly credentialService: CredentialService,
   ) {}
 
   // ==================== 登录 ====================
@@ -129,6 +132,29 @@ export class MiniController {
       expireMinutes: 15,
     });
     return { orderNo: order.orderNo, payParams: pay.payParams, mock: this.wxpay.mock };
+  }
+
+  @Get('orders/:id/credential')
+  @UseGuards(MiniAuthGuard)
+  @ApiOperation({ summary: '获取动态入园凭证（HMAC Token，60 秒有效，小程序每 50 秒刷新）' })
+  async credential(@CurrentUser() user: MiniUser, @Param('id', ParseIntPipe) id: number) {
+    const order = await this.orderService.detail(id, user.id);
+
+    if (!order.reservation) {
+      throw new BadRequestException('订单尚未生成预约');
+    }
+    if (![20, 30].includes(order.status)) {
+      throw new BadRequestException('订单当前状态不可入园');
+    }
+
+    const credential = await this.credentialService.issue(order.reservation.id, user.id);
+    return {
+      ...credential,
+      /** 刷新间隔建议：剩余有效期不足 10 秒时可刷新 */
+      refreshAfter: 50,
+      reservationDate: order.reservation.date,
+      remainingCount: order.reservation.totalCount - order.reservation.verifyCount,
+    };
   }
 
   @Post('orders/:id/refund')

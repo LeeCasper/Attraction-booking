@@ -10,6 +10,7 @@
     "seed": "ts-node --transpile-only scripts/seed.ts",
     "smoke": "node scripts/smoke-test.mjs",
     "smoke:order": "node scripts/smoke-order.mjs",
+    "smoke:gate": "node scripts/smoke-gate.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
