@@ -207,9 +207,7 @@ export class VerifyService {
       const target = visitorId ? items.find((i) => i.visitorId === visitorId) : items[0];
       if (target && target.status === OrderItemStatus.VERIFIED) {
         // 重复核销：记录并告警（设计文档 A-033）
-        await this.recordPassage(reservation.scenicAreaId, ctx, 2, VerifyCode.ALREADY_VERIFIED, credentialDigest, reservation.id);
-        await this.raiseDuplicateAlarm(reservation, target.id, ctx);
-        return this.reject(VerifyCode.ALREADY_VERIFIED, '该票已核销', ctx, reservation.id);
+        return this.duplicated(reservation, target.id, ctx, credentialDigest);
       }
       return this.reject(VerifyCode.ALREADY_VERIFIED, '没有可核销的票', ctx, reservation.id);
     }
@@ -286,10 +284,15 @@ export class VerifyService {
         }
       });
     } catch (err) {
+      // 并发下另一个通道先落库：条件 UPDATE 未命中
       if (err instanceof DuplicateVerifyError) {
-        await this.recordPassage(reservation.scenicAreaId, ctx, 2, VerifyCode.ALREADY_VERIFIED, credentialDigest, reservation.id);
-        await this.raiseDuplicateAlarm(reservation, item.id, ctx);
-        return this.reject(VerifyCode.ALREADY_VERIFIED, '该票已核销', ctx, reservation.id);
+        return this.duplicated(reservation, item.id, ctx, credentialDigest);
+      }
+      // 兜底：同一张票被同刻核销时，先到的 INSERT 会占住唯一索引，
+      // 后到的在这里撞 ER_DUP_ENTRY。必须转成可解释的「重复核销」，
+      // 否则并发刷同一张码会得到 500（设计文档 §5.3 幂等三重防线）。
+      if (this.isDuplicateKeyError(err, 'uk_item_once')) {
+        return this.duplicated(reservation, item.id, ctx, credentialDigest);
       }
       throw err;
     }
@@ -368,6 +371,55 @@ export class VerifyService {
     }
 
     return { ok: true, presence };
+  }
+
+  /**
+   * 重复核销的统一出口（设计文档 A-033）
+   *
+   * 只在这里写通行记录：早期实现是「先 recordPassage 再 reject(...)」，
+   * 而 reject() 内部又会按 ctx.gateId 写一条，导致一次重复刷码在
+   * passage_record 里留下两条拒绝记录，看板的「拒绝通行」计数翻倍。
+   */
+  private async duplicated(
+    reservation: Reservation,
+    orderItemId: number | undefined,
+    ctx: VerifyContext,
+    credentialDigest: string,
+  ): Promise<VerifyOutcome> {
+    await this.recordPassage(
+      reservation.scenicAreaId,
+      ctx,
+      2,
+      VerifyCode.ALREADY_VERIFIED,
+      credentialDigest,
+      reservation.id,
+    );
+    if (orderItemId !== undefined) {
+      await this.raiseDuplicateAlarm(reservation, orderItemId, ctx);
+    }
+    this.logger.warn(
+      `重复核销 reservation=${reservation.id} item=${orderItemId ?? '-'} 渠道=${ctx.channel}`,
+    );
+    return {
+      ok: false,
+      code: VerifyCode.ALREADY_VERIFIED,
+      message: '该票已核销',
+      reservationId: reservation.id,
+    };
+  }
+
+  /** MySQL 唯一键冲突判定（TypeORM 把驱动错误包在 QueryFailedError.driverError 里） */
+  private isDuplicateKeyError(err: unknown, indexName?: string): boolean {
+    const e = err as {
+      code?: string;
+      message?: string;
+      driverError?: { code?: string; message?: string; sqlMessage?: string };
+    };
+    const code = e?.driverError?.code ?? e?.code;
+    if (code !== 'ER_DUP_ENTRY') return false;
+    if (!indexName) return true;
+    const msg = e?.driverError?.sqlMessage ?? e?.driverError?.message ?? e?.message ?? '';
+    return msg.includes(indexName);
   }
 
   /** 拒绝通行：记录通行记录（result=2）便于分析与告警 */

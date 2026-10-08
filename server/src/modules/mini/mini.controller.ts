@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsString, Length } from 'class-validator';
+import { randomBytes } from 'crypto';
 import { MiniAuthService } from './mini-auth.service';
 import { MiniTicketService } from './mini-ticket.service';
 import { CurrentUser, MiniAuthGuard, MiniUser } from './mini-auth.guard';
@@ -177,10 +178,13 @@ export class MiniController {
     if (!this.wxpay.mock) {
       throw new NotFoundException('非模拟模式不支持该接口');
     }
-    const result = await this.orderService.markPaid(orderNo, `mock_txn_${Date.now()}`, {
-      mock: true,
+    // 交易号必须唯一：payment.uk_transaction 是唯一索引，
+    // 并发（同一毫秒）模拟支付多笔订单时，纯 Date.now() 会撞键直接 500
+    const result = await this.orderService.markPaid(
       orderNo,
-    });
+      `mock_txn_${Date.now()}_${randomBytes(4).toString('hex')}`,
+      { mock: true, orderNo },
+    );
     return result;
   }
 }
