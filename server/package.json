@@ -11,6 +11,7 @@
     "smoke": "node scripts/smoke-test.mjs",
     "smoke:order": "node scripts/smoke-order.mjs",
     "smoke:gate": "node scripts/smoke-gate.mjs",
+    "smoke:m4": "node scripts/smoke-m4.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

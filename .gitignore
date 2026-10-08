@@ -14,6 +14,9 @@ unpackage/
 # 闸机模拟器本地配置（含闸机密钥）
 gate-simulator/config.json
 
+# 数据库备份产物
+backups/
+
 # logs
 logs/
 *.log

@@ -30,6 +30,12 @@ export default () => ({
     idcardHashSalt: process.env.IDCARD_HASH_SALT ?? 'dev-salt',
     aesKey: process.env.AES_KEY ?? 'dev-aes-key-32-bytes-0123456789ab',
   },
+  backup: {
+    /** 备份目录（相对路径按服务端运行目录解析） */
+    dir: process.env.BACKUP_DIR ?? './backups',
+    /** mysqldump 可执行文件；容器化部署时可指向包装脚本 */
+    dumpBin: process.env.BACKUP_DUMP_BIN ?? '',
+  },
   wx: {
     appid: process.env.WX_APPID ?? '',
     secret: process.env.WX_APP_SECRET ?? '',

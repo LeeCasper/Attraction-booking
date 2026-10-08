@@ -486,3 +486,42 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
   updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_area_date_hour (scenic_area_id, date, hour)
 ) ENGINE=InnoDB COMMENT='分时统计';
+
+-- ------------------------------------------------------------
+-- M4：对账与备份
+-- ------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS reconciliation (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  date            DATE NOT NULL COMMENT '对账日期',
+  channel         VARCHAR(16) NOT NULL DEFAULT 'wxpay' COMMENT 'wxpay/alipay/ota',
+  order_count     INT NOT NULL DEFAULT 0 COMMENT '订单侧笔数',
+  order_amount    BIGINT NOT NULL DEFAULT 0 COMMENT '订单侧金额(分)',
+  payment_count   INT NOT NULL DEFAULT 0 COMMENT '支付流水侧笔数',
+  payment_amount  BIGINT NOT NULL DEFAULT 0,
+  refund_count    INT NOT NULL DEFAULT 0 COMMENT '退款侧笔数',
+  refund_amount   BIGINT NOT NULL DEFAULT 0,
+  diff_count      INT NOT NULL DEFAULT 0 COMMENT '差异笔数',
+  diff_detail     JSON NULL COMMENT '差异明细',
+  status          TINYINT NOT NULL DEFAULT 10 COMMENT '10 已核对无差异 20 存在差异 30 核对失败',
+  remark          VARCHAR(255) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_date_channel (date, channel),
+  KEY idx_status (status)
+) ENGINE=InnoDB COMMENT='对账记录（订单/支付/退款三方核对）';
+
+CREATE TABLE IF NOT EXISTS data_backup (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  file_name     VARCHAR(128) NOT NULL,
+  file_path     VARCHAR(512) NOT NULL,
+  file_size     BIGINT NOT NULL DEFAULT 0 COMMENT '字节',
+  type          VARCHAR(16) NOT NULL DEFAULT 'auto' COMMENT 'auto/manual',
+  status        TINYINT NOT NULL DEFAULT 10 COMMENT '10 进行中 20 成功 30 失败',
+  remark        VARCHAR(255) NULL,
+  created_by    BIGINT UNSIGNED NULL COMMENT '手动备份的操作人',
+  started_at    DATETIME NOT NULL,
+  finished_at   DATETIME NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_created (created_at),
+  KEY idx_status (status)
+) ENGINE=InnoDB COMMENT='数据备份记录';
