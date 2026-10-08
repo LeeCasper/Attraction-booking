@@ -180,19 +180,42 @@ async function main() {
     body: { name: area.name, maxCapacity: 1 },
   });
 
-  const alarmBefore = await api('GET', '/api/admin/alarms?page=1&pageSize=1&status=10', { token });
+  // 承载量告警有「同一天同等级只告警一次」的去重机制，
+  // 因此这里分两条路径验证，保证脚本可重复执行：
+  //   a) 今日尚无该告警 → 应在 75 秒内触发
+  //   b) 今日已有该告警 → 应保持不变（验证去重生效，不刷屏）
+  const countCapacityAlarms = async () => {
+    const list = await api('GET', '/api/admin/alarms?page=1&pageSize=50&status=10', { token });
+    return (list.data?.items ?? []).filter((a) => String(a.type).startsWith('capacity_')).length;
+  };
+  const before = await countCapacityAlarms();
+
   let fired = null;
   for (let i = 0; i < 15; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    const list = await api('GET', '/api/admin/alarms?page=1&pageSize=10&status=10', { token });
-    fired = list.data?.items?.find((a) => String(a.type).startsWith('capacity_'));
-    if (fired) break;
+    const after = await countCapacityAlarms();
+    if (after > before) {
+      const list = await api('GET', '/api/admin/alarms?page=1&pageSize=50&status=10', { token });
+      fired = list.data?.items?.find((a) => String(a.type).startsWith('capacity_'));
+      break;
+    }
+    if (before > 0) break; // 今日已告警过，无需等待
   }
-  check(
-    `承载量超阈值触发分级告警（${fired?.type ?? '未触发'}）`,
-    !!fired,
-    fired ? '' : `等待 75 秒仍未触发，待处理告警数 ${alarmBefore.data?.total}`,
-  );
+
+  if (before > 0) {
+    const after = await countCapacityAlarms();
+    check(
+      `承载量告警去重生效（今日已有 ${before} 条，触发后仍为 ${after} 条，不重复刷屏）`,
+      after === before,
+      `${before} → ${after}`,
+    );
+  } else {
+    check(
+      `承载量超阈值触发分级告警（${fired?.type ?? '未触发'}）`,
+      !!fired,
+      fired ? '' : '等待 75 秒仍未触发',
+    );
+  }
 
   // 还原承载量
   await api('PUT', `/api/admin/scenic/areas/${areaId}`, {

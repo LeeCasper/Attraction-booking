@@ -266,7 +266,7 @@ onMounted(async () => {
           </ElSelect>
         </ElFormItem>
         <ElFormItem>
-          <ElButton v-if="hasAuth('config:update')" type="primary" :loading="running" @click="handleRun">
+          <ElButton v-if="hasAuth('reconcile:run')" type="primary" :loading="running" @click="handleRun">
             <template #icon>
               <icon-ic-round-play-circle class="text-icon" />
             </template>

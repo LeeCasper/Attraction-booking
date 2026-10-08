@@ -40,7 +40,7 @@ export class OpsController {
   // ---------- 对账 ----------
 
   @Post('reconciliations/run')
-  @Permissions('order:read')
+  @Permissions('reconcile:run')
   @ApiOperation({ summary: '执行指定日期对账（订单↔支付↔退款三方核对，幂等）' })
   async runReconciliation(
     @Query() query: ReconcileQueryDto,

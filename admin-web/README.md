@@ -44,6 +44,8 @@ pnpm build        # 产物在 dist/
 | `buttons` | `profile.permissions` | 按钮级权限 `useAuth().hasAuth('ticket:create')` |
 
 后端权限标识（`@Permissions('resource:action')`，超管为 `*`）与前端按钮校验**直接复用**，无需二次映射。
+
+> ⚠️ 新增接口时，**前端按钮的权限标识必须与后端 `@Permissions` 完全一致** —— 不一致会出现「按钮看不见但接口能调」（或反之）的错位。曾出现对账按钮用 `config:update` 而后端声明 `order:read` 的情况，已统一为 `reconcile:run`。
 路由权限写在页面 `meta.roles` 里，超管经 `VITE_STATIC_SUPER_ROLE` 直通。
 
 ### 路由
