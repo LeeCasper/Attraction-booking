@@ -1,3 +1,4 @@
+import type { RouteMeta } from 'vue-router';
 import type { CustomRoute, ElegantConstRoute, ElegantRoute } from '@elegant-router/types';
 import { generatedRoutes } from '../elegant/routes';
 import { layouts, views } from '../elegant/imports';
@@ -192,13 +193,76 @@ const customRoutes: CustomRoute[] = [
   }
 ];
 
+/**
+ * 业务菜单 meta 覆盖
+ *
+ * elegant-router 依据 `src/views/**` 自动生成业务路由（path / component 自动维护），
+ * 但生成的 meta 只有 title=i18nKey。业务页面要求中文标题、图标、排序与角色权限，
+ * 因此在这里按路由名补齐，避免与自动生成机制冲突。
+ *
+ * - `i18nKey: null`：强制使用中文 title（模板规则是 i18nKey 优先于 title）
+ * - `roles`：按后端角色 code 过滤；父级不设 roles，子路由全被过滤时父菜单自动消失
+ *   （超管经 VITE_STATIC_SUPER_ROLE=super 直通）
+ */
+const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
+  // 景区管理
+  scenic: { title: '景区管理', icon: 'mdi:map-marker-radius-outline', order: 3 },
+  scenic_area: { title: '景区信息', icon: 'mdi:information-outline', roles: ['super', 'admin'] },
+  scenic_announcement: { title: '公告管理', icon: 'mdi:bullhorn-outline', roles: ['super', 'admin'] },
+  // 票务管理
+  ticket: { title: '票务管理', icon: 'mdi:ticket-confirmation-outline', order: 4 },
+  'ticket_ticket-type': { title: '票种管理', icon: 'mdi:tag-multiple-outline', roles: ['super', 'admin'] },
+  'ticket_time-slot': { title: '时段管理', icon: 'mdi:clock-time-four-outline', roles: ['super', 'admin'] },
+  'ticket_price-calendar': { title: '价格日历', icon: 'mdi:calendar-star', roles: ['super', 'admin'] },
+  ticket_stock: { title: '库存管理', icon: 'mdi:warehouse', roles: ['super', 'admin'] },
+  // 系统管理
+  system: { title: '系统管理', icon: 'mdi:cog-outline', order: 9 },
+  system_role: { title: '角色权限', icon: 'mdi:shield-account-outline', roles: ['super'] },
+  'system_admin-user': { title: '管理员', icon: 'mdi:account-cog-outline', roles: ['super'] },
+  // 与后端 log:read 权限对应的角色（运维/财务也需查日志）
+  'system_operation-log': { title: '操作日志', icon: 'mdi:file-document-outline', roles: ['super', 'admin', 'finance', 'ops'] },
+  system_config: { title: '参数配置', icon: 'mdi:tune', roles: ['super'] }
+};
+
+/** 递归处理用的结构化节点类型（ElegantRoute 是可辨识联合，叶子路由没有 children 字段） */
+interface RouteNode {
+  name: string;
+  meta?: RouteMeta;
+  children?: RouteNode[];
+  [key: string]: unknown;
+}
+
+/** 递归为自动生成的路由注入业务 meta */
+function withBusinessMeta(routes: unknown[]): unknown[] {
+  return routes.map(route => {
+    const node = route as RouteNode;
+    const override = businessRouteMeta[node.name];
+
+    const children = node.children?.length ? withBusinessMeta(node.children) : node.children;
+
+    if (!override) {
+      return children === node.children ? route : { ...node, children };
+    }
+
+    return {
+      ...node,
+      ...(children ? { children } : {}),
+      meta: {
+        ...node.meta,
+        ...override,
+        i18nKey: null
+      }
+    };
+  });
+}
+
 /** create routes when the auth route mode is static */
 export function createStaticRoutes() {
   const constantRoutes: ElegantRoute[] = [];
 
   const authRoutes: ElegantRoute[] = [];
 
-  [...customRoutes, ...generatedRoutes].forEach(item => {
+  [...customRoutes, ...(withBusinessMeta(generatedRoutes as unknown[]) as unknown as ElegantRoute[])].forEach(item => {
     if (item.meta?.constant) {
       constantRoutes.push(item);
     } else {

@@ -50,6 +50,32 @@ pnpm build        # 产物在 dist/
 
 采用 `VITE_AUTH_ROUTE_MODE=static` + elegant-router 文件路由：`src/views/**` 的新增/删除会自动同步路由（`pnpm gen-route` 手工生成）。
 
+业务路由在 `src/router/routes/index.ts` 的 `customRoutes` 中**手写声明**（可指定中文标题、图标、排序与 `meta.roles` 权限），并在 `build/plugins/router.ts` 的 `customRoutes.names` 中登记，避免 elegant-router 重复生成。
+
+### 页面文案：业务页不做 i18n
+
+模板的 i18n 需要三处同步维护（`src/typings/app.d.ts` 的 `App.I18n.Schema` 类型 + `zh-cn.ts` + `en-us.ts`），对以中文为唯一使用语言的业务页面成本过高。因此：
+
+- **业务页面文案直接写中文**（票务、景区、库存、系统管理等），路由 `meta` 只给 `title`、不给 `i18nKey`（菜单会自动回退到 `title`）
+- **框架部分（登录页、布局、通用按钮）仍走模板 i18n**，语言切换开关保留
+
+后续若需要业务页国际化，按模板方式补 `Schema` 类型与两个语言包即可，属机械改造。
+
+### 页面结构
+
+| 目录 | 说明 |
+| ---- | ---- |
+| `src/views/ticket/ticket-type` | 票种管理（含限购规则、退改规则） |
+| `src/views/ticket/time-slot` | 分时时段管理 |
+| `src/views/ticket/price-calendar` | 价格日历（节假日调价） |
+| `src/views/ticket/stock` | 分时库存（查询/批量生成/手动调整） |
+| `src/views/scenic/area` | 景区信息（含最大承载量） |
+| `src/views/scenic/announcement` | 公告管理 |
+| `src/views/system/role` | 角色与权限分配 |
+| `src/views/system/admin-user` | 管理员管理 |
+| `src/views/system/operation-log` | 操作日志 |
+| `src/views/system/config` | 参数配置 |
+
 ## 对模板做的改动
 
 1. **移除 git hooks**：模板的 `simple-git-hooks`（pre-commit 跑 typecheck+lint、commit-msg 校验）会写入**本仓库根目录的 .git**，从而阻塞整个项目的提交，故从 `package.json` 删除 `prepare` 脚本与 `simple-git-hooks` 配置。需要时手动运行 `pnpm typecheck && pnpm lint`。

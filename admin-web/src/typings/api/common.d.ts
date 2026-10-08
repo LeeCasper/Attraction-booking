@@ -46,5 +46,24 @@ declare namespace Api {
       /** record status */
       status: EnableStatus | undefined;
     } & T;
+
+    // ===== 以下是本项目的服务端契约（与模板的 mock 契约不同）=====
+
+    /**
+     * 服务端分页响应
+     *
+     * 本项目服务端分页接口返回 { items, total }，与模板默认的 { records, current, size, total } 不同，
+     * 需用 utils/backend.ts 的 backendPageTransform 适配。
+     */
+    interface BackendPageRecord<T> {
+      items: T[];
+      total: number;
+    }
+
+    /** 服务端分页查询参数 */
+    interface BackendPageParams {
+      page?: number;
+      pageSize?: number;
+    }
   }
 }

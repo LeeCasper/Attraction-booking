@@ -1,29 +1,38 @@
-import { transformRecordToOption } from '@/utils/common';
+/**
+ * 业务枚举与选项
+ *
+ * 服务端状态位统一以 number 返回（见 server/deploy/sql/init.sql 各表注释），
+ * 与模板 mock 契约的字符串状态不同，故本文件自行定义。
+ */
 
-export const enableStatusRecord: Record<Api.Common.EnableStatus, App.I18n.I18nKey> = {
-  '1': 'page.manage.common.status.enable',
-  '2': 'page.manage.common.status.disable'
+/** 通用启用状态：1 启用 / 2 禁用 */
+export const enableStatusRecord: Record<number, string> = {
+  1: '启用',
+  2: '禁用'
 };
 
-export const enableStatusOptions = transformRecordToOption(enableStatusRecord);
+export const enableStatusOptions = [
+  { value: 1, label: '启用' },
+  { value: 2, label: '禁用' }
+];
 
-export const userGenderRecord: Record<Api.SystemManage.UserGender, App.I18n.I18nKey> = {
-  '1': 'page.manage.user.gender.male',
-  '2': 'page.manage.user.gender.female'
+/** 票种状态：1 上架 / 2 下架 */
+export const ticketStatusRecord: Record<number, string> = {
+  1: '上架',
+  2: '下架'
 };
 
-export const userGenderOptions = transformRecordToOption(userGenderRecord);
-
-export const menuTypeRecord: Record<Api.SystemManage.MenuType, App.I18n.I18nKey> = {
-  '1': 'page.manage.menu.type.directory',
-  '2': 'page.manage.menu.type.menu'
+/** 公告状态：1 已发布 / 2 下架 */
+export const announcementStatusRecord: Record<number, string> = {
+  1: '已发布',
+  2: '下架'
 };
 
-export const menuTypeOptions = transformRecordToOption(menuTypeRecord);
-
-export const menuIconTypeRecord: Record<Api.SystemManage.IconType, App.I18n.I18nKey> = {
-  '1': 'page.manage.menu.iconType.iconify',
-  '2': 'page.manage.menu.iconType.local'
+/** 是否实名 */
+export const needRealnameRecord: Record<number, string> = {
+  0: '否',
+  1: '是'
 };
 
-export const menuIconTypeOptions = transformRecordToOption(menuIconTypeRecord);
+/** 时段状态 */
+export const slotStatusRecord: Record<number, string> = enableStatusRecord;
