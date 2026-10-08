@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import { fetchGetVerifications } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
 import { backendPageTransform } from '@/utils/backend';
@@ -98,10 +98,6 @@ function resetSearch() {
   searchParams.value = getInitSearchParams();
   getDataByPage(1);
 }
-
-onMounted(() => {
-  getData();
-});
 </script>
 
 <template>

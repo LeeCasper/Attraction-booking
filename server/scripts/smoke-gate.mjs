@@ -101,25 +101,40 @@ async function main() {
   const types = await api('GET', `/api/admin/ticket-types?areaId=${areaId}`, { token: adminToken });
   const ticketTypeId = types.data?.[0]?.id;
 
-  // 创建一个覆盖当前时间的临时时段（保证与运行时刻无关，核销时段校验可通过）
+  // 需要一个「当前时间落在核销时段容差内」的时段。
+  // 优先复用已有的冒烟时段（避免每次运行都新增时段、让库存维度无限增长），没有才新建。
   const now = new Date();
   const startH = new Date(now.getTime() - 60 * 60 * 1000);
   const endH = new Date(now.getTime() + 60 * 60 * 1000);
   const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const slotRes = await api('POST', '/api/admin/time-slots', {
-    token: adminToken,
-    body: {
-      scenicAreaId: areaId,
-      name: `冒烟时段${RUN % 1000}`,
-      startTime: hm(startH),
-      endTime: hm(endH),
-      sortOrder: 99,
-    },
-  });
-  const slotId = slotRes.data?.id;
+  const minutesOf = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const coversNow = (slot) =>
+    nowMinutes >= minutesOf(slot.startTime) - 60 && nowMinutes <= minutesOf(slot.endTime) + 60;
+
+  const existingSlots = await api('GET', `/api/admin/time-slots?areaId=${areaId}`, { token: adminToken });
+  const reusable = (existingSlots.data ?? []).find((s) => s.name.startsWith('冒烟时段') && coversNow(s));
+
+  let slotId = reusable?.id;
   if (!slotId) {
-    console.error('临时时段创建失败：', JSON.stringify(slotRes.json));
-    process.exit(1);
+    const slotRes = await api('POST', '/api/admin/time-slots', {
+      token: adminToken,
+      body: {
+        scenicAreaId: areaId,
+        name: `冒烟时段${RUN % 1000}`,
+        startTime: hm(startH),
+        endTime: hm(endH),
+        sortOrder: 99,
+      },
+    });
+    slotId = slotRes.data?.id;
+    if (!slotId) {
+      console.error('临时时段创建失败：', JSON.stringify(slotRes.json));
+      process.exit(1);
+    }
   }
 
   // 为今天生成该时段的库存
