@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
-import { fetchGetOrders } from '@/service/api';
+import { exportReport, fetchGetOrders } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
 import { backendPageTransform } from '@/utils/backend';
 import { formatPrice } from '@/utils/business';
@@ -107,6 +107,28 @@ function resetSearch() {
   searchParams.value.date = null;
   getDataByPage(1);
 }
+
+/** 导出 CSV：订单页仅单个「预约日期」，导出区间取 start = end = 该日期 */
+const exporting = ref(false);
+
+async function handleExport() {
+  const { date } = searchParams.value;
+
+  if (!date) {
+    window.$message?.warning('请先选择日期范围');
+    return;
+  }
+
+  exporting.value = true;
+
+  try {
+    await exportReport('orders', { start: date, end: date });
+  } catch (err) {
+    window.$message?.error((err as Error).message || '导出失败');
+  } finally {
+    exporting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -148,6 +170,12 @@ function resetSearch() {
         <ElFormItem>
           <ElButton type="primary" @click="handleSearch">查询</ElButton>
           <ElButton @click="resetSearch">重置</ElButton>
+          <ElButton plain :loading="exporting" @click="handleExport">
+            <template #icon>
+              <icon-ic-round-download class="text-icon" />
+            </template>
+            导出 CSV
+          </ElButton>
         </ElFormItem>
       </ElForm>
     </ElCard>

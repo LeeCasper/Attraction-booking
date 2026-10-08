@@ -40,6 +40,26 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'analysis',
+    path: '/analysis',
+    component: 'layout.base',
+    meta: {
+      title: 'analysis',
+      i18nKey: 'route.analysis'
+    },
+    children: [
+      {
+        name: 'analysis_overview',
+        path: '/analysis/overview',
+        component: 'view.analysis_overview',
+        meta: {
+          title: 'analysis_overview',
+          i18nKey: 'route.analysis_overview'
+        }
+      }
+    ]
+  },
+  {
     name: 'dashboard',
     path: '/dashboard',
     component: 'layout.base',
@@ -132,6 +152,35 @@ export const generatedRoutes: GeneratedRoute[] = [
       constant: true,
       hideInMenu: true
     }
+  },
+  {
+    name: 'ops',
+    path: '/ops',
+    component: 'layout.base',
+    meta: {
+      title: 'ops',
+      i18nKey: 'route.ops'
+    },
+    children: [
+      {
+        name: 'ops_backup',
+        path: '/ops/backup',
+        component: 'view.ops_backup',
+        meta: {
+          title: 'ops_backup',
+          i18nKey: 'route.ops_backup'
+        }
+      },
+      {
+        name: 'ops_reconcile',
+        path: '/ops/reconcile',
+        component: 'view.ops_reconcile',
+        meta: {
+          title: 'ops_reconcile',
+          i18nKey: 'route.ops_reconcile'
+        }
+      }
+    ]
   },
   {
     name: 'order',

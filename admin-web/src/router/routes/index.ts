@@ -235,6 +235,17 @@ const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
   gate_device: { title: '闸机设备', icon: 'mdi:devices', roles: ['super', 'admin', 'ops'] },
   gate_passage: { title: '通行记录', icon: 'mdi:transit-connection-variant', roles: ['super', 'admin', 'ops'] },
   gate_alarm: { title: '告警中心', icon: 'mdi:alert-octagon-outline', roles: ['super', 'admin', 'ops'] },
+  // 运营分析
+  analysis: { title: '运营分析', icon: 'mdi:chart-areaspline', order: 7 },
+  analysis_overview: {
+    title: '经营分析',
+    icon: 'mdi:finance',
+    roles: ['super', 'admin', 'finance', 'leader']
+  },
+  // 运维管理
+  ops: { title: '运维管理', icon: 'mdi:tools', order: 8 },
+  ops_reconcile: { title: '三方对账', icon: 'mdi:scale-balance', roles: ['super', 'admin', 'finance'] },
+  ops_backup: { title: '数据备份', icon: 'mdi:database-arrow-down-outline', roles: ['super', 'ops'] },
   // 系统管理
   system: { title: '系统管理', icon: 'mdi:cog-outline', order: 9 },
   system_role: { title: '角色权限', icon: 'mdi:shield-account-outline', roles: ['super'] },

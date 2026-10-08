@@ -6,7 +6,7 @@ import {
   passageResultTagType,
   verifyCodeRecord
 } from '@/constants/business';
-import { fetchGetGates, fetchGetPassages, fetchGetScenicAreas } from '@/service/api';
+import { exportReport, fetchGetGates, fetchGetPassages, fetchGetScenicAreas } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
 import { backendPageTransform } from '@/utils/backend';
 import { formatDate } from '@/utils/business';
@@ -135,6 +135,28 @@ function resetSearchParams() {
   getDataByPage(1);
 }
 
+/** 导出 CSV：通行记录页仅单个「日期」，导出区间取 start = end = 该日期，并沿用当前景区筛选 */
+const exporting = ref(false);
+
+async function handleExport() {
+  const { date, areaId } = searchParams.value;
+
+  if (!date) {
+    window.$message?.warning('请先选择日期范围');
+    return;
+  }
+
+  exporting.value = true;
+
+  try {
+    await exportReport('passages', { start: date, end: date, areaId: areaId ?? undefined });
+  } catch (err) {
+    window.$message?.error((err as Error).message || '导出失败');
+  } finally {
+    exporting.value = false;
+  }
+}
+
 onMounted(async () => {
   const { data: areaList, error } = await fetchGetScenicAreas();
 
@@ -199,6 +221,12 @@ onMounted(async () => {
         <ElFormItem>
           <ElButton type="primary" @click="handleSearch">查询</ElButton>
           <ElButton @click="resetSearchParams">重置</ElButton>
+          <ElButton plain :loading="exporting" @click="handleExport">
+            <template #icon>
+              <icon-ic-round-download class="text-icon" />
+            </template>
+            导出 CSV
+          </ElButton>
         </ElFormItem>
       </ElForm>
     </ElCard>

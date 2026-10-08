@@ -202,6 +202,11 @@ const local: App.I18n.Schema = {
     gate_device: 'Gate Devices',
     gate_passage: 'Passages',
     gate_alarm: 'Alarms',
+    analysis: 'Analysis',
+    analysis_overview: 'Business Analysis',
+    ops: 'Operations',
+    ops_reconcile: 'Reconciliation',
+    ops_backup: 'Backups',
   },
   page: {
     login: {

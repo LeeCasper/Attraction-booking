@@ -202,6 +202,11 @@ const local: App.I18n.Schema = {
     gate_device: '闸机设备',
     gate_passage: '通行记录',
     gate_alarm: '告警中心',
+    analysis: '运营分析',
+    analysis_overview: '经营分析',
+    ops: '运维管理',
+    ops_reconcile: '三方对账',
+    ops_backup: '数据备份',
   },
   page: {
     login: {

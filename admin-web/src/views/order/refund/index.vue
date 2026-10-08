@@ -1,6 +1,6 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
-import { fetchGetRefunds } from '@/service/api';
+import { exportReport, fetchGetRefunds } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
 import { backendPageTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
@@ -115,6 +115,36 @@ function resetSearch() {
   searchParams.value.status = 10;
   getDataByPage(1);
 }
+
+/**
+ * 导出 CSV
+ *
+ * 退款列表仅按状态筛选、没有日期条件，而导出接口要求 start / end 必填，
+ * 因此这里用一个独立的「导出日期」区间，不影响现有的列表查询参数。
+ */
+const exportRange = ref<[string, string] | null>(null);
+const exporting = ref(false);
+
+async function handleExport() {
+  const range = exportRange.value;
+
+  if (!range) {
+    window.$message?.warning('请先选择日期范围');
+    return;
+  }
+
+  const [start, end] = range;
+
+  exporting.value = true;
+
+  try {
+    await exportReport('refunds', { start, end });
+  } catch (err) {
+    window.$message?.error((err as Error).message || '导出失败');
+  } finally {
+    exporting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -131,9 +161,26 @@ function resetSearch() {
             <ElOption v-for="(label, value) in refundStatusRecord" :key="value" :label="label" :value="Number(value)" />
           </ElSelect>
         </ElFormItem>
+        <ElFormItem label="导出日期">
+          <ElDatePicker
+            v-model="exportRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="~"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            class="w-240px"
+          />
+        </ElFormItem>
         <ElFormItem>
           <ElButton type="primary" @click="handleSearch">查询</ElButton>
           <ElButton @click="resetSearch">重置</ElButton>
+          <ElButton v-if="hasAuth('stats:read')" plain :loading="exporting" @click="handleExport">
+            <template #icon>
+              <icon-ic-round-download class="text-icon" />
+            </template>
+            导出 CSV
+          </ElButton>
         </ElFormItem>
       </ElForm>
     </ElCard>

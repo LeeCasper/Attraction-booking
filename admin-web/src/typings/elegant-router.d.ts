@@ -34,6 +34,8 @@ declare module "@elegant-router/types" {
     "403": "/403";
     "404": "/404";
     "500": "/500";
+    "analysis": "/analysis";
+    "analysis_overview": "/analysis/overview";
     "dashboard": "/dashboard";
     "dashboard_realtime": "/dashboard/realtime";
     "gate": "/gate";
@@ -43,6 +45,9 @@ declare module "@elegant-router/types" {
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
+    "ops": "/ops";
+    "ops_backup": "/ops/backup";
+    "ops_reconcile": "/ops/reconcile";
     "order": "/order";
     "order_list": "/order/list";
     "order_refund": "/order/refund";
@@ -111,11 +116,13 @@ declare module "@elegant-router/types" {
     | "403"
     | "404"
     | "500"
+    | "analysis"
     | "dashboard"
     | "gate"
     | "home"
     | "iframe-page"
     | "login"
+    | "ops"
     | "order"
     | "scenic"
     | "system"
@@ -145,11 +152,14 @@ declare module "@elegant-router/types" {
     | "500"
     | "iframe-page"
     | "login"
+    | "analysis_overview"
     | "dashboard_realtime"
     | "gate_alarm"
     | "gate_device"
     | "gate_passage"
     | "home"
+    | "ops_backup"
+    | "ops_reconcile"
     | "order_list"
     | "order_refund"
     | "scenic_announcement"
