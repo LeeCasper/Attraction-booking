@@ -37,6 +37,9 @@ declare module "@elegant-router/types" {
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
+    "order": "/order";
+    "order_list": "/order/list";
+    "order_refund": "/order/refund";
     "scenic": "/scenic";
     "scenic_announcement": "/scenic/announcement";
     "scenic_area": "/scenic/area";
@@ -102,6 +105,7 @@ declare module "@elegant-router/types" {
     | "home"
     | "iframe-page"
     | "login"
+    | "order"
     | "scenic"
     | "system"
     | "ticket"
@@ -130,6 +134,8 @@ declare module "@elegant-router/types" {
     | "iframe-page"
     | "login"
     | "home"
+    | "order_list"
+    | "order_refund"
     | "scenic_announcement"
     | "scenic_area"
     | "system_admin-user"

@@ -190,6 +190,9 @@ const local: App.I18n.Schema = {
     'system_admin-user': 'Admins',
     'system_operation-log': 'Operation Logs',
     system_config: 'Configs',
+    order: 'Orders',
+    order_list: 'Order Search',
+    order_refund: 'Refunds',
   },
   page: {
     login: {

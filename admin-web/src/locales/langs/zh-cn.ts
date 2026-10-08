@@ -190,6 +190,9 @@ const local: App.I18n.Schema = {
     'system_admin-user': '管理员',
     'system_operation-log': '操作日志',
     system_config: '参数配置',
+    order: '订单管理',
+    order_list: '订单查询',
+    order_refund: '退款审核',
   },
   page: {
     login: {

@@ -76,6 +76,35 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'order',
+    path: '/order',
+    component: 'layout.base',
+    meta: {
+      title: 'order',
+      i18nKey: 'route.order'
+    },
+    children: [
+      {
+        name: 'order_list',
+        path: '/order/list',
+        component: 'view.order_list',
+        meta: {
+          title: 'order_list',
+          i18nKey: 'route.order_list'
+        }
+      },
+      {
+        name: 'order_refund',
+        path: '/order/refund',
+        component: 'view.order_refund',
+        meta: {
+          title: 'order_refund',
+          i18nKey: 'route.order_refund'
+        }
+      }
+    ]
+  },
+  {
     name: 'scenic',
     path: '/scenic',
     component: 'layout.base',

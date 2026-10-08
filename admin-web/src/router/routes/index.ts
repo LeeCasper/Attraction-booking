@@ -215,6 +215,10 @@ const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
   'ticket_time-slot': { title: '时段管理', icon: 'mdi:clock-time-four-outline', roles: ['super', 'admin'] },
   'ticket_price-calendar': { title: '价格日历', icon: 'mdi:calendar-star', roles: ['super', 'admin'] },
   ticket_stock: { title: '库存管理', icon: 'mdi:warehouse', roles: ['super', 'admin'] },
+  // 订单管理
+  order: { title: '订单管理', icon: 'mdi:clipboard-text-outline', order: 5 },
+  order_list: { title: '订单查询', icon: 'mdi:file-search-outline', roles: ['super', 'admin', 'finance'] },
+  order_refund: { title: '退款审核', icon: 'mdi:cash-refund', roles: ['super', 'admin', 'finance'] },
   // 系统管理
   system: { title: '系统管理', icon: 'mdi:cog-outline', order: 9 },
   system_role: { title: '角色权限', icon: 'mdi:shield-account-outline', roles: ['super'] },
