@@ -1,31 +1,10 @@
 {
   "pages": [
     {
-      "path": "pages/home/index",
+      "path": "pages/main/index",
       "style": {
         "navigationStyle": "custom",
         "navigationBarTitleText": "枫林谷景区"
-      }
-    },
-    {
-      "path": "pages/booking/index",
-      "style": {
-        "navigationStyle": "custom",
-        "navigationBarTitleText": "预约购票"
-      }
-    },
-    {
-      "path": "pages/credential/index",
-      "style": {
-        "navigationStyle": "custom",
-        "navigationBarTitleText": "入园凭证"
-      }
-    },
-    {
-      "path": "pages/profile/index",
-      "style": {
-        "navigationStyle": "custom",
-        "navigationBarTitleText": "个人中心"
       }
     }
   ],

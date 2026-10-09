@@ -17,13 +17,18 @@ const statusBarHeight = ref(0);
 // 胶囊左侧到屏幕右边的距离，作为 header 的右内边距，避免内容被真胶囊盖住
 const capsuleInset = ref(0);
 
-const sys = uni.getSystemInfoSync();
-statusBarHeight.value = sys.statusBarHeight ?? 0;
+// getSystemInfoSync 自基础库 2.20.1 起废弃，会往控制台打弃用告警。
+// 优先用拆分后的 getWindowInfo，旧基础库上回退（`?.` 对不存在的方法返回 undefined）。
+type WindowMetrics = { statusBarHeight?: number; windowWidth: number };
+const win: WindowMetrics =
+  (uni as unknown as { getWindowInfo?: () => WindowMetrics }).getWindowInfo?.() ?? uni.getSystemInfoSync();
+
+statusBarHeight.value = win.statusBarHeight ?? 0;
 
 // #ifdef MP-WEIXIN
 const rect = uni.getMenuButtonBoundingClientRect();
 if (rect && rect.width > 0) {
-  capsuleInset.value = sys.windowWidth - rect.left + 8;
+  capsuleInset.value = win.windowWidth - rect.left + 8;
 }
 // #endif
 
@@ -38,27 +43,38 @@ const headerStyle = computed(() => {
 </script>
 
 <template>
-  <view class="pg-header" :style="headerStyle">
-    <view class="pg-header__bar">
-      <view class="pg-header__brand">
-        <view class="pg-header__logo">
-          <view class="msi icon-park text-[19px]" />
-        </view>
-        <view class="pg-header__names">
-          <view class="pg-header__title-row">
-            <text class="pg-header__cn">枫林谷景区</text>
-            <text class="pg-header__en">Fenglingu</text>
-          </view>
-          <text class="pg-header__sub">国家生态自然公园 · 智慧文旅</text>
-        </view>
-      </view>
+  <view class="pg-header__wrap">
+    <!--
+      占位块：让出**真实状态栏**的高度，把页面内容顶下去。
+      设计稿的 <main> 只有固定的 pt-16（64px），那是按「没有状态栏」画的 ——
+      而顶栏实际高度是「状态栏 + 56px」，真机上状态栏有 40+px，
+      于是顶栏盖住了下面约 40px 的内容（H5 上看不出来，因为状态栏为 0）。
+      这里补上这段差值：H5 上高度为 0、与设计稿完全一致，真机自动让位。
+    -->
+    <view class="pg-header__spacer" :style="{ height: `${statusBarHeight}px` }" />
 
-      <!-- 真机下此处留空（真胶囊由微信渲染）；H5 预览可画回设计稿的假胶囊 -->
-      <view v-if="props.mockCapsule" class="pg-header__capsule">
-        <view class="msi icon-more_horiz text-[17px]" />
-        <view class="pg-header__capsule-line" />
-        <view class="pg-header__capsule-dot-wrap">
-          <view class="pg-header__capsule-dot" />
+    <view class="pg-header" :style="headerStyle">
+      <view class="pg-header__bar">
+        <view class="pg-header__brand">
+          <view class="pg-header__logo">
+            <view class="msi icon-park text-19px" />
+          </view>
+          <view class="pg-header__names">
+            <view class="pg-header__title-row">
+              <text class="pg-header__cn">枫林谷景区</text>
+              <text class="pg-header__en">Fenglingu</text>
+            </view>
+            <text class="pg-header__sub">国家生态自然公园 · 智慧文旅</text>
+          </view>
+        </view>
+
+        <!-- 真机下此处留空（真胶囊由微信渲染）；H5 预览可画回设计稿的假胶囊 -->
+        <view v-if="props.mockCapsule" class="pg-header__capsule">
+          <view class="msi icon-more_horiz text-17px" />
+          <view class="pg-header__capsule-line" />
+          <view class="pg-header__capsule-dot-wrap">
+            <view class="pg-header__capsule-dot" />
+          </view>
         </view>
       </view>
     </view>
@@ -66,6 +82,16 @@ const headerStyle = computed(() => {
 </template>
 
 <style lang="scss" scoped>
+// 外层不画任何东西，高度完全由里面的 spacer 决定 ——
+// 内部那条 .pg-header 是 position:fixed，不参与文档流，所以不会撑高外层。
+.pg-header__wrap {
+  flex-shrink: 0;
+}
+
+.pg-header__spacer {
+  width: 100%;
+}
+
 .pg-header {
   position: fixed;
   top: 0;

@@ -15,7 +15,8 @@
     "gen:fonts": "node scripts/gen-fonts.mjs",
     "gen": "npm run gen:utilities && npm run gen:icons && npm run gen:fonts && npm run gen:qr && npm run gen:pages",
     "gen:pages": "node scripts/gen-pages.mjs",
-    "gen:qr": "node scripts/gen-qr-pattern.mjs"
+    "gen:qr": "node scripts/gen-qr-pattern.mjs",
+    "check:classes": "node scripts/check-classes.mjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",

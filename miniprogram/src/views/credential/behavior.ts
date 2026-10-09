@@ -20,6 +20,29 @@ const INITIAL_REMAIN = 41;
 /** 水印里的手机尾号（设计稿原文）。接接口后换成持票人脱敏手机号 */
 const PHONE_MASK = '138****0011';
 
+export interface PassMode {
+  id: string;
+  /** msi 图标名 */
+  icon: string;
+  label: string;
+  hint: string;
+  /** 设计稿里只有「主推荐」带胶囊底 */
+  hintPill?: boolean;
+  /** 未选中时的图标色 / 提示色，设计稿两项写法不同 */
+  hintTone?: 'muted' | 'primary';
+}
+
+/**
+ * 「支持通行方式」三选一（设计稿原文）。
+ * 一期只切换选中态；**真正决定闸机怎么验的是后端**，接接口后这里要改成
+ * 「提交偏好 + 读取服务端该票种支持的通行方式」，而不是纯前端开关。
+ */
+const PASS_MODES: PassMode[] = [
+  { id: 'qr', icon: 'qr_code_scanner', label: '动态二维码', hint: '主推荐', hintPill: true },
+  { id: 'idcard', icon: 'id_card', label: '实体身份证', hint: '贴卡即过' },
+  { id: 'face', icon: 'face', label: '人脸识别', hint: '录入', hintTone: 'primary' },
+];
+
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const hhmmss = (d = new Date()) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
@@ -76,6 +99,11 @@ export function useCredentialPage() {
     uni.showToast({ title: '导出离线票待接入', icon: 'none' });
   }
 
+  // —— 支持通行方式（设计稿默认选「动态二维码」）——
+  const passModes = ref(PASS_MODES);
+  const passMode = ref(PASS_MODES[0].id);
+  const onPickPassMode = (id: string) => (passMode.value = id);
+
   return {
     qrSeed: seed,
     countdownLabel,
@@ -83,5 +111,8 @@ export function useCredentialPage() {
     refreshQr: refresh,
     watermarks,
     onExport,
+    passModes,
+    passMode,
+    onPickPassMode,
   };
 }

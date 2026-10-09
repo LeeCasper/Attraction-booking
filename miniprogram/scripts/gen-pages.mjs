@@ -21,24 +21,38 @@
  * 用法：npm run gen:pages
  *   产物写在 src/pages/<name>/index.vue，会覆盖手工改动，改前请注意。
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DESIGN = join(ROOT, 'design/reference');
-const OUT_DIR = join(ROOT, 'src/pages');
+const OUT_DIR = join(ROOT, 'src/views');
 const classmap = JSON.parse(readFileSync(join(ROOT, 'design/classmap.json'), 'utf8'));
 
 import { PAGE_BINDINGS } from './page-bindings.mjs';
 
-/** 页面定义：设计稿文件名 → 页面名 / 底部 tab 的 active 值 / 正文底部留白 */
+/** 页面定义：设计稿文件名 → 视图名 / 位图归位 */
 const PAGES = [
-  { file: 'home.html', name: 'home', activeTab: 'home', img: { 'aida-public': '/static/images/banner-home.jpg' } },
-  { file: 'booking.html', name: 'booking', activeTab: 'booking', img: { 'aida-public': '/static/images/banner-booking.jpg' } },
-  { file: 'credential.html', name: 'credential', activeTab: 'digital-pass', img: {} },
-  { file: 'profile.html', name: 'profile', activeTab: 'profile', img: { 'aida-public': '/static/images/bg-profile.jpg' } },
+  { file: 'home.html', name: 'home', img: { 'aida-public': '/static/images/banner-home.jpg' } },
+  { file: 'booking.html', name: 'booking', img: { 'aida-public': '/static/images/banner-booking.jpg' } },
+  { file: 'credential.html', name: 'credential', img: {} },
+  { file: 'profile.html', name: 'profile', img: { 'aida-public': '/static/images/bg-profile.jpg' } },
 ];
+
+/**
+ * 这几个类由「外壳」统一承担，生成视图时要去掉。
+ *
+ * 为什么要改成单页架构：微信的 tabBar 切换**必然**重建页面视图层，
+ * `reLaunch` / `switchTab` / 自定义 tabBar 都躲不开切换闪烁（平台长期问题）。
+ * 改成「一个页面 + 四个视图 v-show」后，切页只是 CSS 显隐 —— 没有页面转场，就不可能闪。
+ *
+ * 代价是布局责任搬家：
+ *   - `min-h-screen`：视图不再是整屏，高度由外壳的滚动容器给
+ *   - `pb-24` / `pb-28`：底部留白改由底栏自己占位（见 components/TabBar.vue）
+ * 顶部的 `pt-16` **保留** —— 给固定顶栏让位仍然靠它（顶栏另有状态栏高度的占位块）。
+ */
+const VIEW_DROP = new Set(['min-h-screen', 'pb-24', 'pb-28']);
 
 /**
  * 标签映射的关键在于**保持块级/行内的区别**：
@@ -236,8 +250,8 @@ function render(node, page, ctx) {
   const classStr = node.attrs.class ?? '';
   const styleStr = node.attrs.style ?? '';
 
-  // — 行为绑定：按设计稿预留的 id 注入组件/属性/文本（见 scripts/page-bindings.mjs）—
-  const binding = node.attrs.id ? ctx.bindings?.[node.attrs.id] : undefined;
+  // — 行为绑定：由 resolveBindings 预扫描后挂在节点上（见下）—
+  const binding = node.__binding;
   if (binding?.replace) return binding.replace;
 
   // — 图标：material-symbols-outlined 的 span，图标名写在文字内容里 —
@@ -268,7 +282,12 @@ function render(node, page, ctx) {
   const wrapInner = !!binding?.wrapInner;
 
   const { mapped, press } = splitClasses(classStr);
-  let cls = wrapInner ? 'w-full' : mapped;
+  // ownClass：整段替换元素自身的 class。用于「元素要改成另一种标签、但设计稿的类
+  // 得留给组件根节点」的场合 —— 例如日期条的 scroll-view 自带 flex 滚动类，
+  // 改成 <scroll-view> 后这些类要挪进 DateCards 组件，scroll-view 只留 w-full。
+  // innerCls：wrapInner 时挪到内部包裹层的原始设计类。
+  const ownClass = binding?.ownClass;
+  let cls = ownClass ?? (wrapInner ? 'w-full' : mapped);
   const innerCls = wrapInner ? mapped : '';
 
   // — 背景图：WXSS 不能用本地路径做 background-image，改为插入绝对定位的 <image> —
@@ -288,7 +307,9 @@ function render(node, page, ctx) {
   const rawInner =
     binding?.text !== undefined
       ? `{{ ${binding.text} }}`
-      : node.children.map((c) => render(c, page, { ...ctx, inText })).join('');
+      : binding?.inner !== undefined
+        ? binding.inner // 保留元素自身与属性，只把子节点换成模板串
+        : node.children.map((c) => render(c, page, { ...ctx, inText })).join('');
 
   // 插入的 <image> 是绝对定位元素，按层叠规则会盖在同层「静态定位」的覆盖内容之上。
   // 故把原内容包一层显式提升层级（position:relative + z-index:1），
@@ -331,6 +352,66 @@ function buildInlineStyle(styleStr, bgMatch) {
   return s;
 }
 
+/**
+ * 把 bindings 的每个键解析到设计稿里的**唯一**一个节点上（结果挂在 node.__binding）。
+ *
+ * 键有两种写法：
+ *   '#slotGrid'                              —— 按设计稿预留的 id
+ *   'grid grid-cols-3 gap-2.5 text-center'   —— 按 class 列表：空格分隔，全部命中才算匹配
+ *
+ * 为什么要第二种：设计稿并非每个交互区都留了 id。凭证页的「支持通行方式」、
+ * 购票页的出行游客登记与底部待付条，都**一个 id 都没有**，只能按 class 定位。
+ *
+ * **匹配数必须恰好 1**：多了会静默改错元素、少了会静默不生效，两种都极难排查。
+ * 所以这里直接判失败并跳过该页的写出 —— 设计稿一变或选择器写得不够特异，构建立刻炸。
+ *
+ * 返回问题条数（0 = 全部命中）。
+ */
+function resolveBindings(tree, bindings, pageName) {
+  const entries = Object.entries(bindings ?? {});
+  if (!entries.length) return 0;
+
+  const hits = new Map(entries.map(([key]) => [key, []]));
+  (function walk(node) {
+    for (const c of node.children ?? []) {
+      if (c.tag === '#text') continue;
+      for (const key of hits.keys()) if (matchesSelector(c, key)) hits.get(key).push(c);
+      walk(c);
+    }
+  })(tree);
+
+  const problems = [];
+  for (const [key, binding] of entries) {
+    const found = hits.get(key);
+    if (found.length === 1) found[0].__binding = binding;
+    else problems.push(`    ${key}\n      → 匹配到 ${found.length} 个元素，要求恰好 1 个`);
+  }
+
+  if (problems.length) {
+    console.error(`✗ ${pageName}：绑定键定位失败，本页不写出`);
+    problems.forEach((p) => console.error(p));
+    process.exitCode = 1;
+  }
+  return problems.length;
+}
+
+function matchesSelector(node, key) {
+  // '#id' —— 按 id
+  if (key.startsWith('#')) return node.attrs?.id === key.slice(1);
+  const have = (node.attrs?.class ?? '').split(/\s+/).filter(Boolean);
+  // '= a b c' —— class 完全相等。用于「类很少、且被别的元素包含」的元素：
+  //   例如购票页的「已选 N 人」与紧跟的「新增出行人」按钮共享 4 个类，
+  //   子集匹配会同时命中两者，只有全等才能把它们分开。
+  if (key.startsWith('=')) {
+    const want = key.slice(1).split(/\s+/).filter(Boolean);
+    return want.length === have.length && want.every((t) => have.includes(t));
+  }
+  // 其余 —— 子集匹配：列出的 token 全含即命中
+  const need = key.split(/\s+/).filter(Boolean);
+  if (!need.length) return false;
+  return need.every((t) => have.includes(t));
+}
+
 // ---------------------------------------------------------------- 主流程
 for (const page of PAGES) {
   const html = readFileSync(join(DESIGN, page.file), 'utf8');
@@ -347,16 +428,22 @@ for (const page of PAGES) {
   const main = findFirst(body, 'main');
   const source = main ?? body;
 
-  // 关键：<main> 自身的 class 必须带到页面容器上。
-  // 设计稿的 <main> 带 pt-14（给固定 header 让位）与 pb-24/pb-28（给底部 tab 让位），
-  // 之前只取子元素、丢掉这些类，导致内容顶到屏幕最上沿被 header 压住、底部也无留白。
-  const mainClasses = mapClasses(source.attrs?.class ?? '');
+  // 关键：<main> 自身的 class 必须带到视图容器上。
+  // 其中 pt-16 是给固定顶栏让位的、必须保留（曾经漏掉它，内容顶到屏幕最上沿被顶栏压住）；
+  // min-h-screen 与 pb-24/pb-28 是「整页」时代的职责，现在归外壳与底栏，见 VIEW_DROP。
+  const mainClasses = mapClasses(source.attrs?.class ?? '')
+    .split(/\s+/)
+    .filter((c) => c && !VIEW_DROP.has(c))
+    .join(' ');
 
   const spec = PAGE_BINDINGS[page.name] ?? {};
 
+  // 绑定先解析成节点上的 __binding —— 定位不唯一就跳过本页，不写出半成品
+  if (resolveBindings(tree, spec.bindings, page.name)) continue;
+
   let tpl = source.children
     .filter((c) => !(c.tag === '#text' && !c.text.trim()))
-    .map((c) => render(c, page, { inText: false, bindings: spec.bindings }))
+    .map((c) => render(c, page, { inText: false }))
     .join('\n    ');
 
   const extraImports = (spec.imports ?? []).join('\n');
@@ -364,23 +451,21 @@ for (const page of PAGES) {
 
   const vue = `<template>
   <view class="pg-page ${mainClasses}">
-    <PageHeader />
     ${tpl}
-    <TabBar active="${page.activeTab}" />
   </view>
 </template>
 
 <script setup lang="ts">
-import PageHeader from '@/components/PageHeader.vue';
-import TabBar from '@/components/TabBar.vue';
 ${extraImports}
-// 页面行为（手写，见 pages/${page.name}/behavior.ts）—— 见 scripts/page-bindings.mjs
+// 视图行为（手写，见 views/${page.name}/behavior.ts）—— 见 scripts/page-bindings.mjs
+const props = defineProps<{ active: boolean }>();
 ${spec.setup ?? ''}
 </script>
 
 <!-- 由 scripts/gen-pages.mjs 从 design/reference/${page.file} 生成，手工改动会被覆盖 -->
 <style lang="scss" scoped>
-// mainClasses 来自设计稿 <main> 的 class（pt-14 / pb-24 等），由生成器带上
+// mainClasses 来自设计稿 <main> 的 class（pt-16 等），由生成器带上。
+// 顶栏与底栏不在这里 —— 它们由外壳 src/pages/main/index.vue 只渲染一次。
 .pg-page {
   background-color: $c-surface;
 }
@@ -388,6 +473,7 @@ ${spec.style ?? ''}
 </style>
 `;
 
+  mkdirSync(join(OUT_DIR, page.name), { recursive: true });
   writeFileSync(join(OUT_DIR, page.name, 'index.vue'), vue);
   const lines = vue.split('\n').length;
   console.log(`✓ ${page.name.padEnd(11)} ← ${page.file.padEnd(16)} ${lines} 行，${(vue.length / 1024).toFixed(1)} KB`);
