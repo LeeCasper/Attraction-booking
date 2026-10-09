@@ -72,9 +72,17 @@ export class OrderService {
     const visitorEntities: Visitor[] = [];
     const seenHash = new Set<string>();
     for (const v of visitors) {
-      const idCardHash = this.cipher.hash(v.idCard);
+      // 传了 visitorId 就走「已保存的常用出行人」这条路：小程序端只有脱敏证件号，
+      // 明文由服务端按 id 取（并校验归属，避免拿别人的 visitorId 下单）
+      let visitor: Visitor | null = null;
+      if (v.visitorId) {
+        visitor = await this.visitorRepo.findOne({ where: { id: v.visitorId, userId } });
+        if (!visitor) throw new NotFoundException('出行人不存在');
+      }
+
+      const idCardHash = visitor ? visitor.idCardHash : this.cipher.hash(v.idCard!);
       if (seenHash.has(idCardHash)) {
-        throw new BadRequestException(`同一订单内证件重复：${v.name}`);
+        throw new BadRequestException(`同一订单内证件重复：${visitor ? visitor.name : v.name}`);
       }
       seenHash.add(idCardHash);
 
@@ -82,20 +90,23 @@ export class OrderService {
         where: { type: 1, valueHash: idCardHash, status: 1 },
       });
       if (blocked && (!blocked.expireTime || blocked.expireTime > new Date())) {
-        throw new ForbiddenException(`证件 ${maskIdCard(v.idCard)} 已被限制预约`);
+        const shown = visitor ? (visitor.idCardMask ?? '该证件') : maskIdCard(v.idCard!);
+        throw new ForbiddenException(`证件 ${shown} 已被限制预约`);
       }
 
-      let visitor = await this.visitorRepo.findOne({
-        where: { userId, idCardHash },
-      });
+      if (!visitor) {
+        visitor = await this.visitorRepo.findOne({
+          where: { userId, idCardHash },
+        });
+      }
       if (!visitor) {
         visitor = await this.visitorRepo.save(
           this.visitorRepo.create({
             userId,
-            name: v.name,
-            idCardEnc: this.cipher.encrypt(v.idCard),
+            name: v.name!,
+            idCardEnc: this.cipher.encrypt(v.idCard!),
             idCardHash,
-            idCardMask: maskIdCard(v.idCard),
+            idCardMask: maskIdCard(v.idCard!),
             phoneEnc: v.phone ? this.cipher.encrypt(v.phone) : null,
           }),
         );

@@ -126,18 +126,34 @@ async function main() {
     }
     console.log('✓ 已创建示例景区与 4 个时段');
 
-    // 票种
-    const [t]: any = await conn.query(
-      `INSERT INTO ticket_type (scenic_area_id, name, audience, base_price, refund_rule, need_realname, status, remark)
-       VALUES (?, '成人票', '18-60周岁', 6000, ?, 1, 1, '示例票种')`,
-      [areaId, JSON.stringify({ beforeDay: 1, feeRate: 0.2, expiredNoRefund: true })],
-    );
+    // 票种 —— 三个，与小程序设计稿上的三张票卡对齐（成人全票 / 优待票 / 四季家庭年卡）。
+    // `audience` 在小程序端被当作票卡的第二行说明文案渲染，所以这里直接填设计稿的副标题。
+    const ticketTypes: [string, string, number][] = [
+      ['成人全票', '含核心景区及山水栈道通用', 12000],
+      ['优待票（长者 / 学生）', '60周岁及以上长者、全日制在读学生', 6000],
+      ['四季家庭年卡', '两大一小全年无限次入园 · 赠观光缆车', 38800],
+    ];
+    for (const [name, audience, basePrice] of ticketTypes) {
+      const [t]: any = await conn.query(
+        `INSERT INTO ticket_type (scenic_area_id, name, audience, base_price, refund_rule, need_realname, status, remark)
+         VALUES (?, ?, ?, ?, ?, 1, 1, '示例票种')`,
+        [areaId, name, audience, basePrice, JSON.stringify({ beforeDay: 1, feeRate: 0.2, expiredNoRefund: true })],
+      );
+      await conn.query(
+        `INSERT INTO purchase_rule (ticket_type_id, per_user_per_order, per_user_per_day, per_idcard_per_day)
+         VALUES (?, 4, 5, 1)`,
+        [Number(t.insertId)],
+      );
+    }
+    console.log(`✓ 已创建 ${ticketTypes.length} 个示例票种（成人全票 120 / 优待票 60 / 家庭年卡 388）与限购规则`);
+
+    // 公告 —— 小程序首页的公告条直接读它（`GET /api/mini/areas/:id` 的 announcements）
     await conn.query(
-      `INSERT INTO purchase_rule (ticket_type_id, per_user_per_order, per_user_per_day, per_idcard_per_day)
-       VALUES (?, 4, 5, 1)`,
-      [Number(t.insertId)],
+      `INSERT INTO announcement (scenic_area_id, title, content, status, published_at)
+       VALUES (?, '入园分时预约须知', '请持有效身份证件有序核验入园', 1, NOW())`,
+      [areaId],
     );
-    console.log('✓ 已创建示例票种「成人票」(60 元) 与限购规则');
+    console.log('✓ 已创建示例公告「入园分时预约须知」');
     console.log(`\n提示：可用 POST /api/admin/stocks/generate 为未来日期生成分时库存`);
   } else {
     console.log('✓ 已存在景区数据，跳过示例数据');

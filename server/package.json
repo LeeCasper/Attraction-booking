@@ -15,7 +15,8 @@
     "loadtest:booking": "k6 run loadtest/booking.js",
     "loadtest:oversell": "k6 run loadtest/oversell.js",
     "loadtest:gate": "k6 run loadtest/gate.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "smoke:visitor": "node scripts/smoke-visitor.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

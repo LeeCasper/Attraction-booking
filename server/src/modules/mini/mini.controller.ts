@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +17,8 @@ import { IsString, Length } from 'class-validator';
 import { randomBytes } from 'crypto';
 import { MiniAuthService } from './mini-auth.service';
 import { MiniTicketService } from './mini-ticket.service';
+import { MiniVisitorService } from './mini-visitor.service';
+import { CreateVisitorDto, UpdateVisitorDto } from './dto/visitor.dto';
 import { CurrentUser, MiniAuthGuard, MiniUser } from './mini-auth.guard';
 import { OrderService } from '../order/order.service';
 import { PayService } from '../pay/pay.service';
@@ -37,6 +41,7 @@ export class MiniController {
   constructor(
     private readonly authService: MiniAuthService,
     private readonly ticketService: MiniTicketService,
+    private readonly visitorService: MiniVisitorService,
     private readonly orderService: OrderService,
     private readonly payService: PayService,
     private readonly wxpay: WxPayService,
@@ -167,6 +172,40 @@ export class MiniController {
     @Body() dto: ApplyRefundDto,
   ) {
     return this.payService.applyRefund(id, user.id, dto.reason);
+  }
+
+  // ==================== 常用出行人（PRD U-031 / 技术方案 §3.2）====================
+
+  @Get('visitors')
+  @UseGuards(MiniAuthGuard)
+  @ApiOperation({ summary: '常用出行人列表（脱敏，不含明文证件）' })
+  listVisitors(@CurrentUser() user: MiniUser) {
+    return this.visitorService.list(user.id);
+  }
+
+  @Post('visitors')
+  @UseGuards(MiniAuthGuard)
+  @ApiOperation({ summary: '新增常用出行人（身份证校验位验真；同证件重复添加为幂等）' })
+  createVisitor(@CurrentUser() user: MiniUser, @Body() dto: CreateVisitorDto) {
+    return this.visitorService.create(user.id, dto);
+  }
+
+  @Put('visitors/:id')
+  @UseGuards(MiniAuthGuard)
+  @ApiOperation({ summary: '编辑常用出行人（改证件会重新验真与查重；设为默认会清掉其它默认）' })
+  updateVisitor(
+    @CurrentUser() user: MiniUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateVisitorDto,
+  ) {
+    return this.visitorService.update(user.id, id, dto);
+  }
+
+  @Delete('visitors/:id')
+  @UseGuards(MiniAuthGuard)
+  @ApiOperation({ summary: '删除常用出行人（已被订单引用的不允许删除，否则订单会缺持票人）' })
+  removeVisitor(@CurrentUser() user: MiniUser, @Param('id', ParseIntPipe) id: number) {
+    return this.visitorService.remove(user.id, id);
   }
 
   // ==================== 联调辅助（仅 mock 模式可用）====================

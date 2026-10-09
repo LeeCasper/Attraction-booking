@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ScenicArea } from '../../database/entities/scenic.entity';
+import { Announcement, ScenicArea } from '../../database/entities/scenic.entity';
 import {
   PriceCalendar,
   TicketStock,
@@ -14,6 +14,7 @@ import { StockCacheService } from '../ticket/stock-cache.service';
 export class MiniTicketService {
   constructor(
     @InjectRepository(ScenicArea) private readonly areaRepo: Repository<ScenicArea>,
+    @InjectRepository(Announcement) private readonly annoRepo: Repository<Announcement>,
     @InjectRepository(TicketType) private readonly typeRepo: Repository<TicketType>,
     @InjectRepository(TimeSlot) private readonly slotRepo: Repository<TimeSlot>,
     @InjectRepository(TicketStock) private readonly stockRepo: Repository<TicketStock>,
@@ -33,15 +34,22 @@ export class MiniTicketService {
     }));
   }
 
-  /** 景区详情 */
+  /** 景区详情（含时段与公告 —— 技术方案 §3.2 的口径是「景区详情 + 公告 + 开放时间」） */
   async areaDetail(id: number) {
     const area = await this.areaRepo.findOne({ where: { id, status: 1 } });
     if (!area) return null;
-    const slots = await this.slotRepo.find({
-      where: { scenicAreaId: id, status: 1 },
-      order: { sortOrder: 'ASC' },
-    });
-    return { ...area, timeSlots: slots };
+    const [slots, announcements] = await Promise.all([
+      this.slotRepo.find({
+        where: { scenicAreaId: id, status: 1 },
+        order: { sortOrder: 'ASC' },
+      }),
+      // 只给已发布的（status=1），按发布时间倒序，口径与管理端 listAnnouncements 一致
+      this.annoRepo.find({
+        where: { scenicAreaId: id, status: 1 },
+        order: { publishedAt: 'DESC', id: 'DESC' },
+      }),
+    ]);
+    return { ...area, timeSlots: slots, announcements };
   }
 
   /**
