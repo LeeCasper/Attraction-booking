@@ -11,6 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 代码实现必须与设计文档一致；偏离设计时同步更新文档。
 
+其余文档：根 `README.md`（给人看的快速开始与里程碑表）、`docs/` 下三份交付文档（部署运维 / 操作手册 / 测试报告）、
+以及各子工程自己的 README —— **改动某个子工程前先看它自己的 README**，跨工程的坑写在本文档里。
+
 ## 常用命令
 
 ```bash
@@ -38,6 +41,22 @@ npm run loadtest:booking    # 1000 并发下单
 npm run loadtest:gate       # 核验 / 开闸 / 看板延迟
 ```
 
+各子工程的独立命令（**包管理器不统一：`server/` 与 `miniprogram/` 用 npm，`admin-web/` 用 pnpm**）：
+
+```bash
+# —— admin-web（包管理器用 pnpm）——
+cd admin-web && pnpm install && pnpm dev     # :9527；另有 pnpm typecheck / pnpm lint
+
+# —— miniprogram（包管理器用 npm）——
+cd miniprogram && npm install && npm run dev:mp-weixin   # 产物 dist/dev/mp-weixin
+npm run type-check        # vue-tsc
+npm run gen               # 重跑全部生成器（页面模板、工具类样式、图标、字体、二维码）
+npm run check:classes     # 校验所有 .vue 用到的 class 都有出处，见「关键约束」第 9 条
+
+# —— gate-simulator（零依赖，无构建步骤）——
+cd gate-simulator && node gate.js <cmd>
+```
+
 新增接口后**扩展对应的 smoke 脚本**，保持状态无关（可重复执行、不依赖数据库初始值；涉及库存的用例要使用与运行标识绑定的日期，避免复用上轮已锁定的库存）。
 
 改了下单/核验/闸机链路的并发行为后，再跑一遍 `loadtest/`：**串行冒烟测不出并发缺陷** ——
@@ -62,7 +81,7 @@ admin-web/           SoybeanAdmin(Element Plus 版) 二开，Vue3 + Element Plus
                      （集成约定见 admin-web/README.md）
 gate-simulator/      零依赖闸机 CLI（node gate.js <cmd>），按设计 §5.4 实现 HMAC 签名
 miniprogram/         游客端小程序（uni-app + Vue3 + Vite + TS，详见其 README.md）
-                     页面模板与工具类样式由 scripts/ 下的生成器产出，勿手改产物
+                     页面版式由 scripts/ 下的生成器从设计稿产出，勿手改产物（见下）
 ```
 
 单体按业务域分模块，模块边界即未来微服务边界。
@@ -75,7 +94,7 @@ miniprogram/         游客端小程序（uni-app + Vue3 + Vite + TS，详见其
 
 ### 表结构权威来源是 SQL，不是实体
 
-`deploy/sql/init.sql` 是**唯一权威 schema**（32 张表），TypeORM `synchronize: false`。
+`deploy/sql/init.sql` 是**唯一权威 schema**（34 张表），TypeORM `synchronize: false`。
 
 - 新建/改表：改 `init.sql` **并**对运行中的库执行 `ALTER TABLE`（或 `down -v` 重建后重跑 seed）
 - `init.sql` 只在**数据卷为空**时被 MySQL 容器执行，改完不会自动生效
@@ -119,6 +138,25 @@ miniprogram/         游客端小程序（uni-app + Vue3 + Vite + TS，详见其
 
 Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），日志会打 warn。
 
+### 闸机模块：一期为模拟器驱动
+
+闸机接口（`/api/gate/*`）**按真机协议实现**（HMAC 签名 + 时间戳容差 + nonce 防重放 + cmdId 幂等），一期由 `gate-simulator/` CLI 驱动联调，接真机时只需按厂商协议实现 Adapter，服务端不用改。种子数据含两台示例闸机（GATE001 入口 / GATE002 出口，密钥 `dev-gate-secret-change-me`，与 `gate-simulator/config.example.json` 一致）。
+
+关键口径：**在园人数以闸机「通行回执」为准**（result=1 通过或 4 应急放行），核验通过但未实际通行不计数；每 5 分钟用 `passage_record` 校准 Redis 计数。
+
+### 微信支付：本地默认是模拟模式
+
+`.env` 里 `WXPAY_MOCK=true`（本机没有商户证书文件；未配置 `WX_APPID` 时小程序登录也一并走 mock）。
+上线前要置 `false` 并配置 `WXPAY_PRIVATE_KEY_PATH` / `WXPAY_API_V3_KEY` / `WX_APPID` / `WX_APP_SECRET`，
+配置清单见 `docs/部署与运维.md`。仓库根目录的 `apiclient_key.pem` 是本机调试留下的，已被 `*.pem` 忽略。
+
+### 小程序：页面版式是「生成」的
+
+`miniprogram/` 的页面模板与工具类样式**由 `scripts/` 下的生成器从设计稿产出**，
+`src/pages/*/index.vue`、`styles/utilities.scss`、`classmap.json`、图标与字体都是产物 —— **手改会被下次 `npm run gen` 覆盖**。
+交互区则是手写组件（`src/components/`），生成器只负责把它们按设计稿的 id/class 注进页面版式里。
+要改页面外观：改生成器或 `page-bindings.mjs`；要改交互：改组件与 `pages/*/behavior.ts`。
+
 ## 关键约束（踩过的坑）
 
 1. **dev/seed 必须用 `ts-node`，不能用 `tsx`/esbuild 系工具** —— 它们不产出 `emitDecoratorMetadata`，TypeORM 与 NestJS DI 都会崩。`build` 走的 `tsc` 没问题。
@@ -127,6 +165,18 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
 4. **查询参数不做隐式转换** —— `PaginationDto` 用 `@Type(() => Number)`，其它数值 query 参数用 `ParseIntPipe`（可空时 `new ParseIntPipe({ optional: true })`）。
 5. 建表时 `NOT NULL` 的时间列记得给 `DEFAULT CURRENT_TIMESTAMP(3)`，否则 TypeORM 省略该字段时插入失败。
 6. **改 `.env` 后必须手动重启服务** —— `npm run dev` 的 nodemon 只监听 `src/`，配置改动不会触发热重载，进程会一直用旧环境变量（表现为「明明改了配置却不生效」）。
+7. **小程序报 `module 'pages/xxx/yyy.js' is not defined` 时先别查代码** —— 产物是完整的。
+   两个工具侧原因：`uni build` 会先**清空整个产物目录**再重写（工具正开着该目录时会扑空），
+   且微信开发者工具**对新增文件不热编译**。处理：重新编译或关闭项目重新导入。
+   **每次新增源文件都会遇到**，详见 `miniprogram/README.md`。
+8. **小程序的 rpx 系数是 ×750/390（≈1.9231），不是约定俗成的 ×2** —— 设计画布 390pt。
+   按 ×2 换算每个元素都会大约 4%。
+9. **小程序模板里的 class 必须用「消毒名」**（`text-[19px]` → `text-19px`，`gap-2.5` → `gap-2_5`）：
+   WXSS 选择器对 `[ ] . ( ) # /` 支持不可靠，生成器只产出消毒名，手写原始类名会**静默无样式**。
+   `npm run check:classes` 兜底（这条抓出过真 bug：`PageHeader.vue` 里留着 `text-[19px]`，
+   而图标尺寸由 font-size 决定，一直按继承字号渲染）。
+10. **`miniprogram/` 的 `@dcloudio/*` 六个包必须钉完全相同的版本**，`vite` 精确锁 `5.2.8`
+    （`vite-plugin-uni` 的 peerDependency 是精确版本），且用 npm 而非 pnpm。改动前先读该工程的 README。
 
 ## 当前进度（对照设计文档 §9）
 
@@ -136,18 +186,13 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
 - **M4 服务端 + 后台页面已完成**：运营分析（趋势/转化/客流/票种/渠道/财务）、报表导出（5 类 CSV）、三方对账、数据备份、承载量分级预警，冒烟 25/25
 - **性能压测已完成**：`server/loadtest/`（k6）—— 防超卖 200 抢 50 / 1000 抢 100 恰好等于库存量；1000 并发下单零拒绝零 5xx；核验 P95 < 500ms、开闸链路 P95 < 1s、看板 P95 < 50ms。压测还暴露并修复了 3 个并发缺陷（见 `docs/测试报告.md` §3.4）
 - **交付文档**：`docs/部署与运维.md`（含微信支付配置清单、备份恢复演练、故障排查）、`docs/操作手册.md`（按角色的操作指引与失败原因对照表）、`docs/测试报告.md`（112 项断言 + 压测结果 + PRD 验收对照）
-- **小程序端界面已还原**：`miniprogram/` 已从微信官方 quickstart 模板重建为 uni-app（Vue3+Vite+TS），
+- **小程序端界面已还原并接上本地交互**：`miniprogram/` 已从微信官方 quickstart 模板重建为 uni-app（Vue3+Vite+TS），
   按 Stitch 设计稿 1:1 还原了 4 个页面（景区预约首页 / 分时预约购票页 / 动态防伪电子凭证页 / 个人中心），
-  mp-weixin 构建通过、主包 446KB。
-  已做**纯视觉动效**：凭证 60s 倒计时 + 二维码刷新 + 防伪水印时间戳、日期条横向滚动与两端渐隐、
-  呼吸点、按下态（`active:*` 已改走 `hover-class`，小程序的 `<view>` 不触发 `:active`）。
-  **尚未做**：本地交互状态（选日期/选时段/勾游客，对应设计稿的 `slotGrid` 等 id）与接口联调 ——
-  数据仍是设计稿原文硬编码。详见 `miniprogram/README.md`
-- **未开工**：小程序端本地交互状态与接口联调（接口已全部就绪并通过冒烟与压测）
-
-### 闸机模块：一期为模拟器驱动
-
-闸机接口（`/api/gate/*`）**按真机协议实现**（HMAC 签名 + 时间戳容差 + nonce 防重放 + cmdId 幂等），一期由 `gate-simulator/` CLI 驱动联调，接真机时只需按厂商协议实现 Adapter，服务端不用改。种子数据含两台示例闸机（GATE001 入口 / GATE002 出口，密钥 `dev-gate-secret-change-me`，与 `gate-simulator/config.example.json` 一致）。
-
-关键口径：**在园人数以闸机「通行回执」为准**（result=1 通过或 4 应急放行），核验通过但未实际通行不计数；每 5 分钟用 `passage_record` 校准 Redis 计数。
-- **微信支付当前处于本地模拟模式**：本机无商户证书文件，`.env` 中 `WXPAY_MOCK=true`（未配置 `WX_APPID` 时小程序登录也走 mock）。上线前需置 `WXPAY_MOCK=false` 并配置 `WXPAY_PRIVATE_KEY_PATH` / `WXPAY_API_V3_KEY` / `WX_APPID` / `WX_APP_SECRET`
+  mp-weixin 构建通过。已做**纯视觉动效**（凭证 60s 倒计时 + 二维码刷新 + 防伪水印时间戳、日期条横向滚动与两端渐隐、
+  呼吸点、按下态 —— `active:*` 改走 `hover-class`，小程序的 `<view>` 不触发 `:active`）与**本地交互状态**
+  （购票页选日期/选时段/勾游客/新增出行人 + 底部金额联动、凭证页通行方式三选一、个人中心四态筛选与离线凭证刷新轻提示）。
+  交互区抽成了 7 个手写组件，页面版式仍由设计稿生成；**设计稿没给样本的 2 处状态（游客未勾选圈、
+  「选中+紧张」的日期胶囊）是推断值**，验收时按 README 的清单核对。
+  **尚未做**：接口联调 —— 数据仍是 `pages/*/behavior.ts` 里的硬编码常量，接接口只需替换常量，组件不用动。
+  详见 `miniprogram/README.md`
+- **未开工**：小程序端后端接口联调（接口已全部就绪并通过冒烟与压测）
