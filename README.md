@@ -11,7 +11,7 @@
 
 ```
 ├── server/          # NestJS 服务端（RESTful API + JWT + RBAC + WebSocket）
-│   ├── scripts/     # 冒烟测试（112 项断言）
+│   ├── scripts/     # 冒烟测试（148 项断言）
 │   └── loadtest/    # k6 性能压测
 ├── admin-web/       # 后台管理（Vue3 + Element Plus）
 ├── miniprogram/     # 游客端小程序（uni-app + Vue3 + Vite + TS）
@@ -34,8 +34,8 @@ cd server && cp .env.example .env && npm install && npm run seed
 # 3. 启动服务（ts-node + nodemon 热重载）
 npm run dev
 
-# 4. 冒烟测试（112 项断言，可重复执行）
-npm run smoke && npm run smoke:order && npm run smoke:gate && npm run smoke:m4
+# 4. 冒烟测试（148 项断言，可重复执行）
+npm run smoke && npm run smoke:order && npm run smoke:gate && npm run smoke:m4 && npm run smoke:visitor
 
 # 5. 性能压测（需先装 k6，见 server/loadtest/README.md）
 npm run loadtest:oversell && npm run loadtest:booking && npm run loadtest:gate

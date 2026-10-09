@@ -32,6 +32,7 @@ npm run smoke               # M1：25 项断言（认证/RBAC/票务/库存）
 npm run smoke:order         # M2：28 项断言（下单/防超卖/支付/退款）
 npm run smoke:gate          # M3：34 项断言（凭证/闸机核验/核销/通行/告警/看板）
 npm run smoke:m4            # M4：25 项断言（运营分析/导出/对账/备份/承载预警，约 1.5 分钟）
+npm run smoke:visitor       # 常用出行人：36 项断言（CRUD/身份证校验位验真/脱敏/越权/删除保护）
 npm run lint                # tsc --noEmit
 npm run build && npm start  # 生产构建
 
@@ -175,6 +176,11 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
    WXSS 选择器对 `[ ] . ( ) # /` 支持不可靠，生成器只产出消毒名，手写原始类名会**静默无样式**。
    `npm run check:classes` 兜底（这条抓出过真 bug：`PageHeader.vue` 里留着 `text-[19px]`，
    而图标尺寸由 font-size 决定，一直按继承字号渲染）。
+   **`icon-*` 也逐名核对**（对 `styles/icons.scss` 里真实生成的规则）——
+   `.msi` 是「底色为 currentColor 的 1em 方块 + mask 挖出图形」，引用不存在的图标名时
+   mask 那条规则没有，方块**不会消失而是实心渲染**成深色方块。
+   `icon-arrow_back`（生成器里只有 `arrow_forward`）就这样把返回键画成了黑方块，肉眼只当是图标风格。
+   新增图标：加进 `design/icons.txt` → `npm run gen:icons`。
 10. **`miniprogram/` 的 `@dcloudio/*` 六个包必须钉完全相同的版本**，`vite` 精确锁 `5.2.8`
     （`vite-plugin-uni` 的 peerDependency 是精确版本），且用 npm 而非 pnpm。改动前先读该工程的 README。
 
@@ -193,6 +199,11 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
   （购票页选日期/选时段/勾游客/新增出行人 + 底部金额联动、凭证页通行方式三选一、个人中心四态筛选与离线凭证刷新轻提示）。
   交互区抽成了 7 个手写组件，页面版式仍由设计稿生成；**设计稿没给样本的 2 处状态（游客未勾选圈、
   「选中+紧张」的日期胶囊）是推断值**，验收时按 README 的清单核对。
-  **尚未做**：接口联调 —— 数据仍是 `pages/*/behavior.ts` 里的硬编码常量，接接口只需替换常量，组件不用动。
+  **尚未做**：接口联调 —— 数据仍是 `views/*/behavior.ts` 里的硬编码常量，接接口只需替换常量，组件不用动。
   详见 `miniprogram/README.md`
-- **未开工**：小程序端后端接口联调（接口已全部就绪并通过冒烟与压测）
+- **小程序端后端接口已补齐**：技术方案 §3.2 列的一期 P0 小程序接口（12 个）**全部实现**。
+  本轮补上了最后缺的一组 —— `GET|POST|PUT|DELETE /api/mini/visitors`（常用出行人）：
+  **身份证校验位验真**（GB 11643 MOD 11-2，见 `common/utils/idcard.util.ts`）、返回只给脱敏、
+  默认出行人唯一、上限 10，且**拒绝删除已被订单引用的出行人**（`order_item` 只存 visitor_id、
+  不快照姓名证件，硬删会让历史订单丢掉持票人）。配套 `npm run smoke:visitor`（36 项断言）
+- **未开工**：小程序端与后端的**联调**（请求层、登录态、四个页面换真实数据）—— 接口侧已全部就绪

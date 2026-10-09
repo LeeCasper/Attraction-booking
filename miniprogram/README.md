@@ -79,12 +79,13 @@
 
 ### ⚠️ 设计稿没给样本、由推断补上的状态
 
-这两处**设计稿里没有对应样本**，是本实现按设计系统推断的。做验收时请按此核对，不要当成还原偏差：
+这几处**设计稿里没有对应样本**，是本实现按设计系统推断的。做验收时请按此核对，不要当成还原偏差：
 
 | 处 | 设计稿只有 | 本实现的推断 |
 | --- | --- | --- |
 | 游客未勾选态的单选圈 | 「已勾选」一个样本（`border-2 border-primary` + `bg-primary/10` + 内层实心点） | 外圈改中性描边 `border-silk-border`、去掉 `bg-primary/10`、不渲染内层实心点 |
 | 「选中 + 紧张」的日期卡 | 选中卡恒为「充足」，胶囊是白透底 `bg-white/20` | 选中卡的状态胶囊**统一用白透底**、只换文案；不叠加琥珀色（白透底在青绿渐变上可读，琥珀叠上去会脏） |
+| 出行游客登记的**空态** | 设计稿画了 1 位出行人，没有「一位都没有」的样子 | 卡片内改成「圆圈图标 + 暂未添加出行人 + 点下方『新增出行人』登记」。**空卡片（`p-space-md` + 白底）会只剩一个空白圆角块，看着像渲染坏了**，所以必须有话可读；加载中另走 `正在加载出行人…`，不在没拿到数据时替用户下结论 |
 
 另有一处**看着像 bug、其实设计稿原样如此**：个人中心「待入园·进行中行程」卡里
 `闸机离线核验码已同步` 被截断成 `闸机离线核验…`，且改签/退款与显示入园码挤在一行 ——
@@ -129,6 +130,48 @@ src/pages/main/index.vue          唯一页面（手写外壳）
 把它们作为独立页面 `navigateTo` 上去即可（子页面本来也没有切换闪烁问题）；
 但如果哪天需要「分享链接直接打开某个 tab」，得走 `pages/main/index` 的查询参数（目前没做）。
 
+### 与后端的对接（数据来自哪里）
+
+**请求层与登录态**（本轮新增）：
+
+```
+src/api/config.ts   baseUrl。⚠️ 小程序端必须用**开发机局域网 IP**（真机上 localhost 是手机自己）；
+                    H5 预览走 localhost，后端已开 CORS，不用配 proxy
+src/api/request.ts  uni.request 封装：注入 Bearer、拆 {code,msg,data}、code≠0 抛错、
+                    **code=40100 时清 token 静默重登一次**
+src/api/index.ts    按域分组的类型化接口（areas / tickets / stocks / orders / credential / visitors）
+src/store/user.ts   token 与 profile 的存取 + ensureLogin()（并发只登一次）
+src/store/order.ts  「当前订单」：下单支付成功后记住，凭证页据此取凭证
+src/store/shell.ts  当前 tab —— 视图里也要能切页（下单成功 → 跳凭证页）
+src/utils/format.ts 分→元、日期/星期、HH:mm:ss→HH:mm。**金额一律是分**，别在页面里自己 /100
+```
+
+**已接真实数据的部分**：
+
+| 视图 | 数据来源 |
+| --- | --- |
+| 首页 | 仍是静态（见下） |
+| 购票页 | 单价 `/tickets`；日期条与时段余量 `/stocks`；出行人 `/visitors`；下单 `POST /orders` → 模拟支付 `POST /pay/mock-notify` → 自动跳凭证页 |
+| 凭证页 | 时段与持票人 `/orders/:id`；动态码 `/orders/:id/credential`（token / 60s 有效期 / 剩余 10s 时自动换码）；水印里的脱敏手机号回查 `/visitors`（凭证与订单接口都不给这个字段） |
+| 个人中心 | 四态筛选角标与统计 `/orders`；常用出行人 `/visitors` |
+| 出行人管理页 | `src/pages/visitor/index.vue` —— **设计稿里没有这一页**，版式自拟，把 `visitors` 的增删改 UI 补上 |
+
+**仍是静态的（后端没有对应接口，不是漏做）**：
+首页的开园状态 / 在园率 / 天气 / 便民四宫格 / 票卡营销角标；购票页的「限购 5 人」与入园须知文案；
+凭证页的通行方式三选一、导出离线票、闸机联网状态；个人中心的用户资料（昵称/头像/手机号/实名）、
+「年卡·优惠券」、门禁智联三行绑定状态、进行中行程卡、电子发票、履约信誉。
+**人脸**按技术方案 §7「三期前不采集」，那一行只能是 mock。
+
+**本轮新增的已知偏差**：
+
+| 项 | 原因 | 表现 |
+| --- | --- | --- |
+| **二维码是图案不是真码** | 把 token 编码成二维码矩阵需要引入编码器（本项目没有这个依赖）；闸机验的是 token 本体 | 图案由 token 推导（换码时图案会变），但**扫不出内容**。无订单时退回设计稿原图案 |
+| **个人中心出行人卡第二行改了文案** | 设计稿写的是「已录入人脸 / 刷身份证过闸」这类**能力标签**，后端没有任何对应字段 | 改显示**脱敏证件号** —— 有真实信息量且不编造能力状态 |
+| **接上真数据后部分文案与设计稿不同** | 设计稿的副标题、角标是占位文本，接口只给 `name`/`audience`/`price` 等字段 | 票种副标题取 `audience`（示例数据已按设计稿文案填，所以默认态一致；运营改了就会变） |
+| **首页票卡未接数据** | 三张卡类名完全相同、角标/价格单位/底部文案各不相同，要逐张绑定价位需给生成器加 `:nth` 定位再写 9 处绑定 | 首页仍显示设计稿原文；**运营改了票价首页不会变**（购票页会） |
+| **控制台有 `Do not nest other components in the text component` 警告** | 设计稿把图标 `<span>` 放在文本 `<span>` 里，生成器按块级/行内规则转成了 `<text>` 里嵌 `<view>` | 仅告警，两个平台渲染均正常；属 Phase ① 就有的产物特征 |
+
 设计来源：Stitch 项目 *Scenic Spot Reservation UI System*，设计系统「Cyan Ink & Bamboo Stone」。
 重新拉取设计稿的方法见 `design/reference/README.md`。
 
@@ -146,8 +189,14 @@ npm run gen                # 重新生成样式与页面（见下「代码生成
 npm run type-check
 ```
 
-**微信开发者工具导入 `dist/dev/mp-weixin`（或 `dist/build/mp-weixin`）目录**，不是工程根目录 ——
-小程序源码根是 uni-app 的编译产物，不是 `src/`。appid 已写在 `src/manifest.json` 的 `mp-weixin.appid`。
+**微信开发者工具导入 `dist/dev/mp-weixin` 目录**（并让 `npm run dev:mp-weixin` 常驻），不是工程根目录；
+**也请不要导入 `dist/build/mp-weixin`** —— 小程序源码根是 uni-app 的编译产物，不是 `src/`，
+而 `build/` 是**生产构建**：`npm run build:mp-weixin` 每次都会先清空整个目录，
+工具若正开着它，下一次构建就会撞上下面的「`module ... is not defined`」。
+appid 已写在 `src/manifest.json` 的 `mp-weixin.appid`。
+
+> **怎么判断工具当前开的是哪一棵**：导入项目时工具会往项目根写一份 `project.private.config.json`，
+> 看它落在 `dist/dev/` 还是 `dist/build/` 下就知道了。
 
 > 工程根目录**不放** `project.config.json`：uni-app 每次构建都会往产物目录里生成一份（含 appid），
 > 根目录再放一份只会导致「改了不生效」的困惑。
@@ -286,6 +335,7 @@ miniprogram/
 | **无 hover 态** | 触屏无指针悬停 | `hover:*` / `group-hover:*` / `selection:*` 共 27 个类被丢弃，改用 `hover-class` 表达按下态 |
 | **栅格用 CSS Grid** | 曾用「flex + 子项百分比宽度」，叠加 `gap` 后超过 100% 导致换行错乱 | `grid-cols-N` → `grid-template-columns: repeat(N, minmax(0,1fr))` |
 | **顶栏下方多一个状态栏高度的占位块** | 设计稿的 `<main>` 只有固定的 `pt-16`（64px），那是按**没有状态栏**画的；而顶栏是「状态栏 + 56px」，真机上状态栏 40+px，于是内容被顶栏盖住（实测 44px 状态栏下被遮 37px）。H5 看 **不出来**，因为状态栏为 0 | `PageHeader` 里加了一个高度 = 真实状态栏的占位块。H5 上高度为 0、与设计稿逐像素一致；真机上自动让位，间距恒为 7px。**不能用 uni-app 的 `--status-bar-height` 代替** —— 它在产物里是构建时写死的 `25px`，运行时不更新 |
+| **底栏只用了半个底部安全区** | 设计稿给底栏的是完整的 `pb-safe`，真机（安全区 34px）上菜单文字下面会留出一大条空白带，看着像底栏被拉高了 | 改用 `$safe-bottom-tabbar`（`calc(env(safe-area-inset-bottom) * 0.5)`，34px → 17px）：菜单明显更贴近屏幕下沿，仍留在 Home Indicator 手势条之上。**用 `env()` 相乘而不是写死 px 是必须的** —— 无安全区的机型上它恒为 0，写死会让那些机型凭空多出底部留白。`TabBar` 的 padding-bottom、`TabBar` 的让位块、`BookingBar` 的 bottom 偏移**三处必须同值**，否则底栏与上方内容错位 |
 
 ## 体积
 
