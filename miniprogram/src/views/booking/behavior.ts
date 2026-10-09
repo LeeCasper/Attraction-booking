@@ -1,20 +1,29 @@
-import { computed, getCurrentInstance, onMounted, reactive, ref } from 'vue';
+import { computed, getCurrentInstance, onMounted, reactive, ref, watch } from 'vue';
+import { areaApi, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
+import { errorText } from '@/api/request';
+import { setCurrentOrderId } from '@/store/order';
+import { switchTab } from '@/store/shell';
+import { dayOffsetStr, hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
- * 分时预约购票页的行为与数据。
+ * 分时预约购票页：数据来自后端，交互状态本地维护。
  *
- * 日期 / 时段 / 游客的**默认值全部取自设计稿原文**（10-09 选中、08:30-10:30 选中、张*林 1 人），
- * 所以首屏与设计稿逐像素一致；改动只发生在用户点了之后。
- * Phase ③ 接接口时把这些常量换成 /api/mini/* 的返回即可，组件与交互逻辑不用动。
+ * 与设计稿的对应关系（生成器按 id/class 把组件注进设计稿版式）：
+ *   日期条 / 时段格 / 出行游客登记 / 底部待付条 —— 四个都是手写组件，见 page-bindings.mjs
  *
- * 日期条的横向滚动渐隐是本页的纯视觉动效（Phase ①），逻辑一并放这里。
+ * 几处**后端没有对应字段、只能前端定口径**的地方，都在下面标了「口径」：
+ *   - 日期的「充足/紧张/约满」：后端只给余量数字，没有状态字段 → 按阈值分档
+ *   - 「限购 5 人」：后端限制是「单笔 ≤10」，没有这个业务字段 → 保留设计稿的常量
  */
 const EDGE_THRESHOLD = 4;
 
-/** 设计稿「成人全票 ¥120」 */
-const UNIT_PRICE = 120;
-/** 设计稿「限购 5 人」 */
+/** 设计稿写的是「限购 5 人」；后端没有对应字段，保留本地常量 */
 export const MAX_VISITORS = 5;
+
+/** 日期条显示几天 */
+const DATE_COUNT = 8;
+/** 口径：余量低于这个数算「紧张」 */
+const TIGHT_THRESHOLD = 50;
 
 export type DateTone = 'ok' | 'tight' | 'full';
 export type SlotTone = 'ok' | 'tight';
@@ -26,55 +35,22 @@ export interface DateOption {
   tone: DateTone;
 }
 export interface SlotOption {
-  id: string;
+  id: number;
   range: string;
   left: number;
   tone: SlotTone;
 }
-export interface Visitor {
-  id: string;
+export interface VisitorCard {
+  id: number;
   name: string;
-  /** 主出行人 / 同行 … */
   badge: string;
-  idCard: string;
-  phone: string;
+  idCardMask: string;
+  phoneMask: string;
 }
 
-/** 设计稿的 8 天（10-09 为默认选中项） */
-const DATES: DateOption[] = [
-  { value: '2026-10-09', week: '周一', label: '10-09', tone: 'ok' },
-  { value: '2026-10-10', week: '周二', label: '10-10', tone: 'ok' },
-  { value: '2026-10-11', week: '周三', label: '10-11', tone: 'tight' },
-  { value: '2026-10-12', week: '周四', label: '10-12', tone: 'ok' },
-  { value: '2026-10-13', week: '周五', label: '10-13', tone: 'tight' },
-  { value: '2026-10-14', week: '周六', label: '10-14', tone: 'full' },
-  { value: '2026-10-15', week: '周日', label: '10-15', tone: 'ok' },
-  { value: '2026-10-16', week: '周一', label: '10-16', tone: 'ok' },
-];
-
-/** 设计稿的 4 个时段（08:30-10:30 为默认选中项） */
-const SLOTS: SlotOption[] = [
-  { id: 's1', range: '08:30 - 10:30', left: 320, tone: 'ok' },
-  { id: 's2', range: '10:30 - 12:30', left: 45, tone: 'tight' },
-  { id: 's3', range: '12:30 - 14:30', left: 180, tone: 'ok' },
-  { id: 's4', range: '14:30 - 16:30', left: 210, tone: 'ok' },
-];
-
-/** 设计稿只画了「张*林」一位游客，默认就只列他一个 */
-const BASE_VISITORS: Visitor[] = [
-  { id: 'v1', name: '张*林', badge: '主出行人', idCard: '身份证 330106********1812', phone: '手机 138****8820' },
-];
-
-/**
- * 「新增出行人」按这个模板造一个。
- * 名字沿用设计稿个人中心页里已有的「李*华」（同行），避免自己臆造新文案。
- */
-const EXTRA_VISITOR: Omit<Visitor, 'id'> = {
-  name: '李*华',
-  badge: '同行',
-  idCard: '身份证 330106********0943',
-  phone: '手机 139****6612',
-};
+const dateToneOf = (available: number): DateTone =>
+  available <= 0 ? 'full' : available < TIGHT_THRESHOLD ? 'tight' : 'ok';
+const slotToneOf = (available: number): SlotTone => (available < TIGHT_THRESHOLD ? 'tight' : 'ok');
 
 interface ScrollDetail {
   scrollLeft?: number;
@@ -113,19 +89,116 @@ export function useBookingPage() {
     dateFade.right = scrollLeft.value < maxScroll - EDGE_THRESHOLD;
   }
 
-  // —— 选日期 / 选时段 / 选游客 ——
-  const dates = ref(DATES);
-  const slots = ref(SLOTS);
-  const visitors = ref<Visitor[]>([...BASE_VISITORS]);
+  // —— 数据（全部来自后端）——
+  const loading = ref(false);
+  const error = ref('');
+  const ticketTypeId = ref<number | null>(null);
+  const dates = ref<DateOption[]>([]);
+  const slots = ref<SlotOption[]>([]);
+  const visitors = ref<VisitorCard[]>([]);
+  const date = ref('');
+  const slot = ref<number | null>(null);
+  const pickedIds = ref<number[]>([]);
+  const unitPrice = ref(0);
+  const submitting = ref(false);
 
-  const date = ref(DATES[0].value);
-  const slot = ref(SLOTS[0].id);
-  const pickedIds = ref<string[]>([BASE_VISITORS[0].id]);
+  /**
+   * 每个日期的分时余票缓存。
+   * 日期条要 8 天的数据，而 `/stocks` 是按「票种 + 日期」查的 —— 没有多日日历接口，
+   * 只能按天各查一次；缓存下来，切日期/提交订单时就不必重复请求。
+   */
+  const stockByDate = new Map<string, StockItem[]>();
 
-  const onPickDate = (value: string) => (date.value = value);
-  const onPickSlot = (id: string) => (slot.value = id);
+  async function loadStocks(d: string): Promise<StockItem[]> {
+    const cached = stockByDate.get(d);
+    if (cached) return cached;
+    const list = await stockApi.byDate(ticketTypeId.value!, d);
+    stockByDate.set(d, list);
+    return list;
+  }
 
-  function onToggleVisitor(id: string) {
+  function applySlots(list: StockItem[]) {
+    slots.value = list.map((s) => ({
+      id: s.timeSlotId,
+      range: `${hhmm(s.startTime)} - ${hhmm(s.endTime)}`,
+      left: s.available,
+      tone: slotToneOf(s.available),
+    }));
+    // 当前选中的时段若在新日期里已满/不存在，回落到第一个可用的
+    const stillOk = slots.value.find((s) => s.id === slot.value && s.tone !== undefined && s.left > 0);
+    if (!stillOk) slot.value = slots.value.find((s) => s.left > 0)?.id ?? slots.value[0]?.id ?? null;
+  }
+
+  async function pickDate(value: string) {
+    date.value = value;
+    const list = await loadStocks(value);
+    applySlots(list);
+  }
+
+  let loaded = false;
+  /** 首次可见时加载；`force` 用于重试 */
+  async function load(force = false) {
+    if (loaded && !force) return;
+    loading.value = true;
+    error.value = '';
+    try {
+      const areas = await areaApi.list();
+      const areaId = areas[0]?.id;
+      if (!areaId) throw new Error('没有开放中的景区');
+
+      const today = dayOffsetStr(0);
+      const tickets = await ticketApi.list(areaId, today);
+      const ticket: MiniTicket | undefined = tickets[0];
+      if (!ticket) throw new Error('该景区暂无可售票种');
+
+      ticketTypeId.value = ticket.id;
+      unitPrice.value = ticket.price;
+
+      // 日期条：今天起 N 天，逐日取余票汇总来分档
+      const days = Array.from({ length: DATE_COUNT }, (_, i) => dayOffsetStr(i));
+      const dayStocks = await Promise.all(days.map((d) => loadStocks(d)));
+      dates.value = days.map((d, i) => {
+        const total = dayStocks[i].reduce((sum, s) => sum + s.available, 0);
+        return { value: d, week: weekdayOf(d), label: shortDate(d), tone: dateToneOf(total) };
+      });
+
+      // 出行人
+      await refreshVisitors();
+
+      date.value = dates.value[0]!.value;
+      applySlots(dayStocks[0]!);
+      loaded = true;
+    } catch (err) {
+      error.value = errorText(err);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function refreshVisitors() {
+    const list = await visitorApi.list();
+    visitors.value = list.map((v) => ({
+      id: v.id,
+      name: v.name,
+      badge: v.badge,
+      idCardMask: v.idCardMask,
+      phoneMask: v.phoneMask,
+    }));
+    // 默认勾选：默认出行人优先，否则第一位；已勾选但已删除的要剔除
+    const alive = new Set(visitors.value.map((v) => v.id));
+    pickedIds.value = pickedIds.value.filter((id) => alive.has(id));
+    if (pickedIds.value.length === 0 && visitors.value.length > 0) {
+      const preferred = list.find((v) => v.isDefault) ?? list[0]!;
+      pickedIds.value = [preferred.id];
+    }
+  }
+
+  const onPickDate = (value: string) => void pickDate(value);
+  const onPickSlot = (id: number) => {
+    slot.value = id;
+  };
+
+  function onToggleVisitor(id: number) {
     const at = pickedIds.value.indexOf(id);
     if (at >= 0) pickedIds.value.splice(at, 1);
     else if (pickedIds.value.length >= MAX_VISITORS) {
@@ -134,32 +207,63 @@ export function useBookingPage() {
     } else pickedIds.value.push(id);
   }
 
-  let extraSeq = BASE_VISITORS.length;
+  /** 「新增出行人」跳到管理页（设计稿里这个按钮本来就是入口） */
   function onAddVisitor() {
-    if (visitors.value.length >= MAX_VISITORS) {
-      uni.showToast({ title: `最多添加 ${MAX_VISITORS} 人`, icon: 'none' });
-      return;
-    }
-    const added: Visitor = { ...EXTRA_VISITOR, id: `v${++extraSeq}` };
-    visitors.value.push(added);
-    pickedIds.value.push(added.id);
+    uni.navigateTo({ url: '/pages/visitor/index' });
   }
 
-  // —— 底部待付条联动 ——
+  // —— 底部待付条 ——
   const headcount = computed(() => pickedIds.value.length);
-  const unitPrice = UNIT_PRICE;
-  const totalAmount = computed(() => unitPrice * headcount.value);
+  const totalAmount = computed(() => unitPrice.value * headcount.value);
   const selectionLabel = computed(() => `已选 ${headcount.value} 人 / 限购 ${MAX_VISITORS} 人`);
-  const canSubmit = computed(() => headcount.value > 0);
+  const canSubmit = computed(
+    () => headcount.value > 0 && !!date.value && slot.value !== null && !submitting.value,
+  );
 
-  function onSubmit() {
+  /**
+   * 下单 → 模拟支付 → 切到凭证页。
+   *
+   * 传的是 `visitorId` 而不是明文证件：`GET /api/mini/visitors` 出于隐私只返回脱敏号，
+   * 客户端手里根本没有明文（服务端按 id 取记录）。这也是为什么下单接口新支持了这个字段。
+   */
+  async function onSubmit() {
     if (!canSubmit.value) return;
-    uni.showToast({ title: `下单接口待接入 · ¥${totalAmount.value}`, icon: 'none' });
+    if (ticketTypeId.value === null || slot.value === null) return;
+
+    submitting.value = true;
+    uni.showLoading({ title: '下单中…', mask: true });
+    try {
+      const order = await orderApi.create({
+        ticketTypeId: ticketTypeId.value,
+        date: date.value,
+        timeSlotId: slot.value,
+        visitors: pickedIds.value.map((id) => ({ visitorId: id })),
+      });
+
+      setCurrentOrderId(order.orderId);
+
+      if (order.mock) {
+        // 本地联调：直接触发模拟支付成功回调，省得去后台改订单状态
+        await orderApi.mockPay(order.orderNo);
+      }
+
+      uni.hideLoading();
+      uni.showToast({ title: '预约成功', icon: 'success' });
+      // 让凭证页知道要展示这一单
+      switchTab('credential');
+    } catch (err) {
+      uni.hideLoading();
+      uni.showToast({ title: errorText(err), icon: 'none', duration: 2500 });
+    } finally {
+      submitting.value = false;
+    }
   }
 
   return {
     dateFade,
     onDateScroll,
+    loading,
+    error,
     dates,
     date,
     onPickDate,
@@ -176,5 +280,6 @@ export function useBookingPage() {
     totalAmount,
     canSubmit,
     onSubmit,
+    load,
   };
 }

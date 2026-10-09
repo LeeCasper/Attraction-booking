@@ -13,16 +13,23 @@
  */
 // 不写 export：<script setup> 不允许 ES 模块导出。
 interface Visitor {
-  id: string;
+  id: number;
   name: string;
-  /** 主出行人 / 同行 … */
+  /** 主出行人 / 同行 …（后端按 isDefault 推导好直接给） */
   badge: string;
-  idCard: string;
-  phone: string;
+  /** 已脱敏，如 `110***********1234`；**列表里拿不到明文，下单也要靠 id** */
+  idCardMask: string;
+  /** 已脱敏，无手机号时为空串 */
+  phoneMask: string;
 }
 
-const props = defineProps<{ visitors: Visitor[]; picked: string[] }>();
-const emit = defineEmits<{ toggle: [id: string] }>();
+/**
+ * `loading` 是**整页**的加载标志（购票页一次并发拉票种/库存/出行人）。
+ * 传进来只为区分「还没拿到」和「确实一位都没有」—— 否则首屏会闪一下「暂未添加出行人」，
+ * 明明有数据却先告诉用户没有，比空白卡片更让人困惑。
+ */
+const props = defineProps<{ visitors: Visitor[]; picked: number[]; loading?: boolean }>();
+const emit = defineEmits<{ toggle: [id: number] }>();
 
 const CARD = 'rounded-2xl bg-paper-surface p-space-md border border-silk-border shadow-sm flex flex-col gap-3';
 const ROW = 'flex items-center justify-between';
@@ -37,6 +44,27 @@ const isOn = (v: Visitor) => props.picked.includes(v.id);
 
 <template>
   <view :class="CARD">
+    <!--
+      空态：一位出行人都没有时，这张卡（`p-space-md` + 白底）会只是一个空白圆角块，
+      看着像渲染坏了 —— 给一句话说明「为什么空的」和「下一步做什么」。
+      加载中不说「暂未添加」，那是在没拿到数据时替用户下了结论。
+    -->
+    <view v-if="!visitors.length" :class="ROW">
+      <view :class="ROW_LEFT">
+        <view class="w-9 h-9 rounded-full bg-mist-cyan-50 flex items-center justify-center shrink-0">
+          <view class="msi icon-nature_people text-18px text-primary" />
+        </view>
+        <view class="flex flex-col gap-0_5">
+          <text class="font-body-md text-14px font-medium text-ink-charcoal-text">
+            {{ props.loading ? '正在加载出行人…' : '暂未添加出行人' }}
+          </text>
+          <text v-if="!props.loading" class="font-caption-sm text-12px text-ink-light-gray">
+            点下方「新增出行人」登记，之后可直接勾选下单
+          </text>
+        </view>
+      </view>
+    </view>
+
     <view v-for="v in visitors" :key="v.id" :class="ROW" @tap="emit('toggle', v.id)">
       <view :class="ROW_LEFT">
         <view :class="`${RADIO_BASE} ${isOn(v) ? RADIO_ON : RADIO_OFF}`">
@@ -50,8 +78,12 @@ const isOn = (v: Visitor) => props.picked.includes(v.id);
             }}</text>
           </view>
           <view class="flex flex-col gap-0_5 mt-1_5">
-            <text class="font-caption-sm text-12px text-ink-light-gray font-mono">{{ v.idCard }}</text>
-            <text class="font-caption-sm text-12px text-ink-light-gray font-mono">{{ v.phone }}</text>
+            <text class="font-caption-sm text-12px text-ink-light-gray font-mono">身份证 {{ v.idCardMask }}</text>
+            <!-- 手机号是可选的，没填就不占一行 -->
+            <text
+              v-if="v.phoneMask"
+              class="font-caption-sm text-12px text-ink-light-gray font-mono"
+            >手机 {{ v.phoneMask }}</text>
           </view>
         </view>
       </view>

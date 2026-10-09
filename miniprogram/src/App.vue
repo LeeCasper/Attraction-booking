@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app';
+import { ensureLogin } from '@/store/user';
 
 onLaunch(() => {
-  // 纯静态还原阶段：无接口调用、无登录态。
-  // 接后端时在此做 wx.login → POST /api/mini/auth/login → 存 token。
+  // 启动即静默登录（服务端 `WX_MOCK=true` 时任意 code 都能过；上线前换成真 appid）。
+  // **失败不阻塞启动** —— 免登录的景区/票务接口照样能看，需要登录的页面拿到 401 时会自己重登一次。
+  ensureLogin().catch((err) => {
+    console.warn('[mini] 启动登录失败：', err?.message ?? err);
+  });
 });
 </script>
 

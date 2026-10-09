@@ -37,14 +37,26 @@
 export const PAGE_BINDINGS = {
   credential: {
     imports: [
+      "import { watch } from 'vue';",
       "import DynamicQr from '@/components/DynamicQr.vue';",
       "import PassPicker from '@/components/PassPicker.vue';",
       "import { useCredentialPage } from './behavior';",
     ],
-    setup: `const { qrSeed, countdownLabel, qrSpinning, refreshQr, watermarks, onExport, passModes, passMode, onPickPassMode } = useCredentialPage();`,
+    setup: `const {
+  qrSeed, countdownLabel, qrSpinning, refreshQr, watermarks, onExport,
+  passModes, passMode, onPickPassMode,
+  periodLabel, holderLabel, statusLabel, load,
+} = useCredentialPage();
+// 首次可见时才拉数据
+watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     bindings: {
       '#dynamic-qr-svg': { replace: '<DynamicQr :seed="qrSeed" />' },
       '#countdown-text': { text: 'countdownLabel' },
+      // 「入园时段」与「持票人」的值两行**类名完全相同**，只能靠文档顺序定位（第 1、2 个）
+      'text-ink-charcoal-text font-bold mt-0.5 block :nth(1)': { text: 'periodLabel' },
+      'text-ink-charcoal-text font-bold mt-0.5 block :nth(2)': { text: 'holderLabel' },
+      // 「待使用」状态胶囊：这个类全页唯一
+      'px-2.5 py-1 rounded-full text-[11px] font-bold': { text: 'statusLabel' },
       '#refresh-qr-btn': {
         attrs: { '@tap': 'refreshQr' },
         class: { 'is-spinning': 'qrSpinning' },
@@ -64,6 +76,7 @@ export const PAGE_BINDINGS = {
 
   booking: {
     imports: [
+      "import { watch } from 'vue';",
       "import DateCards from '@/components/DateCards.vue';",
       "import SlotGrid from '@/components/SlotGrid.vue';",
       "import VisitorPicker from '@/components/VisitorPicker.vue';",
@@ -71,12 +84,14 @@ export const PAGE_BINDINGS = {
       "import { useBookingPage } from './behavior';",
     ],
     setup: `const {
-  dateFade, onDateScroll,
+  dateFade, onDateScroll, loading, error,
   dates, date, onPickDate,
   slots, slot, onPickSlot,
   visitors, pickedIds, selectionLabel, onToggleVisitor, onAddVisitor,
-  unitPrice, headcount, totalAmount, canSubmit, onSubmit,
-} = useBookingPage();`,
+  totalAmount, headcount, canSubmit, onSubmit, load,
+} = useBookingPage();
+// 首次可见时才拉数据 —— 四个视图在单页外壳里同时挂载，不这么做启动时会并发四个请求
+watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     bindings: {
       // 横向滚动必须用 <scroll-view>：小程序里普通 view 的 overflow-x 不能可靠滚动。
       // 设计稿的 flex 滚动类挪给 DateCards 组件根节点，scroll-view 只留 w-full。
@@ -95,12 +110,13 @@ export const PAGE_BINDINGS = {
       // 「已选 N 人 / 限购 M 人」：它全部 4 个类都被「新增出行人」按钮包含，只能全等匹配
       '= font-caption-sm text-caption-sm text-primary font-medium': { text: 'selectionLabel' },
       'rounded-2xl bg-paper-surface p-space-md border border-silk-border shadow-sm flex flex-col gap-3': {
-        replace: '<VisitorPicker :visitors="visitors" :picked="pickedIds" @toggle="onToggleVisitor" />',
+        replace:
+          '<VisitorPicker :visitors="visitors" :picked="pickedIds" :loading="loading" @toggle="onToggleVisitor" />',
       },
       'border border-dashed border-primary/60': { attrs: { '@tap': 'onAddVisitor' } },
       'fixed bottom-16 left-0 right-0 z-40': {
         replace:
-          '<BookingBar :unit-price="unitPrice" :count="headcount" :can-submit="canSubmit" @submit="onSubmit" />',
+          '<BookingBar :amount="totalAmount" :count="headcount" :can-submit="canSubmit" @submit="onSubmit" />',
       },
     },
     // 状态类要给到比工具类更高的特异性，否则压不过元素自带的 opacity-0
@@ -110,15 +126,31 @@ export const PAGE_BINDINGS = {
 
   profile: {
     imports: [
+      "import { watch } from 'vue';",
       "import PassFilter from '@/components/PassFilter.vue';",
+      "import ProfileVisitors from '@/components/ProfileVisitors.vue';",
       "import AppToast from '@/components/AppToast.vue';",
       "import { useProfilePage } from './behavior';",
     ],
-    setup: `const { passTabs, passTab, onPickPassTab, toastVisible, toastText, onRefreshOfflineToken } = useProfilePage();`,
+    setup: `const {
+  passTabs, passTab, onPickPassTab, visitors, stats, loading, error,
+  toastVisible, toastText, onRefreshOfflineToken, onManageVisitors, load,
+} = useProfilePage();
+// 首次可见时才拉数据
+watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     bindings: {
       // 设计稿没给 id：四态筛选按钮组的容器 class 唯一
       'grid grid-cols-4 gap-2 text-center py-1 relative z-10': {
         replace: '<PassFilter :items="passTabs" :value="passTab" @change="onPickPassTab" />',
+      },
+      // 常用出行人：设计稿画的是两张写死的卡（本人 / 同行），换成组件按真实数据渲染
+      'grid grid-cols-2 gap-2.5': {
+        replace: '<ProfileVisitors :visitors="visitors" />',
+      },
+      // 「管理」按钮：它的类名与后面的「刷新」按钮**完全一样**，只能按文档顺序取第 1 个
+      //（「刷新」有 id，走下面那条，两者互不干扰）
+      'flex items-center gap-0.5 text-primary text-caption-sm font-semibold hover:opacity-80 :nth(1)': {
+        attrs: { '@tap': 'onManageVisitors' },
       },
       '#refreshOfflineTokenBtn': { attrs: { '@tap': 'onRefreshOfflineToken' } },
       // 设计稿自带一段手写 JS 切 opacity-0 → opacity-100 显示 2s，这里换成组件

@@ -1,118 +1,210 @@
 import { computed, onUnmounted, ref } from 'vue';
+import { orderApi, visitorApi, type OrderDetail } from '@/api';
+import { errorText } from '@/api/request';
+import { currentOrderId } from '@/store/order';
+import { hhmm } from '@/utils/format';
 
 /**
- * 动态防伪电子凭证页的行为。
+ * 动态防伪电子凭证页。
  *
- * 由 scripts/gen-pages.mjs 注入到生成的模板里（见 scripts/page-bindings.mjs），
- * 模板本身仍由设计稿生成，这里只负责「活」的部分。
+ * 数据来自「订单详情 + 动态凭证」两个接口：
+ *   - `GET /api/mini/orders/:id`            → 入园时段（reservation + timeSlot）、持票人（items）、状态
+ *   - `GET /api/mini/orders/:id/credential` → token / expiresIn(60) / refreshAfter(50)
  *
- * 一期为静态还原：倒计时、二维码、水印时间都是本地模拟。
- * 接接口后的对应关系：
- *   - 倒计时时长 ← `GET /api/mini/orders/:id/credential` 返回的 `expiresIn`（服务端为 60）
- *   - 建议刷新间隔 ← 同接口的 `refreshAfter`（服务端为 50）
- *   - 二维码内容 ← 同接口返回的 `token`（现在是设计稿画的假图案）
- *   - 水印里的手机号 ← 订单详情里持票人的脱敏手机号
+ * **二维码是「由 token 派生的图案」而不是可扫的真二维码** —— 真二维码要把 token 编码成矩阵，
+ * 需要引入编码器（本项目没有这个依赖）。闸机侧验的是 token 本体，所以这里只做防伪图案。
+ * 这一点写在 README 的已知偏差里。
+ *
+ * 无订单时 `seed = 0`，`DynamicQr` 会退回设计稿原图案 —— 首屏与设计稿逐像素一致。
  */
-const TTL_SECONDS = 60;
-/** 设计稿首屏停在 41s，静态还原阶段用它作为初始值，视觉上与设计稿一致 */
-const INITIAL_REMAIN = 41;
-
-/** 水印里的手机尾号（设计稿原文）。接接口后换成持票人脱敏手机号 */
-const PHONE_MASK = '138****0011';
-
-export interface PassMode {
-  id: string;
-  /** msi 图标名 */
-  icon: string;
-  label: string;
-  hint: string;
-  /** 设计稿里只有「主推荐」带胶囊底 */
-  hintPill?: boolean;
-  /** 未选中时的图标色 / 提示色，设计稿两项写法不同 */
-  hintTone?: 'muted' | 'primary';
-}
-
-/**
- * 「支持通行方式」三选一（设计稿原文）。
- * 一期只切换选中态；**真正决定闸机怎么验的是后端**，接接口后这里要改成
- * 「提交偏好 + 读取服务端该票种支持的通行方式」，而不是纯前端开关。
- */
-const PASS_MODES: PassMode[] = [
+const PASS_MODES = [
   { id: 'qr', icon: 'qr_code_scanner', label: '动态二维码', hint: '主推荐', hintPill: true },
   { id: 'idcard', icon: 'id_card', label: '实体身份证', hint: '贴卡即过' },
-  { id: 'face', icon: 'face', label: '人脸识别', hint: '录入', hintTone: 'primary' },
+  { id: 'face', icon: 'face', label: '人脸识别', hint: '录入', hintTone: 'primary' as const },
 ];
+
+/** 剩余不足这么多秒就刷新（服务端 refreshAfter = 50，即 60 秒里剩 10 秒时刷） */
+const REFRESH_AT_SECONDS = 10;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const hhmmss = (d = new Date()) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
+/** 把 token 揉成一个整数种子，喂给 DynamicQr 重排图案 */
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return (h % 100000) + 1; // 避开 0（0 是「用设计稿原图案」的哨兵）
+}
+
 export function useCredentialPage() {
-  const remain = ref(INITIAL_REMAIN);
-  /** 二维码图案种子：0 = 设计稿原图案，非 0 = 按种子重排数据点 */
-  const seed = ref(0);
+  const loading = ref(false);
+  const error = ref('');
+  const order = ref<OrderDetail | null>(null);
+  const token = ref('');
+  const remain = ref(0);
   const spinning = ref(false);
   const now = ref(hhmmss());
+  /** 持票人的脱敏手机号（水印用）——凭证与订单详情都不给这个字段，只能回查常用出行人 */
+  const holderMask = ref('');
 
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let tickTimer: ReturnType<typeof setInterval> | null = null;
   let spinTimer: ReturnType<typeof setTimeout> | null = null;
 
-  function stop() {
-    if (timer) clearInterval(timer);
+  const clearTimers = () => {
+    if (tickTimer) clearInterval(tickTimer);
     if (spinTimer) clearTimeout(spinTimer);
-    timer = null;
+    tickTimer = null;
     spinTimer = null;
+  };
+
+  /** 有 token 时用 token 派生图案；没有就回设计稿原图案 */
+  const qrSeed = computed(() => (token.value ? hashSeed(token.value) : 0));
+  const qrSpinning = computed(() => spinning.value);
+
+  /**
+   * 只给「55s」这个值 —— 设计稿那行的静态文案里**已经有「剩余」两个字**了
+   * （「动态码每 60 秒刷新 · 剩余 ___」），这里再带前缀会渲染成「剩余 剩余 55s」。
+   */
+  const countdownLabel = computed(() => (token.value ? `${remain.value}s` : '—'));
+
+  const watermarks = computed(() => {
+    const who = holderMask.value || '本人';
+    return [
+      `${who} ${now.value} · 枫林谷验真`,
+      `${who} ${now.value} · 动态防伪`,
+      `${who} ${now.value} · 严禁翻录`,
+    ];
+  });
+
+  /** 「10-09 08:30-10:30」 */
+  const periodLabel = computed(() => {
+    const r = order.value?.reservation;
+    const s = order.value?.timeSlot;
+    if (!r) return '—';
+    return s ? `${r.date.slice(5)} ${hhmm(s.startTime)}-${hhmm(s.endTime)}` : r.date.slice(5);
+  });
+
+  /** 「张*林 · 成人票」 */
+  const holderLabel = computed(() => {
+    const item = order.value?.items?.[0];
+    if (!item) return '—';
+    return item.ticketName ? `${item.visitorName} · ${item.ticketName}` : item.visitorName;
+  });
+
+  const statusLabel = computed(() => {
+    switch (order.value?.status) {
+      case 20:
+        return '待使用';
+      case 30:
+        return '部分核销';
+      case 40:
+        return '已核销';
+      default:
+        return '不可入园';
+    }
+  });
+
+  /** 没有「当前订单」时，回落到最近一张可入园的订单 —— 杀掉小程序再进来还能看到凭证 */
+  async function resolveOrderId(): Promise<number | null> {
+    if (currentOrderId.value) return currentOrderId.value;
+    const list = await orderApi.list();
+    return list.find((o) => o.status === 20 || o.status === 30)?.id ?? null;
   }
 
-  /** 刷新凭证：换二维码图案、重置倒计时、转一下刷新图标 */
-  function refresh() {
-    seed.value = Math.floor(Date.now() / 1000) % 100000;
-    remain.value = TTL_SECONDS;
+  /** 凭证与订单详情都不含持票人手机号，回查常用出行人补上（只用于水印脱敏展示） */
+  async function loadHolderMask(detail: OrderDetail) {
+    const visitorId = detail.items?.[0]?.visitorId;
+    if (!visitorId) return;
+    try {
+      const list = await visitorApi.list();
+      const v = list.find((x) => x.id === visitorId);
+      holderMask.value = v?.phoneMask || v?.idCardMask || '';
+    } catch {
+      /* 拿不到就用兜底文案，不影响凭证本身 */
+    }
+  }
+
+  /** 换一张动态码：换 token、重置倒计时、转一下刷新图标 */
+  async function refresh() {
+    const orderId = order.value?.id;
+    if (!orderId) return;
+
     spinning.value = true;
     if (spinTimer) clearTimeout(spinTimer);
     spinTimer = setTimeout(() => {
       spinning.value = false;
     }, 600);
     uni.vibrateShort?.({ fail: () => {} });
+
+    try {
+      const cred = await orderApi.credential(orderId);
+      token.value = cred.token;
+      remain.value = cred.expiresIn;
+    } catch (err) {
+      error.value = errorText(err);
+      token.value = '';
+    }
   }
 
-  /** 每秒走一格；归零时自动刷新（对应设计稿「动态码每 60 秒刷新」） */
-  timer = setInterval(() => {
+  let loaded = false;
+  async function load(force = false) {
+    if (loaded && !force) return;
+    loading.value = true;
+    error.value = '';
+    try {
+      const orderId = await resolveOrderId();
+      if (!orderId) {
+        order.value = null;
+        token.value = '';
+        return;
+      }
+      order.value = await orderApi.detail(orderId);
+      await loadHolderMask(order.value);
+      await refresh();
+      loaded = true;
+    } catch (err) {
+      error.value = errorText(err);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // 全程只有**一个**每秒定时器：水印时间一直走；有动态码时同时递减倒计时，到刷新点自动换码。
+  // （曾经另起一个定时器，结果两个 interval 互相覆盖引用，漏掉一个清不掉。）
+  tickTimer = setInterval(() => {
     now.value = hhmmss();
+    if (!token.value) return;
     remain.value -= 1;
-    if (remain.value <= 0) refresh();
+    if (remain.value <= REFRESH_AT_SECONDS) void refresh();
   }, 1000);
 
-  onUnmounted(stop);
+  onUnmounted(clearTimers);
 
-  const countdownLabel = computed(() => `剩余 ${remain.value}s`);
-  const qrSpinning = computed(() => spinning.value);
+  // —— 通行方式三选一（前端状态；后端没有「票种支持的通行方式」接口，见 README 已知偏差）——
+  const passModes = ref(PASS_MODES);
+  const passMode = ref(PASS_MODES[0]!.id);
+  const onPickPassMode = (id: string) => (passMode.value = id);
 
-  /** 三行防伪水印，都带同一时刻的时间戳（设计稿原文格式） */
-  const watermarks = computed(() => [
-    `${PHONE_MASK} ${now.value} · 枫林谷验真`,
-    `${PHONE_MASK} ${now.value} · 动态防伪`,
-    `${PHONE_MASK} ${now.value} · 严禁翻录`,
-  ]);
-
-  /** 离线票导出：一期未实现，如实提示而非假装成功 */
+  /** 导出离线票：后端没有这个接口，如实提示而不是假装成功 */
   function onExport() {
     uni.showToast({ title: '导出离线票待接入', icon: 'none' });
   }
 
-  // —— 支持通行方式（设计稿默认选「动态二维码」）——
-  const passModes = ref(PASS_MODES);
-  const passMode = ref(PASS_MODES[0].id);
-  const onPickPassMode = (id: string) => (passMode.value = id);
-
   return {
-    qrSeed: seed,
+    loading,
+    error,
+    qrSeed,
     countdownLabel,
     qrSpinning,
-    refreshQr: refresh,
+    refreshQr: () => void refresh(),
     watermarks,
     onExport,
     passModes,
     passMode,
     onPickPassMode,
+    periodLabel,
+    holderLabel,
+    statusLabel,
+    load,
   };
 }

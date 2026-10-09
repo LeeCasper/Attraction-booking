@@ -67,7 +67,8 @@ function onTap(tab: (typeof TABS)[number]) {
   // content-box：高度要和底栏的「内容 64px + 底部安全区」严格对齐
   box-sizing: content-box;
   height: px2rpx(64);
-  padding-bottom: $safe-bottom;
+  // 必须和 .pg-tabbar 的 padding-bottom 用同一个值，否则底栏与上方内容错位
+  padding-bottom: $safe-bottom-tabbar;
 }
 
 .pg-tabbar {
@@ -80,7 +81,8 @@ function onTap(tab: (typeof TABS)[number]) {
   background-color: rgba(255, 255, 255, 0.95);
   border-top: 1px solid rgba(188, 201, 198, 0.4);
   box-shadow: 0 px2rpx(-2) px2rpx(12) rgba(0, 104, 95, 0.06);
-  padding-bottom: $safe-bottom;
+  // 有意用「安全区的一半」而不是完整的 pb-safe，理由见 tokens.scss
+  padding-bottom: $safe-bottom-tabbar;
 }
 
 .pg-tabbar__inner {

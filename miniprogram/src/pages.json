@@ -6,6 +6,13 @@
         "navigationStyle": "custom",
         "navigationBarTitleText": "枫林谷景区"
       }
+    },
+    {
+      "path": "pages/visitor/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "常用出行人"
+      }
     }
   ],
   "globalStyle": {

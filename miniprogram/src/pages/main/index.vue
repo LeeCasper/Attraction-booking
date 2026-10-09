@@ -21,17 +21,17 @@
  * 顶部的 64px（设计稿 `<main>` 的 `pt-16`）留在**视图自己**身上，外壳不管；
  * 底部的留白则改由 TabBar 自己占位（视图侧已去掉设计稿的 `pb-24`/`pb-28`，见 gen-pages 的 VIEW_DROP）。
  */
-import { reactive, ref, watch } from 'vue';
+import { reactive, watch } from 'vue';
 import PageHeader from '@/components/PageHeader.vue';
 import TabBar from '@/components/TabBar.vue';
 import HomeView from '@/views/home/index.vue';
 import BookingView from '@/views/booking/index.vue';
 import CredentialView from '@/views/credential/index.vue';
 import ProfileView from '@/views/profile/index.vue';
+import { activeTab as tab, type TabKey } from '@/store/shell';
 
-type TabKey = 'home' | 'booking' | 'credential' | 'profile';
-
-const tab = ref<TabKey>('home');
+// tab 状态放在模块里（而不是这里的局部 ref）：视图里也需要切页 ——
+// 比如购票页下单支付成功后要自动跳到凭证页。外壳只给视图传一个 active prop，加不了别的通道。
 const onTabChange = (key: TabKey) => {
   tab.value = key;
 };

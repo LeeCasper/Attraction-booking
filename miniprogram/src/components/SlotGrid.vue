@@ -13,14 +13,15 @@
  */
 // 不写 export：<script setup> 不允许 ES 模块导出。
 interface SlotOption {
-  id: string;
+  /** 后端时段 id（`timeSlotId`），下单时原样回传 */
+  id: number;
   range: string;
   left: number;
   tone: 'ok' | 'tight';
 }
 
-const props = defineProps<{ slots: SlotOption[]; value: string }>();
-const emit = defineEmits<{ change: [id: string] }>();
+const props = defineProps<{ slots: SlotOption[]; value: number | null }>();
+const emit = defineEmits<{ change: [id: number] }>();
 
 const GRID = 'grid grid-cols-2 gap-space-sm';
 const CARD_BASE = 'relative overflow-hidden rounded-xl bg-paper-surface p-space-sm shadow-xs cursor-pointer transition-all';

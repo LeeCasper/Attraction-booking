@@ -202,3 +202,16 @@ $shadow-l3: 0 0 px2rpx(24) rgba(220, 38, 38, 0.45);
 // 安全区（设计稿的 pt-safe / pb-safe）
 $safe-top: env(safe-area-inset-top, 0px);
 $safe-bottom: env(safe-area-inset-bottom, 0px);
+
+// 底部导航条实际使用的安全区 —— **有意比设计稿小一半**。
+//
+// 设计稿给底栏用了完整的 pb-safe，真机上（安全区 34px）菜单文字下面会留出一大条
+// 空白带，看着像底栏被拉高了。取一半（34px → 17px）后菜单明显更贴近屏幕下沿，
+// 同时仍把内容留在 Home Indicator 手势条之上。
+//
+// 用 `env(...)` 相乘而不是写死 px 是必须的：无安全区的机型上它恒为 0，
+// 写死会让那些机型凭空多出底部留白。
+//
+// ⚠️ 三个地方必须用同一个值，否则底栏与它上方内容会错位：
+//    TabBar 自身的 padding-bottom、TabBar 的让位块、BookingBar 的 bottom 偏移。
+$safe-bottom-tabbar: calc(#{$safe-bottom} * 0.5);

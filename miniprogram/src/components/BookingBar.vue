@@ -3,11 +3,13 @@
  * 底部固定待付条 —— 设计稿里 `.fixed.bottom-16…` 那一条。
  *
  * class 逐字取自 `design/reference/booking.html`。
- * 与设计稿的差异：设计稿的金额是写死的 120、(1人)；这里由 unitPrice × count 算出，
+ * 与设计稿的差异：设计稿的金额是写死的 120、(1人)；这里由上游算好的 `amount` 传入（**单位分**），
  * 且**一个人都没勾选时按钮置灰**（设计稿只有「已选 1 人」这一种状态，没有禁用样本，
  * 这里直接用设计系统已有的 opacity-60 降级，不新造样式）。
  */
-const props = withDefaults(defineProps<{ unitPrice: number; count: number; canSubmit?: boolean }>(), {
+import { fen2yuan } from '@/utils/format';
+
+const props = withDefaults(defineProps<{ amount: number; count: number; canSubmit?: boolean }>(), {
   canSubmit: true,
 });
 
@@ -20,7 +22,8 @@ const BAR_INNER = 'flex items-center justify-between max-w-md mx-auto';
 const BTN_BASE =
   'bg-gradient-to-r from-primary to-deep-teal-800 text-on-primary px-8 py-2_5 rounded-full font-medium text-15px shadow-sm hover-opacity-95 active-scale-95 transition-all';
 
-const total = () => props.unitPrice * props.count;
+/** 后端金额是分，展示要转元 */
+const total = () => fen2yuan(props.amount);
 
 function onSubmit() {
   if (!props.canSubmit) return;
@@ -54,7 +57,8 @@ function onSubmit() {
 // 和顶栏被状态栏盖住是同一类问题：固定偏移没算安全区。
 // scoped 样式带 [data-v-x]，特异性高于工具类，能稳稳覆盖。
 .pg-bookingbar {
-  bottom: calc(#{px2rpx(64)} + #{$safe-bottom});
+  // 偏移必须与底栏的实际高度一致，所以用底栏那个「安全区取半」的值，见 tokens.scss
+  bottom: calc(#{px2rpx(64)} + #{$safe-bottom-tabbar});
 }
 
 // 注意：待付条是 fixed、不占文档流，它下方的内容留白**由设计稿自己给了** ——

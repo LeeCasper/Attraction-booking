@@ -368,23 +368,33 @@ function buildInlineStyle(styleStr, bgMatch) {
  * 返回问题条数（0 = 全部命中）。
  */
 function resolveBindings(tree, bindings, pageName) {
-  const entries = Object.entries(bindings ?? {});
+  const entries = Object.entries(bindings ?? {}).map(([key, binding]) => {
+    const { selector, nth } = splitNth(key);
+    return { key, binding, selector, nth };
+  });
   if (!entries.length) return 0;
 
-  const hits = new Map(entries.map(([key]) => [key, []]));
+  for (const e of entries) e.hits = [];
   (function walk(node) {
     for (const c of node.children ?? []) {
       if (c.tag === '#text') continue;
-      for (const key of hits.keys()) if (matchesSelector(c, key)) hits.get(key).push(c);
+      for (const e of entries) if (matchesSelector(c, e.selector)) e.hits.push(c);
       walk(c);
     }
   })(tree);
 
   const problems = [];
-  for (const [key, binding] of entries) {
-    const found = hits.get(key);
-    if (found.length === 1) found[0].__binding = binding;
-    else problems.push(`    ${key}\n      → 匹配到 ${found.length} 个元素，要求恰好 1 个`);
+  for (const { key, binding, hits, nth } of entries) {
+    if (nth > 0) {
+      // `:nth(N)`：类名完全相同的重复区块，只能靠文档顺序区分（见 splitNth 的说明）。
+      // 这时不再要求「恰好 1 个」，但要求**至少 N 个**。
+      if (hits.length >= nth) hits[nth - 1].__binding = binding;
+      else problems.push(`    ${key}\n      → 只匹配到 ${hits.length} 个元素，取不到第 ${nth} 个`);
+    } else if (hits.length === 1) {
+      hits[0].__binding = binding;
+    } else {
+      problems.push(`    ${key}\n      → 匹配到 ${hits.length} 个元素，要求恰好 1 个`);
+    }
   }
 
   if (problems.length) {
@@ -393,6 +403,21 @@ function resolveBindings(tree, bindings, pageName) {
     process.exitCode = 1;
   }
   return problems.length;
+}
+
+/**
+ * 从选择器里拆出可选的 `:nth(N)`（**1 基**）。
+ *
+ * 为什么需要它：设计稿里有些重复区块**类名一模一样**（比如凭证页的「入园时段 / 持票人」两行、
+ * 首页的三张票卡），子集匹配会同时命中好几个，唯一性断言必然失败。
+ * 这类地方只能靠「它是第几个」来定位 —— 加个 `:nth(2)` 就表达清楚了。
+ * 代价是它不再有「写错会炸」的保护：写错成别的序号也不会报错，只会把绑定挂到另一个同类元素上。
+ * 所以**能用唯一 class 定位就别用 :nth**。
+ */
+function splitNth(key) {
+  const m = key.match(/^(.*?)\s*:nth\((\d+)\)\s*$/);
+  if (!m) return { selector: key, nth: 0 };
+  return { selector: m[1].trim(), nth: Number(m[2]) };
 }
 
 function matchesSelector(node, key) {
