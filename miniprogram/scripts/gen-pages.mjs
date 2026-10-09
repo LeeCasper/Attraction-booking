@@ -30,6 +30,8 @@ const DESIGN = join(ROOT, 'design/reference');
 const OUT_DIR = join(ROOT, 'src/pages');
 const classmap = JSON.parse(readFileSync(join(ROOT, 'design/classmap.json'), 'utf8'));
 
+import { PAGE_BINDINGS } from './page-bindings.mjs';
+
 /** 页面定义：设计稿文件名 → 页面名 / 底部 tab 的 active 值 / 正文底部留白 */
 const PAGES = [
   { file: 'home.html', name: 'home', activeTab: 'home', img: { 'aida-public': '/static/images/banner-home.jpg' } },
@@ -66,6 +68,21 @@ function mapClasses(classStr) {
     .filter(Boolean)
     .map((c) => classmap[c] ?? c)
     .join(' ');
+}
+
+/**
+ * 拆分 class 串：`active:*` 前缀的类不能留在元素的 class 上。
+ * 微信小程序的 <view> 不触发 :active 伪类，按下态只能靠 hover-class，
+ * 所以这些类要从 class 里摘出来、改挂到 hover-class 属性上。
+ */
+function splitClasses(classStr) {
+  const all = (classStr || '').split(/\s+/).filter(Boolean);
+  const press = all.filter((c) => c.startsWith('active:'));
+  const rest = all.filter((c) => !c.startsWith('active:'));
+  return {
+    mapped: mapClasses(rest.join(' ')),
+    press: press.map((c) => classmap[c] ?? c),
+  };
 }
 
 /** 设计稿里的 Google 图片地址 → 本地静态资源 */
@@ -219,6 +236,10 @@ function render(node, page, ctx) {
   const classStr = node.attrs.class ?? '';
   const styleStr = node.attrs.style ?? '';
 
+  // — 行为绑定：按设计稿预留的 id 注入组件/属性/文本（见 scripts/page-bindings.mjs）—
+  const binding = node.attrs.id ? ctx.bindings?.[node.attrs.id] : undefined;
+  if (binding?.replace) return binding.replace;
+
   // — 图标：material-symbols-outlined 的 span，图标名写在文字内容里 —
   if (classStr.includes('material-symbols-outlined')) {
     const iconName = node.children.map((c) => (c.tag === '#text' ? c.text : '')).join('').trim();
@@ -237,10 +258,18 @@ function render(node, page, ctx) {
     return `<image class="${mapClasses(classStr)}" src="${src}" mode="aspectFill" />`;
   }
 
-  const wxmlTag = TAG_MAP[tag];
+  // 绑定可以改写标签（如普通 div → scroll-view，小程序里横向滚动必须用 scroll-view）
+  const wxmlTag = binding?.tag ?? TAG_MAP[tag];
   if (!wxmlTag) return '';
 
-  let cls = mapClasses(classStr);
+  // uni-app 的 <scroll-view> 会把子元素包进内部的 .uni-scroll-view-content，
+  // 因此 flex 之类的布局类挂在外层是管不到子元素的（会让横向排布塌成纵向堆叠）。
+  // 开了 wrapInner 时，把原始类挪到内部再包一层，外层只留尺寸。
+  const wrapInner = !!binding?.wrapInner;
+
+  const { mapped, press } = splitClasses(classStr);
+  let cls = wrapInner ? 'w-full' : mapped;
+  const innerCls = wrapInner ? mapped : '';
 
   // — 背景图：WXSS 不能用本地路径做 background-image，改为插入绝对定位的 <image> —
   let bgImage = '';
@@ -256,17 +285,36 @@ function render(node, page, ctx) {
   const inlineStyle = buildInlineStyle(styleStr, bgMatch);
 
   const inText = wxmlTag === 'text';
-  const rawInner = node.children.map((c) => render(c, page, { ...ctx, inText })).join('');
+  const rawInner =
+    binding?.text !== undefined
+      ? `{{ ${binding.text} }}`
+      : node.children.map((c) => render(c, page, { ...ctx, inText })).join('');
 
   // 插入的 <image> 是绝对定位元素，按层叠规则会盖在同层「静态定位」的覆盖内容之上。
   // 故把原内容包一层显式提升层级（position:relative + z-index:1），
   // 否则 Banner 上的标题、状态徽章等会被背景图整片遮住。
-  const inner = bgImage ? `<view class="pg-bgcontent">${rawInner}</view>` : rawInner;
+  let inner = bgImage ? `<view class="pg-bgcontent">${rawInner}</view>` : rawInner;
+  // scroll-view 的内部包裹层（见 wrapInner 的说明）
+  if (wrapInner) inner = `<view class="${innerCls}">${inner}</view>`;
 
   const attrs = [`class="${cls}"`];
   if (inlineStyle) attrs.push(`style="${inlineStyle}"`);
   if (node.attrs['data-path']) attrs.push(`data-path="${node.attrs['data-path']}"`);
-  if (tag === 'a' || tag === 'button') attrs.push('hover-class="pg-hover"');
+  if (node.attrs.id) attrs.push(`id="${node.attrs.id}"`);
+
+  // 绑定注入的属性与条件类
+  if (binding?.attrs) for (const [k, v] of Object.entries(binding.attrs)) attrs.push(`${k}="${v}"`);
+  if (binding?.class) {
+    const entries = Object.entries(binding.class)
+      .map(([k, expr]) => `'${k}': ${expr}`)
+      .join(', ');
+    attrs.push(`:class="{ ${entries} }"`);
+  }
+
+  // 按下态：设计稿的 active:* 类 + a/button 的默认反馈，统一走 hover-class
+  const hoverClasses = [...press];
+  if (tag === 'a' || tag === 'button') hoverClasses.push('pg-hover');
+  if (hoverClasses.length) attrs.push(`hover-class="${hoverClasses.join(' ')}"`);
 
   const body = bgImage + inner;
   if (!body) return `<${wxmlTag} ${attrs.join(' ')} />`;
@@ -304,13 +352,15 @@ for (const page of PAGES) {
   // 之前只取子元素、丢掉这些类，导致内容顶到屏幕最上沿被 header 压住、底部也无留白。
   const mainClasses = mapClasses(source.attrs?.class ?? '');
 
+  const spec = PAGE_BINDINGS[page.name] ?? {};
+
   let tpl = source.children
     .filter((c) => !(c.tag === '#text' && !c.text.trim()))
-    .map((c) => render(c, page, { inText: false }))
+    .map((c) => render(c, page, { inText: false, bindings: spec.bindings }))
     .join('\n    ');
 
-  // 内联 SVG 的占位注释没法直接给页面用，先剔除（credential 的二维码另行实现）
-  // 内联 SVG 已由 renderSvg 转成百分比定位的 view，无需占位处理
+  const extraImports = (spec.imports ?? []).join('\n');
+  const hasBehavior = !!spec.setup;
 
   const vue = `<template>
   <view class="pg-page ${mainClasses}">
@@ -323,6 +373,9 @@ for (const page of PAGES) {
 <script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue';
 import TabBar from '@/components/TabBar.vue';
+${extraImports}
+// 页面行为（手写，见 pages/${page.name}/behavior.ts）—— 见 scripts/page-bindings.mjs
+${spec.setup ?? ''}
 </script>
 
 <!-- 由 scripts/gen-pages.mjs 从 design/reference/${page.file} 生成，手工改动会被覆盖 -->
@@ -331,6 +384,7 @@ import TabBar from '@/components/TabBar.vue';
 .pg-page {
   background-color: $c-surface;
 }
+${spec.style ?? ''}
 </style>
 `;
 

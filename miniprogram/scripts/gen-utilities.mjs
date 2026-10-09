@@ -443,7 +443,9 @@ for (const cls of classes) {
     continue;
   }
   const rule = `.${safe} { ${decls.join(' ')} }`;
-  if (cls.startsWith('active:')) activeRules.push(rule.replace(' {', ':active {'));
+  // active: 前缀不生成 :active 伪类 —— 微信小程序的 <view> 不触发 :active，
+  // 真机需要靠 hover-class。这里生成普通类，由 gen-pages 把它挂到 hover-class 上。
+  if (cls.startsWith('active:')) activeRules.push(rule);
   else normalRules.push(rule);
   if (!cls.startsWith('active:') && !/^(hover|group-hover|selection|focus):/.test(cls) && decls.length === 0) unmapped.push(cls);
 }
@@ -469,7 +471,10 @@ const out = `// ================================================================
 
 ${normalRules.join('\n')}
 
-// — active: 前缀（触屏按下态）—
+// — active: 前缀 → 触屏按下态。
+//   这些类**不写进元素的 class**，而是由 gen-pages 挂到 hover-class 上，
+//   因为微信小程序的 <view> 不触发 :active 伪类，只有 hover-class 在真机上生效。
+//   类名直接沿用消毒后的设计类名（active:scale-[0.98] → .active-scale-0_98），便于回查设计稿。
 ${activeRules.join('\n')}
 
 // — 栅格：转 flex + 子项百分比宽度 —

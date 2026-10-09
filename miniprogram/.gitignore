@@ -1,3 +1,10 @@
 
 # 参考截图（可重新生成：bash scripts/render-reference.sh）
 design/reference/shots/
+
+# 微信开发者工具打开本目录时自动写的本地 IDE 状态。
+# 它们不是构建输入，且都不带 miniprogramRoot —— 等于把本目录当成小程序源码根，那是错的
+# （真正的源码根是 uni-app 的编译产物 dist/*/mp-weixin）。
+# 正确用法是直接导入 dist/dev/mp-weixin，见 README。
+project.config.json
+project.private.config.json

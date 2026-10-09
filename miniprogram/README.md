@@ -6,12 +6,42 @@
 
 ## 现状
 
-| 页面 | 设计稿 | 状态 |
+| 页面 | 设计稿 | 静态还原 | 视觉动效 |
+| --- | --- | --- | --- |
+| 景区预约首页 | `design/reference/home.html` | ✅ | ✅ 呼吸点、按下态 |
+| 分时预约购票页 | `design/reference/booking.html` | ✅ | ✅ 日期条横向滚动 + 两端渐隐 |
+| 动态防伪电子凭证页 | `design/reference/credential.html` | ✅ | ✅ 60s 倒计时、二维码刷新、水印时间戳 |
+| 个人中心 | `design/reference/profile.html` | ✅ | ✅ 按下态 |
+
+**尚未做**：本地交互状态（选日期 / 选时段 / 勾游客 / 展开收起 —— 对应设计稿预留的 `slotGrid`、
+`passes`、`visitors`）与后端接口联调。数据仍是设计稿原文硬编码。
+
+## 已实现的动态效果
+
+设计稿虽然只有静态 HTML，但它在元素 `id` 上预留了交互钩子
+（`countdown-text`、`dynamic-qr-svg`、`calendarScroll`、`dateScrollLeftFade` …）。
+生成器按这些 id 把行为注入进去（见 `scripts/page-bindings.mjs`），
+**版式仍由设计稿生成，动态逻辑写在手写的 `pages/*/behavior.ts` 与组件里**。
+
+| 效果 | 实现 | 备注 |
 | --- | --- | --- |
-| 景区预约首页 | `design/reference/home.html` | ✅ 已还原 |
-| 分时预约购票页 | `design/reference/booking.html` | ✅ 已还原 |
-| 动态防伪电子凭证页 | `design/reference/credential.html` | ✅ 已还原（含二维码） |
-| 个人中心 | `design/reference/profile.html` | ✅ 已还原 |
+| 凭证 60 秒倒计时 | `pages/credential/behavior.ts` | 归零自动刷新二维码。时长 60s、首屏 41s 取自设计稿；接接口后改用 `credential.expiresIn` |
+| 二维码刷新 | `components/DynamicQr.vue` | `seed=0` 用设计稿原图案（保证首屏逐像素一致），刷新时按确定性 PRNG 重排数据点、三个定位角不变 |
+| 防伪水印时间戳 | 同上 | 三行水印各带当前 `HH:mm:ss`，每秒更新 |
+| 日期条两端渐隐 | `pages/booking/behavior.ts` | 监听 `scroll-view` 的 scroll，按滚动位置切 `is-on`/`is-off` |
+| 呼吸点 / 刷新旋转 | `styles/utilities.scss` 的 `@keyframes pg-pulse` / `pg-spin` | 由 `animate-pulse` / `animate-spin` 类驱动，两个产物里都已确认生成 |
+| 按下态 | 生成器把设计稿的 `active:*` 类挂到 `hover-class` | 见下「按下态必须用 hover-class」 |
+
+### 按下态必须用 hover-class，不能用 `:active`
+
+设计稿有 9 处 `active:*`（`active:scale-[0.98]` / `active:rotate-180` / `active:opacity-90` …）。
+生成器最初把它转成 CSS `:active` 伪类 —— 在 H5 里有效，但**微信小程序的 `<view>` 不触发 `:active`**，
+真机上一个反馈都没有。现在做法是：
+
+1. `gen-utilities.mjs` 把 `active:*` 生成为**普通类**（`.active-scale-0_98 { transform: scale(.98) }`），不写伪类
+2. `gen-pages.mjs` 把这些类从元素的 `class` 里**摘出来**，改挂到 `hover-class` 属性上
+
+`hover-class` 在 H5 与小程序两端都生效，所以这是唯一可靠的写法。
 
 设计来源：Stitch 项目 *Scenic Spot Reservation UI System*，设计系统「Cyan Ink & Bamboo Stone」。
 重新拉取设计稿的方法见 `design/reference/README.md`。
@@ -63,9 +93,11 @@ miniprogram/
 | `gen-utilities.mjs` | `design/classes.json` → `styles/utilities.scss` | Tailwind 类 → WXSS |
 | `gen-icons.mjs` | `design/icons.txt` → `styles/icons.scss` | Material Symbols SVG → base64 mask |
 | `gen-fonts.mjs` | `design/latin-chars.txt` → `styles/fonts.scss` | Google Fonts 拉丁子集 → base64 |
-| `gen-pages.mjs` | `design/reference/*.html` → `pages/*/index.vue` | HTML → WXML 模板 |
+| `gen-qr-pattern.mjs` | `design/reference/credential.html` → `components/qr-pattern.ts` | 二维码 SVG 的 58 个方块 → 数据 |
+| `gen-pages.mjs` | `design/reference/*.html` → `pages/*/index.vue` | HTML → WXML 模板 + 行为注入 |
 
-`npm run gen` 全部重跑。
+`npm run gen` 全部重跑。`scripts/render-reference.sh`（`npm run ref:shots`）把设计稿渲染成参考图，
+用于像素比对 —— **必须走代理**，原因见该脚本头部注释。
 
 **页面的 `.vue` 由生成器覆盖，手改会丢。** 要改页面，要么改生成器、要么改完再把改动回灌到生成器。
 接后端接口时建议：把生成出的模板重构成「组件 + `mock.ts` 数据」，届时 `gen-pages.mjs` 作为版式参照保留。
