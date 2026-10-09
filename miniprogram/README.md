@@ -239,6 +239,13 @@ miniprogram/
 
 - **`<div>` → `<view>`，`<span>` → `<text>`**：必须保留 HTML 的块级/行内区别。
   曾把两者都映射成 `<text>`，结果两个本该上下排列的元素挤成一行，整张卡片塌掉。
+- **必须补 Tailwind preflight 的边框重置**（见 `App.vue` 的 `border-width: 0; border-style: solid`）。
+  设计稿靠 preflight 把「没有宽度类」的边框压成 0；**我们漏了这条，于是凭空长出 3px 粗边框**：
+  `border-dashed` 只设 `border-style`，没设宽度的三边会取 CSS 初始值 `medium` = 3px。
+  表现是首页票卡里本应「只有上边一条虚线」的分隔线（`border-t border-dashed`），
+  在实现里变成了四边 3px 的虚线方框。**这条一直没被发现，是因为它只在首页出现，
+  而当时只逐像素比对了购票/凭证/个人中心三页。**
+  （重置用标签选择器，特异性低于工具类，带宽度类的元素不受影响。）
 - **类名做「消毒」**：WXSS 选择器对 `[ ] . ( ) # /` 支持不可靠，
   故 `text-[19px]` → `.text-19px`、`gap-2.5` → `.gap-2_5`、`bg-primary/10` → `.bg-primary_10`。
   完整映射表在 `design/classmap.json`。

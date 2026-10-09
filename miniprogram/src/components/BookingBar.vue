@@ -13,8 +13,9 @@ const props = withDefaults(defineProps<{ unitPrice: number; count: number; canSu
 
 const emit = defineEmits<{ submit: [] }>();
 
+// pg-bookingbar 是本项目自有的钩子类，用来在 scoped 样式里覆盖设计稿的 bottom-16，见文末
 const BAR =
-  'fixed bottom-16 left-0 right-0 z-40 bg-paper-surface_95 backdrop-blur-md px-margin py-3 border-t border-silk-border_60 shadow-0_-4px_16px_rgba0104950_08';
+  'pg-bookingbar fixed bottom-16 left-0 right-0 z-40 bg-paper-surface_95 backdrop-blur-md px-margin py-3 border-t border-silk-border_60 shadow-0_-4px_16px_rgba0104950_08';
 const BAR_INNER = 'flex items-center justify-between max-w-md mx-auto';
 const BTN_BASE =
   'bg-gradient-to-r from-primary to-deep-teal-800 text-on-primary px-8 py-2_5 rounded-full font-medium text-15px shadow-sm hover-opacity-95 active-scale-95 transition-all';
@@ -46,3 +47,19 @@ function onSubmit() {
     </view>
   </view>
 </template>
+
+<style lang="scss" scoped>
+// 覆盖设计稿的 bottom-16（= 64px）。那个值是按「底栏 64px 且没有安全区」画的，
+// 真机带 Home Indicator 时底栏实际是「64px + 安全区(34px)」，待付条会嵌进底栏里 ——
+// 和顶栏被状态栏盖住是同一类问题：固定偏移没算安全区。
+// scoped 样式带 [data-v-x]，特异性高于工具类，能稳稳覆盖。
+.pg-bookingbar {
+  bottom: calc(#{px2rpx(64)} + #{$safe-bottom});
+}
+
+// 注意：待付条是 fixed、不占文档流，它下方的内容留白**由设计稿自己给了** ——
+// 购票视图内容层的 `pb-20`（80px）就是给待付条让位的（待付条实测 66px，留 14px 余量）。
+// 不要在这里再补一个让位块，那会比设计稿多出 80px 的空白。
+// （`<main>` 上的 `pb-28` 是给底部 tab 让位的，那部分已由外壳的 TabBar 让位块承担，
+//   见 scripts/gen-pages.mjs 的 VIEW_DROP。）
+</style>

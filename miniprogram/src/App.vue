@@ -32,6 +32,20 @@ uni-view, uni-text, uni-image, uni-scroll-view, uni-swiper, uni-swiper-item, uni
   box-sizing: border-box;
 }
 
+// 边框重置 —— 等价于 Tailwind preflight 的 `*, ::before, ::after { border-width: 0; border-style: solid }`。
+// **漏掉它会长出凭空多出来的粗边框**：`border-dashed` 只设 border-style，
+// 没设宽度的那几边会取 CSS 初始值 `medium` = **3px**。
+// 于是设计稿里「只有上边一条虚线」的票卡分隔线（`border-t border-dashed`），
+// 在实现里变成了四边 3px 的虚线方框 —— 详见 README「转换时的几个关键约定」。
+//
+// 用标签选择器是刻意的：特异性 (0,0,1) 低于工具类的 (0,1,0)，
+// 所以带宽度类的元素（`border` / `border-t` / `border-2` …）完全不受影响。
+view, text, image, scroll-view, swiper, swiper-item, button, input, textarea, picker, form, navigator,
+uni-view, uni-text, uni-image, uni-scroll-view, uni-swiper, uni-swiper-item, uni-button, uni-input, uni-textarea, uni-picker, uni-form, uni-navigator {
+  border-width: 0;
+  border-style: solid;
+}
+
 // 设计稿里滚动条是隐藏的（::-webkit-scrollbar{display:none}）
 ::-webkit-scrollbar {
   display: none;
