@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app';
 import { ensureLogin } from '@/store/user';
+import { loadPlatformSettings } from '@/store/settings';
 
 onLaunch(() => {
   // 启动即静默登录（服务端 `WX_MOCK=true` 时任意 code 都能过；上线前换成真 appid）。
@@ -8,6 +9,10 @@ onLaunch(() => {
   ensureLogin().catch((err) => {
     console.warn('[mini] 启动登录失败：', err?.message ?? err);
   });
+
+  // 平台信息同样是 fire-and-forget：顶栏先用本地缓存同步渲染，接口回来后再覆盖。
+  // 内部已经 catch 了，这里不再重复处理。
+  void loadPlatformSettings();
 });
 </script>
 
@@ -87,8 +92,10 @@ uni-view, uni-text, uni-image, uni-scroll-view, uni-swiper, uni-swiper-item, uni
 }
 
 // ---- 内联 SVG 的替代：小程序没有 <svg> 标签 ----
-// 设计稿的二维码 SVG 是 viewBox="0 0 100 100" 下的一组 <rect>，
-// 生成器把它转成百分比定位的 <view>，位置与圆角与原图一一对应。
+// `gen-pages.mjs` 把设计稿里的 SVG（viewBox + 一组 <rect>）转成百分比定位的 <view>，
+// 位置与圆角与原图一一对应。
+// 注：凭证页那个二维码**已经不走这条路了** —— 它由 `components/DynamicQr.vue`
+// 用真实 token 现场编码（见 `utils/qrcode.ts`）。这两个类是留给将来别处的内联 SVG 的。
 .pg-svg {
   position: relative;
   display: block;

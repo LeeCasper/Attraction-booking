@@ -1,75 +1,91 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { QR_DATA, QR_FINDER, type QrRect } from './qr-pattern';
+import { encodeQr, type QrEcc } from '@/utils/qrcode';
+import { qrImageDataUri } from '@/utils/qr-render';
 
 /**
- * 动态二维码。
+ * 动态二维码 —— **真能扫的**那种。
  *
- * 为什么不用 canvas 或引入 qrcode 库：一期是静态还原，二维码里的内容是假的
- * （设计稿画的也是一个随机图案）。这里用「百分比定位的 view」复刻设计稿的画法，
- * 好处是首屏渲染与设计稿**逐像素一致**、零依赖、渲染路径确定。
+ * 内容是服务端签发的动态凭证 token 本体（`GET /api/mini/orders/:id/credential`）。
+ * 闸机就是把扫出来的原文当 `credential` 提交给 `POST /api/gate/verify`，
+ * 所以这里**不能**加任何前缀/包装，必须原样整串编码，否则服务端按 `MALFORMED` 拒掉。
  *
- * seed = 0 时直接用设计稿原图案；其他 seed 按确定性 PRNG 重排数据点，
- * 三个定位角保持不变（真二维码的定位角同样不随内容变化）。
+ * ## 画法：自己编一张 1 位 PNG，绑给 `<image>`
  *
- * ⚠️ 这是**视觉占位**：接入 `GET /api/mini/orders/:id/credential` 后，
- * 应改为用真实凭证 token 生成二维码矩阵（届时可换成 canvas + qrcode 库，
- * 或继续用本组件的 view 网格、只把矩阵来源换成真 token）。
+ * 这个组件先后用过三种画法，前两种都栽在小程序端的渲染上（详见 `utils/qr-render.ts` 的注解）：
+ * 一格一个 view（4000+ 节点）、一行一个 view + 硬断点渐变（真机固定少画一行）、
+ * canvas type="2d"（开发者工具能画、真机拿不到节点）。
+ * 现在换成最朴素的一条：`qrImageDataUri()` 编出一张 ~34KB 的 data URI 交给 `<image>` ——
+ * 不依赖任何平台 API、不参与层级合成、H5 与小程序同一份代码。
+ *
+ * ⚠️ 组件的 `height: 100%` 要有东西可依 —— 调用处必须把它包在有尺寸的容器里
+ * （见 `scripts/page-bindings.mjs` 的 credential 节）。
  */
-const props = defineProps<{ seed: number }>();
+const props = withDefaults(
+  defineProps<{
+    /** 动态凭证 token。为空 = 没有可入园凭证，显示空态文案 */
+    token: string;
+    /** 纠错等级。中间没有 logo 压盖，M（可恢复 15%）足够；矩阵越小单模块越大、越好扫 */
+    ecc?: QrEcc;
+  }>(),
+  { ecc: 'M' },
+);
 
-/** 数据点的网格坐标（从设计稿的数据点去重反推），以及单格边长 */
-const grid = (() => {
-  const xs = [...new Set(QR_DATA.map((r) => r.x))].sort((a, b) => a - b);
-  const ys = [...new Set(QR_DATA.map((r) => r.y))].sort((a, b) => a - b);
-  return { xs, ys, size: QR_DATA[0]?.w ?? 6 };
-})();
-
-/** 确定性 PRNG（线性同余），保证同一 seed 每次渲染一致 */
-function pseudoRandom(seed: number) {
-  let state = (seed * 2654435761 + 1) >>> 0;
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
-}
-
-const dataCells = computed<QrRect[]>(() => {
-  // seed 0：原样用设计稿的图案，保证首屏与设计稿一致
-  if (!props.seed) return QR_DATA;
-
-  const rand = pseudoRandom(props.seed);
-  const cells: QrRect[] = [];
-  for (const y of grid.ys) {
-    for (const x of grid.xs) {
-      // 密度对齐设计稿（49/169 ≈ 29%）
-      if (rand() < 0.29) {
-        cells.push({ x, y, w: grid.size, h: grid.size, rx: 0, fill: '#121e1c' });
-      }
-    }
+const matrix = computed(() => {
+  if (!props.token) return null;
+  try {
+    return encodeQr(props.token, props.ecc);
+  } catch {
+    // 内容超长等异常：走空态，不让整个凭证页崩掉
+    return null;
   }
-  return cells;
 });
 
-const rects = computed(() => [...QR_FINDER, ...dataCells.value]);
-
-/** viewBox 是 0–100，直接当百分比用 */
-function styleOf(r: QrRect) {
-  const parts = [
-    `left:${r.x}%`,
-    `top:${r.y}%`,
-    `width:${r.w}%`,
-    `height:${r.h}%`,
-    `background-color:${r.fill}`,
-  ];
-  // rx 按 viewBox 单位给出（0–100），换算成元素自身边长的百分比；本组数据全是正方形
-  if (r.rx > 0 && r.w > 0) parts.push(`border-radius:${((r.rx / r.w) * 100).toFixed(2)}%`);
-  return parts.join(';');
-}
+/** 编出来的图。token 一变就重算 —— 这就是「动态」的地方 */
+const source = computed(() =>
+  matrix.value ? qrImageDataUri(matrix.value.rows, matrix.value.size) : '',
+);
 </script>
 
 <template>
-  <view class="pg-svg w-full h-full z-10">
-    <view v-for="(r, i) in rects" :key="i" class="pg-qr-rect" :style="styleOf(r)" />
+  <view class="pg-qr w-full h-full z-10">
+    <!--
+      `scaleToFill` 是刻意的：图是正方形，容器也是正方形，没有变形风险，
+      而 aspectFit/aspectFill 会在框里留边或裁切。**不要**改成 aspectFit。
+    -->
+    <image v-if="source" class="pg-qr__image" :src="source" mode="scaleToFill" />
+    <view v-else class="pg-qr__empty">
+      <text class="pg-qr__empty-text">暂无可入园凭证</text>
+    </view>
   </view>
 </template>
+
+<style lang="scss" scoped>
+// 外层只是定位基准：尺寸完全由调用方给的容器决定
+.pg-qr {
+  position: relative;
+  overflow: hidden;
+}
+
+.pg-qr__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  // 图是按 ~480px 出的、展示框约 198px，多数机型上是缩小（不影响清晰度）；
+  // 少数 3x 屏会略微放大，用像素化避免插值糊掉模块边缘。不支持该属性时会忽略。
+  image-rendering: pixelated;
+}
+
+.pg-qr__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pg-qr__empty-text {
+  font-size: 23.08rpx;
+  color: $c-ink-light-gray;
+}
+</style>
