@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { platformSettings } from '@/store/settings';
 
 /**
  * 4 个页面共用的顶部固定栏。
@@ -61,10 +62,14 @@ const headerStyle = computed(() => {
           </view>
           <view class="pg-header__names">
             <view class="pg-header__title-row">
-              <text class="pg-header__cn">枫林谷景区</text>
-              <text class="pg-header__en">Fenglingu</text>
+              <!--
+                品牌名来自后台「参数配置 → platform」，不是设计稿里写死的字面量 ——
+                设计稿是按单景区画的，而本平台管多个景点，顶栏顶着某一个景点的名字是错的。
+              -->
+              <text class="pg-header__cn">{{ platformSettings.name }}</text>
+              <text class="pg-header__en">{{ platformSettings.nameEn }}</text>
             </view>
-            <text class="pg-header__sub">国家生态自然公园 · 智慧文旅</text>
+            <text class="pg-header__sub">{{ platformSettings.subtitle }}</text>
           </view>
         </view>
 

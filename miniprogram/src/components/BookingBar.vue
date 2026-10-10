@@ -52,18 +52,17 @@ function onSubmit() {
 </template>
 
 <style lang="scss" scoped>
-// 覆盖设计稿的 bottom-16（= 64px）。那个值是按「底栏 64px 且没有安全区」画的，
-// 真机带 Home Indicator 时底栏实际是「64px + 安全区(34px)」，待付条会嵌进底栏里 ——
-// 和顶栏被状态栏盖住是同一类问题：固定偏移没算安全区。
-// scoped 样式带 [data-v-x]，特异性高于工具类，能稳稳覆盖。
+// 购票页**不再是外壳里的 tab**，而是「选完景点才进」的二级页 —— 二级页没有底栏，
+// 所以待付条要贴在屏幕最下沿，偏移从「底栏高度 + 安全区」改成「只让开安全区」。
+// scoped 样式带 [data-v-x]，特异性高于工具类，能稳稳覆盖设计稿的 `bottom-16`。
 .pg-bookingbar {
-  // 偏移必须与底栏的实际高度一致，所以用底栏那个「安全区取半」的值，见 tokens.scss
-  bottom: calc(#{px2rpx(64)} + #{$safe-bottom-tabbar});
+  bottom: 0;
+  padding-bottom: calc(12px + #{$safe-bottom});
 }
 
 // 注意：待付条是 fixed、不占文档流，它下方的内容留白**由设计稿自己给了** ——
-// 购票视图内容层的 `pb-20`（80px）就是给待付条让位的（待付条实测 66px，留 14px 余量）。
+// 购票页内容层的 `pb-20`（80px）就是给待付条让位的。
 // 不要在这里再补一个让位块，那会比设计稿多出 80px 的空白。
-// （`<main>` 上的 `pb-28` 是给底部 tab 让位的，那部分已由外壳的 TabBar 让位块承担，
-//   见 scripts/gen-pages.mjs 的 VIEW_DROP。）
+// （`<main>` 上的 `pb-28` 原本是给底部 tab 让位的；现在没有 tab 了，但它在设计稿里
+//   同时承担了「内容不被待付条压住」的职责，所以 gen-pages 里也没丢。）
 </style>
