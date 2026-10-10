@@ -23,9 +23,10 @@
  */
 import { reactive, watch } from 'vue';
 import PageHeader from '@/components/PageHeader.vue';
+import AreaTopBar from '@/components/AreaTopBar.vue';
 import TabBar from '@/components/TabBar.vue';
 import HomeView from '@/views/home/index.vue';
-import BookingView from '@/views/booking/index.vue';
+import AreaView from '@/views/area/index.vue';
 import CredentialView from '@/views/credential/index.vue';
 import ProfileView from '@/views/profile/index.vue';
 import { activeTab as tab, type TabKey } from '@/store/shell';
@@ -48,7 +49,7 @@ const onTabChange = (key: TabKey) => {
  */
 const visited = reactive<Record<TabKey, boolean>>({
   home: true,
-  booking: false,
+  area: false,
   credential: false,
   profile: false,
 });
@@ -59,7 +60,15 @@ watch(tab, (t) => {
 
 <template>
   <view class="pg-shell">
-    <PageHeader />
+    <!--
+      「景点选择」那一格换成它自己的标题栏（设计稿画的就是「景点选择与预约」）——
+      两个叠起来就是两条 56px 的横条，所以二选一。
+      ⚠️ 必须由**外壳**渲染：那一格是 scroll-view 里的视图，而微信的 scroll-view 会形成
+      自己的包含块，里面的 `position: fixed` 不再相对视口固定、会跟着内容滚走。
+      详见 components/AreaTopBar.vue 的注解。
+    -->
+    <AreaTopBar v-if="tab === 'area'" />
+    <PageHeader v-else />
 
     <view class="pg-shell__body">
       <scroll-view
@@ -73,13 +82,13 @@ watch(tab, (t) => {
       </scroll-view>
 
       <scroll-view
-        v-if="visited.booking"
-        v-show="tab === 'booking'"
+        v-if="visited.area"
+        v-show="tab === 'area'"
         class="pg-shell__view"
         scroll-y
         :show-scrollbar="false"
       >
-        <BookingView :active="tab === 'booking'" />
+        <AreaView :active="tab === 'area'" />
       </scroll-view>
 
       <scroll-view

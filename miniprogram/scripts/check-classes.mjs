@@ -83,6 +83,9 @@ for (const file of walk(SRC).sort()) {
   for (const str of strings) {
     for (const token of str.split(/\s+/).filter(Boolean)) {
       checked++;
+      // `#rrggbb` 是颜色字面量，不是 class —— SCREAMING_CASE 那条规则会把
+      // `const INK = '#121e1c'` 这种颜色常量一并捞进来（写二维码、水印这类按数据上色的组件很常见）
+      if (token.startsWith('#')) continue;
       if (token.startsWith('icon-')) {
         if (!ICONS.has(token.slice('icon-'.length))) unknown.add(token);
         continue;

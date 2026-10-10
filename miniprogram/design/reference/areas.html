@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#effcf9;}body{overscroll-behavior:none;font-family:'Plus Jakarta Sans',sans-serif;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "deep-teal-800": "#115e59", "on-primary": "#ffffff", "primary": "#00685f", "on-tertiary-container": "#fffbff", "serene-blue": "#0284c7", "outline": "#6d7a77", "silk-border": "#e2e8e4", "secondary": "#006a63", "surface-container-low": "#e9f7f3", "primary-fixed-dim": "#6bd8cb", "on-primary-fixed-variant": "#005049", "on-error-container": "#93000a", "on-secondary": "#ffffff", "on-secondary-container": "#006f67", "on-error": "#ffffff", "tertiary-fixed": "#ffdcc3", "screen-jade-border": "rgba(45, 212, 191, 0.35)", "screen-panel-bg": "rgba(13, 29, 49, 0.78)", "screen-gilt-gold": "#fbbf24", "error-container": "#ffdad6", "on-secondary-fixed-variant": "#00504a", "primary-container": "#008378", "inverse-primary": "#6bd8cb", "ink-dark-gray": "#374151", "on-primary-container": "#f4fffc", "mist-cyan-50": "#f0fdf9", "paper-surface": "#ffffff", "background": "#effcf9", "surface-container-high": "#ddebe8", "surface-bright": "#effcf9", "surface": "#effcf9", "paper-base": "#f7f8f6", "screen-xuanqing-bg": "#08121e", "ink-charcoal-text": "#1c2826", "inverse-on-surface": "#e6f4f0", "on-tertiary": "#ffffff", "outline-variant": "#bcc9c6", "on-tertiary-fixed": "#2f1500", "secondary-container": "#99efe5", "amber-gold": "#d97706", "surface-container": "#e3f1ed", "surface-tint": "#006a61", "on-secondary-fixed": "#00201d", "tertiary-fixed-dim": "#ffb77d", "screen-blaze-red": "#f87171", "surface-container-lowest": "#ffffff", "surface-container-highest": "#d8e5e2", "inverse-surface": "#273331", "on-primary-fixed": "#00201d", "on-surface-variant": "#3d4947", "tertiary-container": "#b15f00", "on-surface": "#121e1c", "surface-variant": "#d8e5e2", "ink-light-gray": "#6b7280", "error": "#ba1a1a", "on-tertiary-fixed-variant": "#6e3900", "on-background": "#121e1c", "tertiary": "#8d4b00", "screen-neon-jade": "#2dd4bf", "surface-dim": "#cfddd9", "cinnabar-red": "#dc2626", "secondary-fixed": "#9cf2e8", "bamboo-light-100": "#ccfbee", "secondary-fixed-dim": "#80d5cb", "emerald-pass": "#059669", "jade-bright-300": "#5eead4", "primary-fixed": "#89f5e7" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-md": "1rem", "space-sm": "0.5rem", "space-xs": "0.25rem", "margin-tablet": "1.5rem", "space-2xl": "3rem", "margin": "1rem", "margin-desktop": "2rem", "space-lg": "1.5rem", "gutter-desktop": "1.5rem", "gutter": "1rem", "space-xl": "2rem" }, fontFamily: { "headline-md": ["Noto Serif", "Noto Serif SC", "serif"], "body-sm": ["Plus Jakarta Sans", "sans-serif"], "display-kpi-screen": ["Space Grotesk", "sans-serif"], "label-badge": ["Space Grotesk", "sans-serif"], "body-lg": ["Plus Jakarta Sans", "sans-serif"], "caption-sm": ["Plus Jakarta Sans", "sans-serif"], "body-md": ["Plus Jakarta Sans", "sans-serif"], "data-metric-md": ["Space Grotesk", "sans-serif"], "headline-xl": ["Noto Serif", "Noto Serif SC", "serif"], "headline-xl-mobile": ["Noto Serif", "Noto Serif SC", "serif"], "headline-lg": ["Noto Serif", "Noto Serif SC", "serif"], "data-metric-lg": ["Space Grotesk", "sans-serif"] }, fontSize: { "headline-md": ["18px", { "lineHeight": "26px", "fontWeight": "600" }], "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }], "display-kpi-screen": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "label-badge": ["12px", { "lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "600" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "500" }], "caption-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }], "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }], "data-metric-md": ["16px", { "lineHeight": "22px", "fontWeight": "500" }], "headline-xl": ["28px", { "lineHeight": "36px", "fontWeight": "600" }], "headline-xl-mobile": ["22px", { "lineHeight": "30px", "fontWeight": "600" }], "headline-lg": ["22px", { "lineHeight": "30px", "fontWeight": "600" }], "data-metric-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-body-md text-ink-charcoal-text min-h-screen flex flex-col selection:bg-bamboo-light-100"><header class="fixed top-0 inset-x-0 z-50 bg-surface/85 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,104,95,0.04)]"><div class="h-14 px-margin flex items-center justify-between"><div class="flex items-center min-w-[88px]"><button aria-label="返回上一页" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface active:bg-surface-container-high/60 transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[22px]">arrow_back_ios_new</span></button></div><div class="flex-1 flex items-center justify-center text-center px-space-xs"><h1 class="font-headline-md text-headline-md text-on-surface tracking-wide truncate">景点选择与预约</h1></div><div class="min-w-[88px] flex items-center justify-end"><div class="w-[88px] h-8 rounded-full bg-paper-surface/90 shadow-[0_1px_4px_rgba(0,104,95,0.08)] flex items-center justify-between px-2.5"><div class="flex items-center gap-[3px] text-ink-charcoal-text/80 pl-0.5"><span class="w-1 h-1 rounded-full bg-ink-charcoal-text"></span><span class="w-1 h-1 rounded-full bg-ink-charcoal-text"></span><span class="w-1 h-1 rounded-full bg-ink-charcoal-text"></span></div><div class="w-px h-3.5 bg-outline-variant/50"></div><div class="flex items-center justify-center text-ink-charcoal-text/80 pr-0.5"><div class="w-3.5 h-3.5 rounded-full border-[1.5px] border-ink-charcoal-text flex items-center justify-center"><div class="w-1 h-1 rounded-full bg-ink-charcoal-text"></div></div></div></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-14 bg-surface pb-safe"><div class="flex flex-col w-full">
+<!-- 宣纸水墨暗纹装饰背景与搜索区域 -->
+<section class="px-margin pt-space-md pb-space-xs flex flex-col gap-space-sm">
+<!-- 宣纸素雅搜索栏 -->
+<div class="relative flex items-center">
+<div class="w-full bg-paper-surface rounded-xl shadow-sm flex items-center px-space-md py-2.5 transition-all focus-within:shadow-md">
+<span class="material-symbols-outlined text-outline text-[20px] mr-2">search</span>
+<input class="w-full bg-transparent text-ink-charcoal-text font-body-sm text-body-sm placeholder:text-ink-light-gray focus:outline-none" placeholder="搜索景点、场馆、索道、演艺..." type="text"/>
+<div class="h-4 w-[1px] bg-silk-border mx-2"></div>
+<button aria-label="分类筛选" class="flex items-center gap-1 text-primary active:opacity-75 transition-opacity pl-1">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+<span class="font-caption-sm text-caption-sm">筛选</span>
+</button>
+</div>
+</div>
+<!-- 分类切换标签胶囊（横向可滑） -->
+<div class="flex items-center gap-2 overflow-x-auto py-1.5 no-scrollbar -mx-margin px-margin" id="categoryTabs">
+<button class="shrink-0 px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-label-badge text-label-badge shadow-sm transition-all" data-category="all">全部景点</button>
+<button class="shrink-0 px-3.5 py-1.5 rounded-full bg-surface-container text-ink-charcoal-text font-label-badge text-label-badge transition-all active:scale-95" data-category="main">主景区</button>
+<button class="shrink-0 px-3.5 py-1.5 rounded-full bg-surface-container text-ink-charcoal-text font-label-badge text-label-badge transition-all active:scale-95" data-category="nature">自然风光</button>
+<button class="shrink-0 px-3.5 py-1.5 rounded-full bg-surface-container text-ink-charcoal-text font-label-badge text-label-badge transition-all active:scale-95" data-category="culture">历史人文</button>
+<button class="shrink-0 px-3.5 py-1.5 rounded-full bg-surface-container text-ink-charcoal-text font-label-badge text-label-badge transition-all active:scale-95" data-category="cable">索道缆车</button>
+<button class="shrink-0 px-3.5 py-1.5 rounded-full bg-surface-container text-ink-charcoal-text font-label-badge text-label-badge transition-all active:scale-95" data-category="night">夜游演艺</button>
+</div>
+<!-- 今日预约热度与承载提示横幅 -->
+<div class="bg-surface-container-low rounded-xl p-3 flex items-start gap-2.5 shadow-sm">
+<div class="w-6 h-6 rounded-full bg-bamboo-light-100 flex items-center justify-center shrink-0 mt-0.5 text-primary">
+<span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">sensors</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-label-badge text-label-badge text-primary flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-pass animate-pulse"></span>
+            当前承载舒适 (28%)
+          </span>
+<span class="text-caption-sm font-caption-sm text-outline">实时物联网闸机联控</span>
+</div>
+<p class="font-caption-sm text-caption-sm text-ink-dark-gray mt-0.5 leading-tight">
+          实行分时错峰预约，凭动态验票码或身份证直通闸机自动核销入园。
+        </p>
+</div>
+</div>
+</section>
+<!-- 景点预约联票/套票推荐通栏 -->
+<section class="px-margin mt-space-sm mb-space-sm">
+<div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-deep-teal-800 to-primary text-on-primary p-4 shadow-md">
+<div class="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-bamboo-light-100/10 pointer-events-none blur-xl"></div>
+<div class="flex items-start justify-between">
+<div class="flex-1 pr-3">
+<div class="inline-flex items-center gap-1 bg-primary-container/80 px-2 py-0.5 rounded text-[11px] font-medium tracking-wide mb-1.5 text-on-primary-container">
+<span class="material-symbols-outlined text-[13px]">confirmation_number</span>
+            全景畅游特惠通票
+          </div>
+<h2 class="font-headline-md text-headline-md font-semibold tracking-wide">
+            枫林谷全景套票 (主景+峡谷+双程索道)
+          </h2>
+<div class="flex flex-wrap items-center gap-1.5 mt-2">
+<span class="bg-amber-gold/20 text-tertiary-fixed font-caption-sm text-caption-sm px-2 py-0.5 rounded-full font-medium">
+              立省 ¥85
+            </span>
+<span class="bg-white/10 text-bamboo-light-100 font-caption-sm text-caption-sm px-2 py-0.5 rounded-full">
+              全域闸机通刷
+            </span>
+</div>
+</div>
+</div>
+<div class="flex items-end justify-between mt-3 pt-2">
+<div class="flex items-baseline gap-1">
+<span class="font-caption-sm text-caption-sm text-bamboo-light-100/80">特惠价</span>
+<span class="font-data-metric-lg text-data-metric-lg font-bold">¥260</span>
+<span class="font-caption-sm text-caption-sm text-bamboo-light-100/80">/人</span>
+<span class="font-caption-sm text-caption-sm line-through text-white/50 ml-1">¥345</span>
+</div>
+<button class="bg-white text-deep-teal-800 px-4 py-1.5 rounded-full font-label-badge text-label-badge shadow active:scale-95 transition-transform flex items-center gap-1">
+          一键预订
+          <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+<!-- 核心景点卡片列表 -->
+<section class="px-margin flex flex-col gap-3.5 mb-space-md">
+<!-- 景点 1：枫林谷主景区·云巅栈道 -->
+<article class="bg-paper-surface rounded-xl overflow-hidden shadow-sm flex flex-col transition-all hover:shadow-md">
+<div class="relative w-full h-40">
+<img class="w-full h-full object-cover" data-alt="Traditional Chinese landscape with mist-shrouded green peaks, wooden cliffside skywalk pathway winding along granite cliffs, lush bamboo forest below, soft morning light in the style of Qinglv Shanshui neo-classical aesthetic, teals and jade hues" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhfxlIhL_t_EwVa2MZ6aZ3QqMECrrZqINqb9RCJdyEj5EEIVzPKBrvPNgD0UmsqBc52DGS141qtmwI9quOi9THsYx4L7OYy2s2LzqiJVLdOvC2mOU_xPxbx6-ApEFSPVQGFD3Lal5wNOsZLkM4XLHD21nQm7pHPAPPxl43VBaZhVwcbcR671oLAf5jfx_NEaO7oeLNS81PdTA2zA04hZz31zzvNrN5u1OZSqGaDmDBL64IycytHhhatQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+<span class="bg-deep-teal-800/90 text-on-primary font-caption-sm text-caption-sm px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+            国家 5A 级景区
+          </span>
+<span class="bg-cinnabar-red/90 text-white font-caption-sm text-caption-sm px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]">local_fire_department</span> 热度 98%
+          </span>
+</div>
+<div class="absolute bottom-2 left-3 right-3 flex justify-between items-end text-white">
+<div>
+<h3 class="font-headline-md text-headline-md font-semibold drop-shadow-sm text-white">
+              枫林谷主景区·云巅栈道
+            </h3>
+<p class="font-caption-sm text-caption-sm text-bamboo-light-100 drop-shadow-sm">
+              开放时间 08:00 - 17:30 · 建议 3-4 小时
+            </p>
+</div>
+</div>
+</div>
+<div class="p-3.5 flex flex-col gap-2.5">
+<div class="flex flex-wrap items-center gap-1.5">
+<span class="bg-surface-container px-2 py-0.5 rounded text-primary font-caption-sm text-caption-sm">分时错峰预约</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">二代身份证直通</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">无接触核验</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-2 flex items-center justify-between text-body-sm">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="w-2 h-2 rounded-full bg-emerald-pass"></span>
+<span class="font-caption-sm text-caption-sm text-ink-dark-gray truncate">
+              今日余票充裕 (余 1,420 张)
+            </span>
+</div>
+<span class="font-caption-sm text-caption-sm text-outline shrink-0">北门主闸 / 东门入</span>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">门票起价</span>
+<span class="font-data-metric-lg text-data-metric-lg text-primary font-bold ml-1">¥120</span>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">起</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2 rounded-full font-label-badge text-label-badge shadow-sm active:bg-deep-teal-800 transition-colors flex items-center gap-1">
+            去预约
+            <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</article>
+<!-- 景点 2：青翠峡谷·飞瀑叠翠 -->
+<article class="bg-paper-surface rounded-xl overflow-hidden shadow-sm flex flex-col transition-all hover:shadow-md">
+<div class="relative w-full h-40">
+<img class="w-full h-full object-cover" data-alt="Lush emerald green canyon gorge with cascading waterfalls falling into clear jade pools, wooden footbridge crossing the emerald stream, soft sunbeams filtering through bamboo grove, peaceful atmosphere, neo-classical Chinese ink painting mood" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGwJyoi20tNG_arvveaviZVeMvWfjxzPXNkB8AS8ZSsWaawpF1pptWHPMOinLhmoLlaZA3Og7NI0JSgLAEmyaQSmM2issp2KI6DeJC1KuSGXVysnPcLvxbOuXZFFiB_i6J1JnettwiBE8vQsJCWZq2SUgvAIbFN_pKDktl6O2xsSJO7uXxnsOpzXtlLFYs4bxM-tsHpsrlmsF32jdksCThe75tLn7umbdNpWdSvKykAp4Qz0uDad1yHA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+<span class="bg-deep-teal-800/90 text-on-primary font-caption-sm text-caption-sm px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+            清凉避暑胜地
+          </span>
+<span class="bg-amber-gold text-white font-caption-sm text-caption-sm px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]">alarm</span> 时段告急
+          </span>
+</div>
+<div class="absolute bottom-2 left-3 right-3 flex justify-between items-end text-white">
+<div>
+<h3 class="font-headline-md text-headline-md font-semibold drop-shadow-sm text-white">
+              青翠峡谷·飞瀑叠翠
+            </h3>
+<p class="font-caption-sm text-caption-sm text-bamboo-light-100 drop-shadow-sm">
+              开放时间 08:30 - 17:00 · 建议 2 小时
+            </p>
+</div>
+</div>
+</div>
+<div class="p-3.5 flex flex-col gap-2.5">
+<div class="flex flex-wrap items-center gap-1.5">
+<span class="bg-surface-container px-2 py-0.5 rounded text-primary font-caption-sm text-caption-sm">无感人脸通行</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">生态负氧离子</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">溪流亲水</span>
+</div>
+<div class="bg-tertiary-fixed/40 rounded-lg p-2 flex items-center justify-between text-body-sm">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="w-2 h-2 rounded-full bg-amber-gold animate-ping"></span>
+<span class="font-caption-sm text-caption-sm text-tertiary font-medium truncate">
+              午间时段紧张 (仅剩 180 张)
+            </span>
+</div>
+<span class="font-caption-sm text-caption-sm text-ink-dark-gray shrink-0">西峡谷闸机群</span>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">门票起价</span>
+<span class="font-data-metric-lg text-data-metric-lg text-primary font-bold ml-1">¥65</span>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">起</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2 rounded-full font-label-badge text-label-badge shadow-sm active:bg-deep-teal-800 transition-colors flex items-center gap-1">
+            去预约
+            <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</article>
+<!-- 景点 3：云顶天池与全景双程索道 -->
+<article class="bg-paper-surface rounded-xl overflow-hidden shadow-sm flex flex-col transition-all hover:shadow-md">
+<div class="relative w-full h-40">
+<img class="w-full h-full object-cover" data-alt="Scenic aerial view of modern glass cable car gondola floating above sea of clouds and craggy limestone mountain peaks, reflecting mountain lake reservoir below, elegant Chinese mountain aesthetic, calm tranquil atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8-WFmcFOnyE38XnZjJxT0IWaJeqpNx_8DEpfG6I1Ia2C8092N_hjulqC0k0k0Bfsw8de1cYexUGeiWeIiIuprJXyF9t1_fDH2D2wZxCkX-SSAjXL2Q7RvnbyUe7Jka77K0KVPVEkAD4AGd-wVwnCcpMmIwYUVDwJ9mYMHHlUIpJ5WIlXFsq_ysyzftf_CJeJoTNlyRFVSetI4k5sn42FNO1aGMi7yYhTbU7j8X7CSr4V2nQImanFCaw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+<span class="bg-deep-teal-800/90 text-on-primary font-caption-sm text-caption-sm px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+            高空缆车联票
+          </span>
+<span class="bg-serene-blue/90 text-white font-caption-sm text-caption-sm px-2 py-0.5 rounded-full backdrop-blur-sm">
+            限流管控
+          </span>
+</div>
+<div class="absolute bottom-2 left-3 right-3 flex justify-between items-end text-white">
+<div>
+<h3 class="font-headline-md text-headline-md font-semibold drop-shadow-sm text-white">
+              云顶天池与全景双程索道
+            </h3>
+<p class="font-caption-sm text-caption-sm text-bamboo-light-100 drop-shadow-sm">
+              开放时间 09:00 - 16:30 · 即检随乘
+            </p>
+</div>
+</div>
+</div>
+<div class="p-3.5 flex flex-col gap-2.5">
+<div class="flex flex-wrap items-center gap-1.5">
+<span class="bg-surface-container px-2 py-0.5 rounded text-primary font-caption-sm text-caption-sm">限流预约制</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">双程往返缆车</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">360度全景</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-2 flex items-center justify-between text-body-sm">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="w-2 h-2 rounded-full bg-serene-blue"></span>
+<span class="font-caption-sm text-caption-sm text-ink-dark-gray truncate">
+              需提前1天预约 · 今日仅剩 45 张
+            </span>
+</div>
+<span class="font-caption-sm text-caption-sm text-outline shrink-0">下索道下站闸机</span>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">套票起价</span>
+<span class="font-data-metric-lg text-data-metric-lg text-primary font-bold ml-1">¥160</span>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">起</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2 rounded-full font-label-badge text-label-badge shadow-sm active:bg-deep-teal-800 transition-colors flex items-center gap-1">
+            去预约
+            <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</article>
+<!-- 景点 4：枫林夜游·森林光影秀 -->
+<article class="bg-paper-surface rounded-xl overflow-hidden shadow-sm flex flex-col transition-all hover:shadow-md">
+<div class="relative w-full h-40">
+<img class="w-full h-full object-cover" data-alt="Night scenic fantasy light projection on ancient trees and temple pavilions, glowing lanterns reflecting in quiet pond, bioluminescent mist, ethereal cyan and warm amber night light, artistic atmospheric photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCQaM_ovtGbJiY2W7JnIHLE3hklHN-DZH29ZLRv1MAmjsZuyZ8rVvJTqV-jWxwGYU3S1a83-ZIhaMvqBCPIulFZWW08lifA6jaeiDN1dXC-azkwvFvkHsSKaaDuIv2WX3jFagmzfUbitP_xbuNj-MoEanCRCQMEVoVHEHDF9fozn-yfNxT0q9iAWy5OZCAbJMmyO9nHvugj8wcq_3PoNjfrT0ZyFQckKiVKRLmxQKSKuAuiwwPl7Q5HA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+<span class="bg-tertiary/90 text-on-tertiary font-caption-sm text-caption-sm px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+            夜场沉浸式
+          </span>
+<span class="bg-bamboo-light-100/30 text-white font-caption-sm text-caption-sm px-2 py-0.5 rounded-full backdrop-blur-sm">
+            非遗光影秀
+          </span>
+</div>
+<div class="absolute bottom-2 left-3 right-3 flex justify-between items-end text-white">
+<div>
+<h3 class="font-headline-md text-headline-md font-semibold drop-shadow-sm text-white">
+              枫林夜游·森林光影秀
+            </h3>
+<p class="font-caption-sm text-caption-sm text-bamboo-light-100 drop-shadow-sm">
+              开放时间 18:30 - 21:30 (入园截止 20:30)
+            </p>
+</div>
+</div>
+</div>
+<div class="p-3.5 flex flex-col gap-2.5">
+<div class="flex flex-wrap items-center gap-1.5">
+<span class="bg-surface-container px-2 py-0.5 rounded text-primary font-caption-sm text-caption-sm">夜场专属票</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">互动光影装置</span>
+<span class="bg-surface-container px-2 py-0.5 rounded text-ink-charcoal-text font-caption-sm text-caption-sm">非遗水灯祈福</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-2 flex items-center justify-between text-body-sm">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="w-2 h-2 rounded-full bg-emerald-pass"></span>
+<span class="font-caption-sm text-caption-sm text-ink-dark-gray truncate">
+              夜场火热预约中 · 余 520 张
+            </span>
+</div>
+<span class="font-caption-sm text-caption-sm text-outline shrink-0">南门夜游专道</span>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">夜游门票</span>
+<span class="font-data-metric-lg text-data-metric-lg text-primary font-bold ml-1">¥98</span>
+<span class="font-caption-sm text-caption-sm text-ink-light-gray">起</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2 rounded-full font-label-badge text-label-badge shadow-sm active:bg-deep-teal-800 transition-colors flex items-center gap-1">
+            去预约
+            <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</article>
+</section>
+<!-- 底部贴心游览与过闸提示 -->
+<footer class="px-margin mb-space-xl">
+<div class="bg-surface-container-low rounded-xl p-4 flex flex-col gap-3 shadow-sm">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<h4 class="font-body-lg text-body-lg font-semibold text-ink-charcoal-text">入园过闸与游览贴士</h4>
+</div>
+<div class="flex flex-col gap-2 font-caption-sm text-caption-sm text-ink-dark-gray leading-relaxed">
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] text-primary shrink-0 mt-0.5">grid_view</span>
+<p>
+<strong class="text-ink-charcoal-text">多景点闸机全网互联：</strong>预约成功后，持同一订单动态二维码或登记的二代身份证原件，均可在各指定景点闸机自动感应通过。
+          </p>
+</div>
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] text-primary shrink-0 mt-0.5">schedule</span>
+<p>
+<strong class="text-ink-charcoal-text">建议分时错峰：</strong>预约时段前后30分钟内有效，若超出游览时段需现场于服务台改签。
+          </p>
+</div>
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] text-primary shrink-0 mt-0.5">currency_exchange</span>
+<p>
+<strong class="text-ink-charcoal-text">未检支持极速退：</strong>未核销过闸的门票支持在游玩日当天23:00前无损全额退改。
+          </p>
+</div>
+</div>
+<div class="mt-1 pt-2 flex items-center justify-between text-caption-sm font-caption-sm text-outline">
+<span>客服热线：400-880-9966</span>
+<span>服务时间：08:00 - 21:00</span>
+</div>
+</div>
+</footer>
+</div>
+<script>
+  // 标签胶囊切换轻交互
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabsContainer = document.getElementById('categoryTabs');
+    if (!tabsContainer) return;
+
+    const buttons = tabsContainer.querySelectorAll('button');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => {
+          b.className = 'shrink-0 px-3.5 py-1.5 rounded-full bg-surface-container text-ink-charcoal-text font-label-badge text-label-badge transition-all active:scale-95';
+        });
+        btn.className = 'shrink-0 px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-label-badge text-label-badge shadow-sm transition-all';
+      });
+    });
+  });
+</script></main></body></html>

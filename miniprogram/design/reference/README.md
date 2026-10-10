@@ -1,28 +1,38 @@
 # 设计稿原始素材
 
-Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Bamboo Stone」）导出的 4 份页面 HTML，
+Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Bamboo Stone」）导出的 5 份页面 HTML，
 以及从项目设计系统导出的 token。
 
-这些是 `scripts/gen-utilities.mjs`（工具类清单）与 `scripts/gen-pages.mjs`（页面模板）的输入，
-**不要手改**。改设计请回 Stitch 改，然后重新拉取 + `npm run gen`。
+这些是 `scripts/gen-classes.mjs`（类名清单）、`scripts/gen-utilities.mjs`（工具类样式）
+与 `scripts/gen-pages.mjs`（页面模板）的输入，**不要手改**。
+改设计请回 Stitch 改，然后重新拉取 + `npm run gen`。
 
-| 文件 | 页面 |
-| --- | --- |
-| `home.html` | 景区预约首页 |
-| `booking.html` | 分时预约购票页 |
-| `credential.html` | 动态防伪电子凭证页 |
-| `profile.html` | 个人中心 |
+| 文件 | 页面 | 产物 |
+| --- | --- | --- |
+| `home.html` | 景区预约首页 | `src/views/home/index.vue` |
+| `booking.html` | 分时预约购票页 | `src/views/booking/index.vue` |
+| `credential.html` | 动态防伪电子凭证页 | `src/views/credential/index.vue` |
+| `profile.html` | 个人中心 | `src/views/profile/index.vue` |
+| `areas.html` | 景点选择与预约 | `src/pages/area/index.vue`（**独立页面**，见下） |
+
+前 4 份是「单页外壳」里的视图（`gen-pages` 会拿掉 `min-h-screen`/`pb-24`，因为高度与底部留白
+由外壳与底栏负责）；`areas.html` 自带 header/footer，是**独立页面**，
+在 `PAGES` 里标了 `standalone: true` —— 保留整屏高度、不注入 `props.active`、
+数据加载挂在小程序页生命周期上，标题栏由 `page-bindings.mjs` 的 `before` 片段自绘。
+它也自带 `pt-14`（给设计稿那个**固定** header 让位），所以在 `PAGES` 里用 `drop: ['pt-14']` 去掉。
 
 ## 关于这些 HTML
 
 Stitch 的导出是自包含页面：**Tailwind CDN + 内联 `tailwind.config`（含全套设计 token）+ Google Fonts**，
 版式全部写在 Tailwind 工具类里。每页 158–236 个标签。
 
-- `classes.json` 是 4 份 HTML 里所有 class 的去重清单（419 个），由 `scripts/` 提取
+- `classes.json` 是这 5 份 HTML 里所有 class 的去重清单（**502 个**），由 `npm run gen:classes` 从
+  HTML 重新提取。⚠️ 在这之前它是个**手工维护的静态文件**（没有生成器，加一页设计稿就得手补类名，
+  漏一个的后果是静默少一条样式）—— 现在是派生产物，别再手改
 - `classmap.json` 是「设计类名 → 安全类名」的映射表（WXSS 选择器不能可靠地处理 `[ ] . / #`）
 - `latin-chars.txt` 是设计稿用到的全部非中日韩字符（77 个），用于给 Google Fonts 做子集
-- `icons.txt` / `icons-svg/` 是 44 个 Material Symbols 图标名与 SVG 缓存
-- `fonts-cache/` 是 3 个拉丁子集 woff2 缓存（有缓存时 `gen:fonts` 不需要联网）
+- `icons.txt` / `icons-svg/` 是 52 个 Material Symbols 图标名与 SVG 缓存
+- `fonts-cache/` 是 3 个拉丁子集 woff2 缓存（有缓存时 `gen:fonts` 仍然要联网，只是不下载字体文件）
 
 ## 重新拉取设计稿
 
@@ -36,23 +46,31 @@ KEY=$(node -e "
   process.stdout.write(f?.headers?.['X-Goog-Api-Key']||'');")
 
 PID=11259660976104163178
-# 列屏幕，拿 name/title/htmlCode.name
-curl -s "https://stitch.googleapis.com/v1/projects/$PID/screens?key=$KEY" | head -c 2000
-# 单个屏幕详情（含 htmlCode.name 这个文件 id）
-curl -s "https://stitch.googleapis.com/v1/projects/$PID/screens/<screenId>?key=$KEY"
-# 取 HTML：直接回传内容，不用碰那个要登录的 CDN
-curl -s "https://stitch.googleapis.com/v1/projects/$PID/files/<fileId>:download?key=$KEY"
-# → {"dataString":"<!DOCTYPE html>…"}，取出 dataString 即完整 HTML
+# 1) 列屏幕，拿每个屏幕的 id / title
+curl -s "https://stitch.googleapis.com/v1/projects/$PID/screens?key=$KEY" > /tmp/screens.json
+# 2) 取单个屏幕详情 —— htmlCode.downloadUrl 就是要的那份 HTML
+curl -s "https://stitch.googleapis.com/v1/projects/$PID/screens/<screenId>?key=$KEY" > /tmp/screen.json
+# 3) 直接把 downloadUrl 存成文件（实测 2026-10-10 起可直连，不再需要浏览器会话）
+curl -sL "$(node -e "process.stdout.write(require('/tmp/screen.json').htmlCode.downloadUrl)")" -o design/reference/<name>.html
 ```
 
-**两个坑**
+**坑（两条都已过期，留着是为了说明为什么文档里曾经写着「下不了」）**
 
-1. `htmlCode.downloadUrl` / `screenshot.downloadUrl` 这两个 CDN 链接（`contribution.usercontent.google.com`、
-   `lh3.googleusercontent.com`）**始终需要 Google 浏览器会话**，`curl` 一律 302 到登录页，加 API key 也没用。
-   走 `files/{id}:download` 才是可用的 API 路径。
-2. 只把项目设为 PUBLIC 还不够 —— **2026-10-09 之前**，即使项目公开，`files/{id}:download` 也返回 403
-   （用不存在的文件 id 打也返回 403 而非 404，说明是权限校验先于存在性校验）。
-   公开后可正常下载。
+1. ~~`htmlCode.downloadUrl` 需要 Google 浏览器会话~~ —— **2026-10-10 实测已可直连**（`curl -sL` 返回
+   200 与完整 HTML）。老屏幕的 `htmlCode.name` 形如 `projects/{pid}/files/{数字}`，新屏幕是
+   `projects/{pid}/screens/{sid}/fileEntries/html`，后者用 `files/{id}:download` 会 404 —— 所以**统一走
+   `downloadUrl` 最省事**，别去拼 `files/...` 路径。
+2. ~~只把项目设为 PUBLIC 还不够~~ —— 现在公开后即可下载。
+
+> ⚠️ **小心「Generating Screen...」**：项目里存在若干还没生成完的占位屏，标题就是这串字、
+> `htmlCode` 为 `null`。按用户给的 ID 拉之前先列一遍屏幕核对 title，别把占位屏当成设计稿。
+
+拉完新页面之后必须按顺序重跑（`gen:fonts` 要联网，本机会失败，所以别用 `npm run gen`）：
+```bash
+npm run gen:classes && npm run gen:utilities && npm run gen:icons && npm run gen:pages
+```
+`gen:classes` 会把新稿的类名并进 `classes.json`；`gen:utilities` 若遇到「译不出又不在
+`INTENTIONAL_DROP` 里」的类会**非 0 退出并点名**（以前是静默无样式）。
 
 ## 设计系统 token
 

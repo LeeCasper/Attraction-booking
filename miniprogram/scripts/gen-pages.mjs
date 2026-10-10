@@ -27,17 +27,41 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DESIGN = join(ROOT, 'design/reference');
+/** 单页外壳的四个视图（由 `pages/main/index.vue` 以 v-show 承载） */
 const OUT_DIR = join(ROOT, 'src/views');
+/** standalone 二级页：真正的页面，有自己的路由与标题栏 */
+const PAGE_DIR = join(ROOT, 'src/pages');
 const classmap = JSON.parse(readFileSync(join(ROOT, 'design/classmap.json'), 'utf8'));
 
 import { PAGE_BINDINGS } from './page-bindings.mjs';
 
-/** 页面定义：设计稿文件名 → 视图名 / 位图归位 */
+/**
+ * 页面定义：设计稿文件名 → 输出名 / 位图归位。
+ *
+ * `standalone: true` = 产出 `src/pages/<name>/index.vue`（独立页面）而不是 `src/views/`（外壳视图）：
+ *   - 进 `pages.json` 的真实路由，自带标题栏，**没有** `props.active`
+ *   - 保留 `min-h-screen` / `pb-*`（高度与底部留白得自己管）
+ *   - 模板前后可由 `PAGE_BINDINGS[name].before/after` 插入手写片段（标题栏等）
+ * `drop` 是**额外**要丢掉的 `<main>` class（在外壳那套 `VIEW_DROP` 之上）。
+ */
 const PAGES = [
   { file: 'home.html', name: 'home', img: { 'aida-public': '/static/images/banner-home.jpg' } },
-  { file: 'booking.html', name: 'booking', img: { 'aida-public': '/static/images/banner-booking.jpg' } },
+  // 购票页（游览日期 / 入园时段 / 票种）是**二级页**：用户在「景点选择」里选好景点才进来。
+  // 它不是 tab，所以顶栏与底部待付条都得自己负责 —— 保留 `min-h-screen` 与 `pb-28`
+  // （后者给固定的 BookingBar 让位），去掉给外壳顶栏让位的 `pt-16`，改用自绘标题栏。
+  {
+    file: 'booking.html',
+    name: 'booking',
+    img: { 'aida-public': '/static/images/banner-booking.jpg' },
+    standalone: true,
+    drop: ['pt-16'],
+  },
   { file: 'credential.html', name: 'credential', img: {} },
   { file: 'profile.html', name: 'profile', img: { 'aida-public': '/static/images/bg-profile.jpg' } },
+  // 「景点选择」是外壳的**第 2 个 tab**（底栏「预约购票」那一格）。它的设计稿自带固定标题栏，
+  // 所以 `pt-14` 要**保留**（那正是给 56px 固定标题栏让位的），由 page-bindings 的 before 供上标题栏。
+  // 外壳在这一格不渲染 PageHeader（见 pages/main/index.vue），否则两条横条会叠起来。
+  { file: 'areas.html', name: 'area', img: {} },
 ];
 
 /**
@@ -67,10 +91,15 @@ const TAG_MAP = {
   // 块级 → view
   div: 'view', header: 'view', main: 'view', nav: 'view', section: 'view', footer: 'view', aside: 'view',
   ul: 'view', li: 'view', p: 'view', h1: 'view', h2: 'view', h3: 'view', h4: 'view', figure: 'view',
+  // article 是景区选择页里每张景点卡的容器。漏了它的后果不是「样式不对」而是
+  // **整棵子树被丢弃** —— `if (!wxmlTag) return ''` 发生在下降子节点之前。
+  article: 'view',
   // 行内 → text
   span: 'text', strong: 'text', em: 'text', b: 'text', i: 'text', small: 'text', label: 'text',
   // 交互 → view（原生 button 自带样式，会与设计稿冲突）
   a: 'view', button: 'view',
+  // 表单：uni 的 <input> 是原生组件，标签同名直接映射
+  input: 'input',
 };
 const VOID = new Set(['img', 'br', 'hr', 'input', 'meta', 'link', 'path', 'circle', 'rect', 'use', 'source']);
 
@@ -99,13 +128,21 @@ function splitClasses(classStr) {
   };
 }
 
-/** 设计稿里的 Google 图片地址 → 本地静态资源 */
-function localizeImageUrl(url, page) {
+/**
+ * 设计稿里的 Google 图片地址 → 本地静态资源。
+ *
+ * 映射不过来的图**必须吵**：以前是静默 return null，而调用方对 null 的处理是
+ * 「整个 `<image>`/`<img>` 不输出」—— 表现是卡片悄悄少了一张图，没有任何提示。
+ */
+function localizeImageUrl(url, page, where) {
   if (!url) return null;
   if (url.includes('aida-public')) {
     // 每页只有一张位图，按页面归位
-    return page.img['aida-public'] ?? null;
+    const local = page.img['aida-public'];
+    if (local) return local;
   }
+  console.error(`✗ ${page.name}：${where} 的图片无法本地化，已从产物里丢弃：${url.slice(0, 90)}…`);
+  process.exitCode = 1;
   return null;
 }
 
@@ -252,6 +289,7 @@ function render(node, page, ctx) {
 
   // — 行为绑定：由 resolveBindings 预扫描后挂在节点上（见下）—
   const binding = node.__binding;
+  if (binding?.remove) return ''; // 整段不输出（如后端没有对应概念的营销位）
   if (binding?.replace) return binding.replace;
 
   // — 图标：material-symbols-outlined 的 span，图标名写在文字内容里 —
@@ -267,7 +305,7 @@ function render(node, page, ctx) {
 
   // — img —
   if (tag === 'img') {
-    const src = localizeImageUrl(node.attrs.src, page);
+    const src = localizeImageUrl(node.attrs.src, page, '<img>');
     if (!src) return '';
     return `<image class="${mapClasses(classStr)}" src="${src}" mode="aspectFill" />`;
   }
@@ -294,9 +332,13 @@ function render(node, page, ctx) {
   let bgImage = '';
   const bgMatch = styleStr.match(/background-image:\s*url\(['"]?([^'")]+)['"]?\)/);
   if (bgMatch) {
-    const src = localizeImageUrl(bgMatch[1], page);
+    const src = localizeImageUrl(bgMatch[1], page, 'background-image');
     if (src) {
-      bgImage = `<image class="pg-bgimg" src="${src}" mode="aspectFill" />`;
+      // `image` 绑定：把 src 换成表达式。首页 banner 的封面要跟着「当前景点」变，
+      // 而这张 <image> 是这里硬编码插进去的、不是设计稿节点，普通绑定够不着它。
+      // 表达式取值为空时回落到设计稿那张图 —— 没有这个绑定时与改动前逐字一致。
+      const srcAttr = binding?.image ? `:src="${binding.image} || '${src}'"` : `src="${src}"`;
+      bgImage = `<image class="pg-bgimg" ${srcAttr} mode="aspectFill" />`;
       cls = `${cls} pg-has-bg`.trim();
     }
   }
@@ -325,6 +367,17 @@ function render(node, page, ctx) {
 
   // 绑定注入的属性与条件类
   if (binding?.attrs) for (const [k, v] of Object.entries(binding.attrs)) attrs.push(`${k}="${v}"`);
+
+  // 原生表单标签：uni 的 <input> 靠这些呈现型属性工作，设计稿写了就带过去。
+  // 已由 binding.attrs 声明的以绑定为准（不重复输出同一个属性）。
+  if (wxmlTag === 'input') {
+    for (const k of ['placeholder', 'type', 'maxlength', 'disabled', 'confirm-type']) {
+      if (node.attrs[k] !== undefined && !(k in (binding?.attrs ?? {}))) {
+        attrs.push(`${k}="${esc(node.attrs[k])}"`);
+      }
+    }
+  }
+
   if (binding?.class) {
     const entries = Object.entries(binding.class)
       .map(([k, expr]) => `'${k}': ${expr}`)
@@ -456,9 +509,11 @@ for (const page of PAGES) {
   // 关键：<main> 自身的 class 必须带到视图容器上。
   // 其中 pt-16 是给固定顶栏让位的、必须保留（曾经漏掉它，内容顶到屏幕最上沿被顶栏压住）；
   // min-h-screen 与 pb-24/pb-28 是「整页」时代的职责，现在归外壳与底栏，见 VIEW_DROP。
+  // standalone 页自己撑满屏，**不受 VIEW_DROP 影响**，只丢 `page.drop` 里点名的（如 `pt-14`）。
+  const pageDrop = new Set(page.drop ?? []);
   const mainClasses = mapClasses(source.attrs?.class ?? '')
     .split(/\s+/)
-    .filter((c) => c && !VIEW_DROP.has(c))
+    .filter((c) => c && !(page.standalone ? pageDrop.has(c) : VIEW_DROP.has(c)))
     .join(' ');
 
   const spec = PAGE_BINDINGS[page.name] ?? {};
@@ -472,25 +527,39 @@ for (const page of PAGES) {
     .join('\n    ');
 
   const extraImports = (spec.imports ?? []).join('\n');
-  const hasBehavior = !!spec.setup;
+  const standalone = !!page.standalone;
+
+  // 手写片段的插入点：`before` 在 tpl 之前、`after` 在之后，都在 .pg-page 包裹内。
+  // 用来放设计稿表达不了、或必须与真机对齐的东西（标题栏、toast 等）。
+  // ⚠️ 与 `inner`/`replace` 一样**不过 mapClasses** —— 里面的 class 要自己写消毒后的名。
+  const before = spec.before ? `${spec.before}\n    ` : '';
+  const after = spec.after ? `\n    ${spec.after}` : '';
+
+  const scriptComment = standalone
+    ? `// 页面行为（手写，见 pages/${page.name}/behavior.ts）—— 见 scripts/page-bindings.mjs`
+    : `// 视图行为（手写，见 views/${page.name}/behavior.ts）—— 见 scripts/page-bindings.mjs`;
+  // 独立页面是真实路由，收不到外壳的 props.active，所以不注入这个 prop；
+  // 数据加载必须挂在小程序页生命周期（onLoad/onShow）上，见 spec.setup。
+  const propsLine = standalone ? '' : 'const props = defineProps<{ active: boolean }>();\n';
+  const styleComment = standalone
+    ? `// mainClasses 来自设计稿 <main> 的 class（已按 page.drop 去掉给固定顶栏让位的 pt-14）。\n// 标题栏由 page-bindings 的 before 片段自绘，没有外壳底栏。`
+    : `// mainClasses 来自设计稿 <main> 的 class（pt-16 等），由生成器带上。\n// 顶栏与底栏不在这里 —— 它们由外壳 src/pages/main/index.vue 只渲染一次。`;
 
   const vue = `<template>
   <view class="pg-page ${mainClasses}">
-    ${tpl}
+    ${before}${tpl}${after}
   </view>
 </template>
 
 <script setup lang="ts">
 ${extraImports}
-// 视图行为（手写，见 views/${page.name}/behavior.ts）—— 见 scripts/page-bindings.mjs
-const props = defineProps<{ active: boolean }>();
-${spec.setup ?? ''}
+${scriptComment}
+${propsLine}${spec.setup ?? ''}
 </script>
 
 <!-- 由 scripts/gen-pages.mjs 从 design/reference/${page.file} 生成，手工改动会被覆盖 -->
 <style lang="scss" scoped>
-// mainClasses 来自设计稿 <main> 的 class（pt-16 等），由生成器带上。
-// 顶栏与底栏不在这里 —— 它们由外壳 src/pages/main/index.vue 只渲染一次。
+${styleComment}
 .pg-page {
   background-color: $c-surface;
 }
@@ -498,10 +567,12 @@ ${spec.style ?? ''}
 </style>
 `;
 
-  mkdirSync(join(OUT_DIR, page.name), { recursive: true });
-  writeFileSync(join(OUT_DIR, page.name, 'index.vue'), vue);
+  const outDir = standalone ? PAGE_DIR : OUT_DIR;
+  mkdirSync(join(outDir, page.name), { recursive: true });
+  writeFileSync(join(outDir, page.name, 'index.vue'), vue);
   const lines = vue.split('\n').length;
-  console.log(`✓ ${page.name.padEnd(11)} ← ${page.file.padEnd(16)} ${lines} 行，${(vue.length / 1024).toFixed(1)} KB`);
+  const tag = standalone ? ' [页面]' : '';
+  console.log(`✓ ${page.name.padEnd(11)} ← ${page.file.padEnd(16)} ${lines} 行，${(vue.length / 1024).toFixed(1)} KB${tag}`);
 }
 
 function findFirst(node, tag) {

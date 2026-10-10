@@ -87,7 +87,11 @@ const SHADOWS = {
   'shadow-[0_2px_8px_rgba(217,119,6,0.06)]': '0 2px 8px rgba(217,119,6,.06)',
   'shadow-[0_4px_16px_rgba(0,0,0,0.04)]': '0 4px 16px rgba(0,0,0,.04)',
   'shadow-[0_4px_16px_rgba(0,104,95,0.08)]': '0 4px 16px rgba(0,104,95,.08)',
+  'shadow-[0_1px_4px_rgba(0,104,95,0.08)]': '0 1px 4px rgba(0,104,95,.08)',
+  'shadow-[0_1px_8px_rgba(0,104,95,0.04)]': '0 1px 8px rgba(0,104,95,.04)',
   'shadow-[0_4px_20px_rgba(0,104,95,0.06)]': '0 4px 20px rgba(0,104,95,.06)',
+  /** 裸 `shadow`（Tailwind 的第一档）= shadow-sm */
+  'shadow': '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)',
   'shadow-2xs': '0 1px rgba(0,0,0,.05)',
   'shadow-xs': '0 1px 2px 0 rgba(0,0,0,.05)',
   'shadow-sm': '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)',
@@ -120,15 +124,23 @@ const TYPO = {
   'headline-lg': ['Noto Serif', 22, 30, 600, null],
   'headline-xl': ['Noto Serif', 28, 36, 600, null],
   'headline-xl-mobile': ['Noto Serif', 22, 30, 600, null],
-  'data-metric-md': ['Space Grotesk', 16, 22, 500, null],
-  'data-metric-lg': ['Space Grotesk', 24, 32, 600, '-0.01em'],
+  // ⚠️ data-metric 两个 token 的**字体族**被换成了正文字体（与设计稿的刻意偏离，见 README 已知偏差）：
+  // 设计稿给它们的是 Space Grotesk —— 一套几何风格的展示字体，放在中文界面里，
+  // 「¥60」「12:30-14:30」「二维码验证320」里的数字跟旁边的汉字完全不是一套骨架，很跳。
+  // 字号/字重/字距都保留，只换族。`display-kpi-screen`（水印）与 `label-badge`（角标）不动。
+  'data-metric-md': ['Plus Jakarta Sans', 16, 22, 500, null],
+  'data-metric-lg': ['Plus Jakarta Sans', 24, 32, 600, '-0.01em'],
   'display-kpi-screen': ['Space Grotesk', 48, 56, 700, '-0.02em'],
   'label-badge': ['Space Grotesk', 12, 16, 600, '0.04em'],
 };
 const FONT_VAR = { 'Plus Jakarta Sans': '$font-body', 'Noto Serif': '$font-serif', 'Space Grotesk': '$font-mono' };
 
-/** 有意丢弃：触屏无 hover、小程序无鼠标/文本选择。显式列出以便统计复核。 */
-const INTENTIONAL_DROP = /^(hover:|group-hover:|selection:|focus:|group$|material-symbols-outlined$|cursor-|select-|antialiased$)/;
+/**
+ * 有意丢弃：触屏无 hover/焦点、小程序无鼠标与文本选择。
+ * **显式列出**是有意义的 —— 下面的守卫靠它区分「有意丢弃」与「没写规则」，
+ * 后者会静默地让元素少一条样式（见文件末尾的 unmapped 检查）。
+ */
+const INTENTIONAL_DROP = /^(hover:|group-hover:|selection:|focus:|focus-within:|placeholder:|group$|material-symbols-outlined$|cursor-|select-|antialiased$)/;
 
 /** 任意值里的 px：≤1.5px 保持 px（细线），其余转 rpx */
 const pxValue = (inner) => {
@@ -166,7 +178,7 @@ function translate(input) {
   if (base === 'pb-safe') return ['padding-bottom: constant(safe-area-inset-bottom);', 'padding-bottom: env(safe-area-inset-bottom, 0px);'];
 
   // — 滚动条隐藏由 App.vue 的全局 ::-webkit-scrollbar 规则承担 —
-  if (base === 'scrollbar-none') return ['/* 全局已隐藏滚动条 */'];
+  if (base === 'scrollbar-none' || base === 'no-scrollbar') return ['/* 全局已隐藏滚动条 */'];
 
   // — 分割线。WXSS 对 :first-child 支持不可靠，故用「相邻兄弟」选择器 + CSS 变量传色，
   //   模板侧不需要额外索引类 —
@@ -182,6 +194,7 @@ function translate(input) {
   // — 阴影 —
   if (SHADOWS[base]) return [`--tw-shadow: ${SHADOWS[base]};`, `box-shadow: var(--tw-shadow);`];
   if (base === 'drop-shadow-md') return ['filter: drop-shadow(0 4px 3px rgba(0,0,0,.07)) drop-shadow(0 2px 2px rgba(0,0,0,.06));'];
+  if (base === 'drop-shadow-sm') return ['filter: drop-shadow(0 1px 1px rgba(0,0,0,.05));'];
 
   // — 渐变 —
   if (GRAD_DIR[base]) return [`background-image: linear-gradient(${GRAD_DIR[base]}, var(--tw-gradient-stops));`];
@@ -263,6 +276,8 @@ function translate(input) {
     if (v === 'full') val = '100%';
     else if (v === 'screen') val = m[1].includes('w') ? '100vw' : '100vh';
     else if (v === 'auto') val = 'auto';
+    // 发丝线：1 逻辑像素，不能跟着 750/390 一起放大
+    else if (v === 'px') val = '1px';
     else if (v === 'md') val = r(448);
     else if (v.startsWith('[')) val = pxValue(v.slice(1, -1));
     else if (/^[\d.]+$/.test(v)) val = scale(v);
@@ -293,6 +308,19 @@ function translate(input) {
   if (base === 'absolute') return ['position: absolute;'];
   if (base === 'fixed') return ['position: fixed;'];
   if (base === 'sticky') return ['position: sticky;'];
+  // inset-x-N / inset-y-N 必须排在下面的通用 inset- 分支**之前** ——
+  // 否则会被当成「inset: x-0」这种不存在的值，直接 return null（静默无样式）
+  if ((m = base.match(/^inset-([xy])-(.+)$/))) {
+    const v = m[2];
+    let val;
+    if (v === '0') val = '0';
+    else if (v === 'full') val = '100%';
+    else if (v === 'auto') val = 'auto';
+    else if (v.startsWith('[')) val = pxValue(v.slice(1, -1));
+    else if (/^[\d.]+$/.test(v)) val = scale(v);
+    else return null;
+    return (m[1] === 'x' ? ['left', 'right'] : ['top', 'bottom']).map((p) => `${p}: ${val};`);
+  }
   if ((m = base.match(/^(top|right|bottom|left|inset)-(.+)$/))) {
     const v = m[2];
     let val;
@@ -314,15 +342,19 @@ function translate(input) {
   if (base === 'text-right') return ['text-align: right;'];
   if ((m = base.match(/^font-(normal|medium|semibold|bold|light)$/))) return [`font-weight: ${WEIGHT[m[1]]};`];
   const FONT_TOKENS = {
-    'font-body-md': '$font-body', 'font-body-sm': '$font-body', 'font-caption-sm': '$font-body',
+    'font-body-md': '$font-body', 'font-body-sm': '$font-body', 'font-body-lg': '$font-body', 'font-caption-sm': '$font-body',
     'font-headline-md': '$font-serif', 'font-headline-lg': '$font-serif', 'font-headline-xl': '$font-serif',
-    'font-display-kpi-screen': '$font-mono', 'font-data-metric-md': '$font-mono', 'font-data-metric-lg': '$font-mono',
+    'font-display-kpi-screen': '$font-mono',
+    // 旧的 `font-data-metric-md` / `font-data-metric-lg` 也一并并到正文族（见 TYPO 里的说明）；
+    // 它们同时被设计稿写成 `font-data-metric-* text-data-metric-*` 两层，两层都指向正文才不会漏。
+    'font-data-metric-md': '$font-body', 'font-data-metric-lg': '$font-body',
     'font-label-badge': '$font-mono', 'font-mono': '$font-mono', 'font-serif': '$font-serif',
   };
   if (FONT_TOKENS[base]) return [`font-family: ${FONT_TOKENS[base]};`];
   if (base === 'leading-none') return ['line-height: 1;'];
   if (base === 'leading-tight') return ['line-height: 1.25;'];
   if (base === 'leading-normal') return ['line-height: 1.5;'];
+  if (base === 'leading-relaxed') return ['line-height: 1.625;'];
   if ((m = base.match(/^tracking-(tight|wide|wider|widest)$/))) return [`letter-spacing: ${{ tight: '-0.025em', wide: '0.025em', wider: '0.05em', widest: '0.1em' }[m[1]]};`];
   if (base === 'uppercase') return ['text-transform: uppercase;'];
   if (base === 'truncate') return ['overflow: hidden;', 'white-space: nowrap;', 'text-overflow: ellipsis;'];
@@ -363,6 +395,7 @@ function translate(input) {
   if ((m = base.match(/^duration-(\d+)$/))) return [`transition-duration: ${m[1]}ms;`];
   if (base === 'animate-spin') return ['animation: pg-spin 1s linear infinite;'];
   if (base === 'animate-pulse') return ['animation: pg-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;'];
+  if (base === 'animate-ping') return ['animation: pg-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;'];
   if ((m = base.match(/^-rotate-(\d+)$/))) return [`transform: rotate(-${m[1]}deg);`];
   if ((m = base.match(/^rotate-(\d+)$/))) return [`transform: rotate(${m[1]}deg);`];
   if ((m = base.match(/^scale-(\d+)$/))) return [`transform: scale(${Number(m[1]) / 100});`];
@@ -378,6 +411,12 @@ function translate(input) {
 
   // — backdrop-blur：小程序渲染器支持不稳，降级为无模糊（底色本身已接近不透明）—
   if (base.startsWith('backdrop-blur')) return ['/* backdrop-blur 降级，见 README 已知偏差 */'];
+
+  // — 普通 blur（不是 backdrop-）：只是给装饰光斑做柔化，能支持 —
+  if ((m = base.match(/^blur-(sm|md|lg|xl|2xl|3xl)$/))) {
+    const px = { sm: 4, md: 12, lg: 16, xl: 24, '2xl': 40, '3xl': 64 }[m[1]];
+    return [`filter: blur(${px}px);`];
+  }
 
   // — 滚动 —
   if (base === 'snap-x') return ['scroll-snap-type: x mandatory;'];
@@ -396,7 +435,9 @@ function translate(input) {
  */
 function priority(cls) {
   const b = cls.replace(/^active:/, '');
-  if (/^shadow-/.test(b)) return 20; // 先写 shadow，再让 ring 追加，两者靠 --tw-shadow 串联
+  // 先写 shadow，再让 ring 追加，两者靠 --tw-shadow 串联。
+  // 注意 `shadow(-|$)`：裸 `shadow` 也是阴影，只写 `^shadow-` 会让它拿不到这一档优先级
+  if (/^shadow(-|$)/.test(b)) return 20;
   if (/^ring-\d+$/.test(b)) return 26;
   if (/^ring-/.test(b)) return 25;
   if (/^from-/.test(b)) return 50; // 渐变从 → 经 → 到，顺序不能乱
@@ -424,7 +465,10 @@ for (const cls of classes) {
 
   const decls = translate(cls);
   if (decls === null) {
-    dropped.push(cls);
+    // 「译不出」分两种：有意丢弃（hover/伪类等，触屏无对应能力）与**漏网**（既没规则、
+    // 也不该丢）。后者以前被混进 dropped 只报一个计数，而类照旧进了 classmap，
+    // 于是 check:classes 放行、产物里却**一条样式都没有** —— 静默无样式就是这么来的。
+    (INTENTIONAL_DROP.test(cls) ? dropped : unmapped).push(cls);
     continue;
   }
   // 分割线：相邻兄弟之间加边。WXSS 不支持 :not(:first-child)，故用 A + B 选择器表达
@@ -447,7 +491,6 @@ for (const cls of classes) {
   // 真机需要靠 hover-class。这里生成普通类，由 gen-pages 把它挂到 hover-class 上。
   if (cls.startsWith('active:')) activeRules.push(rule);
   else normalRules.push(rule);
-  if (!cls.startsWith('active:') && !/^(hover|group-hover|selection|focus):/.test(cls) && decls.length === 0) unmapped.push(cls);
 }
 
 normalRules.sort((a, b) => {
@@ -492,6 +535,9 @@ ${divideRules.join('\n')}
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+@keyframes pg-ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
 `;
 
 writeFileSync(OUT, out);
@@ -499,9 +545,16 @@ writeFileSync(MAP_OUT, JSON.stringify(classmap, null, 2));
 
 console.log(`✓ 生成 ${normalRules.length} 条规则 + ${activeRules.length} 条按下态 + ${gridRules.length} 条栅格`);
 console.log(`  映射表 ${Object.keys(classmap).length} 条 → design/classmap.json`);
-console.log(`  有意丢弃 ${dropped.length} 个（hover/group-hover/selection/光标/文本选择/图标字体类）`);
+console.log(`  有意丢弃 ${dropped.length} 个（hover/group-hover/selection/focus/placeholder/光标/文本选择/图标字体类）`);
+
+// 漏网类必须**炸出来**：它们会进 classmap（所以 check:classes 放行）却没有规则，
+// 表现是元素静默少一条样式 —— 比报错难查得多。
 if (unmapped.length) {
-  console.log(`  ⚠ 未能翻译且非有意丢弃 ${unmapped.length} 个：`);
-  unmapped.forEach((c) => console.log(`      ${c}`));
+  console.error('');
+  console.error(`✗ ${unmapped.length} 个类既没有规则、也没有被 INTENTIONAL_DROP 认领：`);
+  unmapped.forEach((c) => console.error(`      ${c}`));
+  console.error('  处理方式二选一：在 gen-utilities.mjs 里补 translate() 规则，');
+  console.error('  或（确实无对应能力时）把它的前缀加进 INTENTIONAL_DROP 并补进注释。');
+  process.exitCode = 1;
 }
 console.log(`  产物大小 ${(Buffer.byteLength(out) / 1024).toFixed(1)} KB`);

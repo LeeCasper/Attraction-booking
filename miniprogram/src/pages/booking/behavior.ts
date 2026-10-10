@@ -2,8 +2,8 @@ import { computed, getCurrentInstance, onMounted, reactive, ref, watch } from 'v
 import { areaApi, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
 import { errorText } from '@/api/request';
 import { setCurrentOrderId } from '@/store/order';
-import { switchTab } from '@/store/shell';
-import { dayOffsetStr, hhmm, shortDate, weekdayOf } from '@/utils/format';
+import { currentAreaId, selectedTicketTypeId, switchTab } from '@/store/shell';
+import { dayOffsetStr, fen2yuan, hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
  * 分时预约购票页：数据来自后端，交互状态本地维护。
@@ -58,6 +58,22 @@ interface ScrollDetail {
 }
 
 export function useBookingPage() {
+  // —— 二级页自绘标题栏：状态栏占位 + 胶囊避让（与 visitor / orders 页同一套）——
+  const statusBarHeight = ref(0);
+  const capsuleInset = ref(0);
+
+  type WindowMetrics = { statusBarHeight?: number; windowWidth: number };
+  const win: WindowMetrics =
+    (uni as unknown as { getWindowInfo?: () => WindowMetrics }).getWindowInfo?.() ?? uni.getSystemInfoSync();
+  statusBarHeight.value = win.statusBarHeight ?? 0;
+
+  // #ifdef MP-WEIXIN
+  const rect = uni.getMenuButtonBoundingClientRect();
+  if (rect && rect.width > 0) capsuleInset.value = win.windowWidth - rect.left + 8;
+  // #endif
+
+  const goBack = () => uni.navigateBack();
+
   // —— 日期条两端渐隐（纯视觉，Phase ①）——
   const dateFade = reactive({ left: false, right: true });
   const scrollLeft = ref(0);
@@ -93,6 +109,10 @@ export function useBookingPage() {
   const loading = ref(false);
   const error = ref('');
   const ticketTypeId = ref<number | null>(null);
+  /** 选中的票种本体 —— 顶部那张「票种头卡」要显示它的名称/副标题/价格 */
+  const ticket = ref<MiniTicket | null>(null);
+  /** 当前景点名 —— 头卡标题「{景点} · 景区门票」用它，不再写死某个景点的名字 */
+  const areaName = ref('');
   const dates = ref<DateOption[]>([]);
   const slots = ref<SlotOption[]>([]);
   const visitors = ref<VisitorCard[]>([]);
@@ -103,17 +123,22 @@ export function useBookingPage() {
   const submitting = ref(false);
 
   /**
-   * 每个日期的分时余票缓存。
+   * 每个「票种 + 日期」的分时余票缓存。
    * 日期条要 8 天的数据，而 `/stocks` 是按「票种 + 日期」查的 —— 没有多日日历接口，
    * 只能按天各查一次；缓存下来，切日期/提交订单时就不必重复请求。
+   *
+   * ⚠️ key **必须带票种**。余票是按票种查的，只拿日期当 key 的话，
+   * 从首页换一种票再进来，看到的余票还是上一个票种的。
    */
   const stockByDate = new Map<string, StockItem[]>();
+  const stockKey = (d: string) => `${ticketTypeId.value}:${d}`;
 
   async function loadStocks(d: string): Promise<StockItem[]> {
-    const cached = stockByDate.get(d);
+    const key = stockKey(d);
+    const cached = stockByDate.get(key);
     if (cached) return cached;
     const list = await stockApi.byDate(ticketTypeId.value!, d);
-    stockByDate.set(d, list);
+    stockByDate.set(key, list);
     return list;
   }
 
@@ -135,24 +160,48 @@ export function useBookingPage() {
     applySlots(list);
   }
 
-  let loaded = false;
+  /**
+   * 上一次加载用的票种。用来判断「选中的票种变了没有」——
+   * 变了就必须重新取价与余票，不能因为「已经加载过」就跳过。
+   */
+  let loadedTicketTypeId: number | null = null;
+  /**
+   * 「在哪个景点加载过」。`undefined` = 从没加载过。
+   * 原来只有 `loadedTicketTypeId`（只比票种），切景点后票种 id 一旦撞上就不重取。
+   */
+  let loadedForArea: number | null | undefined;
+
   /** 首次可见时加载；`force` 用于重试 */
   async function load(force = false) {
-    if (loaded && !force) return;
+    // 首页点了另一张票卡时 selectedTicketTypeId 会变，这时必须重取 ——
+    // 价格、余票、下单用的 ticketTypeId 全都是按票种走的。
+    // ⚠️ 「在哪个景点」也要一起比：只比票种的话，切景点后万一票种 id 撞上就**不会重取**
+    const wanted = selectedTicketTypeId.value;
+    const sameArea = loadedForArea !== undefined && loadedForArea === currentAreaId.value;
+    if (!force && sameArea && loadedTicketTypeId === wanted) return;
     loading.value = true;
     error.value = '';
     try {
       const areas = await areaApi.list();
-      const areaId = areas[0]?.id;
-      if (!areaId) throw new Error('没有开放中的景区');
+      const picked = currentAreaId.value ? areas.find((a) => a.id === currentAreaId.value) : undefined;
+      const area = picked ?? areas[0];
+      if (!area) throw new Error('没有开放中的景点');
+      areaName.value = area.name;
 
       const today = dayOffsetStr(0);
-      const tickets = await ticketApi.list(areaId, today);
-      const ticket: MiniTicket | undefined = tickets[0];
-      if (!ticket) throw new Error('该景区暂无可售票种');
+      const tickets = await ticketApi.list(area.id, today);
+      // 只取**按人计价**的票种：按张的（如家庭年卡）后端只有「单价 × 人数」这一种计价，
+      // 放进购票流程会把金额算错（¥388 × 人数）。首页那边也会拦住不让进来，
+      // 这里是兜底 —— 万一运营把某个票种改成了按张，也不能算出错的金额。
+      const sellable = tickets.filter((t) => t.saleUnit === 'person');
+      const chosen = (wanted ? sellable.find((t) => t.id === wanted) : undefined) ?? sellable[0] ?? tickets[0];
+      if (!chosen) throw new Error('该景区暂无可售票种');
 
-      ticketTypeId.value = ticket.id;
-      unitPrice.value = ticket.price;
+      // 换票种 → 旧余票全部作废（缓存 key 带票种，不清也不会串，但没必要留着占内存）
+      if (ticketTypeId.value !== null && ticketTypeId.value !== chosen.id) stockByDate.clear();
+      ticketTypeId.value = chosen.id;
+      ticket.value = chosen;
+      unitPrice.value = chosen.price;
 
       // 日期条：今天起 N 天，逐日取余票汇总来分档
       const days = Array.from({ length: DATE_COUNT }, (_, i) => dayOffsetStr(i));
@@ -167,13 +216,30 @@ export function useBookingPage() {
 
       date.value = dates.value[0]!.value;
       applySlots(dayStocks[0]!);
-      loaded = true;
+      // 全部成功后才记「已加载的景点 + 票种」——中途失败时保持原值，下次可见会自动重试
+      loadedForArea = currentAreaId.value;
+      loadedTicketTypeId = chosen.id;
     } catch (err) {
       error.value = errorText(err);
     } finally {
       loading.value = false;
     }
   }
+
+  /**
+   * 切景点 → 作废并重取。
+   *
+   * `setCurrentArea` 已经清了 `selectedTicketTypeId`，但**余票缓存必须在这里清**：
+   * `stockByDate` 的 key 是「票种 + 日期」，跨景点必须整体作废。
+   * 另外选择景点是二级页，push 期间本视图的 `active` 没变化，
+   * 所以外壳那个 `watch(props.active)` 不会触发 —— 不主动监听就会「选完返回，购票页还是旧景点」。
+   */
+  watch(currentAreaId, () => {
+    if (loadedForArea === undefined) return;
+    loadedForArea = undefined;
+    stockByDate.clear();
+    void load();
+  });
 
   async function refreshVisitors() {
     const list = await visitorApi.list();
@@ -216,6 +282,21 @@ export function useBookingPage() {
   const headcount = computed(() => pickedIds.value.length);
   const totalAmount = computed(() => unitPrice.value * headcount.value);
   const selectionLabel = computed(() => `已选 ${headcount.value} 人 / 限购 ${MAX_VISITORS} 人`);
+
+  // —— 顶部「票种头卡」的四项 —— 以前这几处在生成产物里是写死的
+  // （头卡恒显示「成人全票 / 含林海栈道及主景区观光 / ¥120」，与真实选中的票种并不联动）——
+  /**
+   * 头卡标题。设计稿写死「枫林谷国家森林公园 · 景区门票」（按单景区画的），
+   * 多景区下必须跟着**当前景点**走。
+   */
+  const pageTitle = computed(() => `${areaName.value || '景区'} · 景区门票`);
+  const ticketName = computed(() => ticket.value?.name ?? '—');
+  const ticketAudience = computed(() => ticket.value?.audience ?? '');
+  /** 价格：分 → 元，不带小数（设计稿上就是 `120` 这种） */
+  const ticketPrice = computed(() => fen2yuan(ticket.value?.price ?? 0));
+  /** 计价单位。目前购票流程只会拿到按人计价的票种，所以这里恒为「/人」，
+   *  但按 saleUnit 推导而不是写死 —— 将来接了「按张」不用回来改这里 */
+  const unitLabel = computed(() => (ticket.value?.saleUnit === 'ticket' ? '/张' : '/人'));
   const canSubmit = computed(
     () => headcount.value > 0 && !!date.value && slot.value !== null && !submitting.value,
   );
@@ -249,8 +330,10 @@ export function useBookingPage() {
 
       uni.hideLoading();
       uni.showToast({ title: '预约成功', icon: 'success' });
-      // 让凭证页知道要展示这一单
+      // 让凭证页知道要展示这一单，并**退回外壳**落到那一格 ——
+      // 购票页是压栈的二级页，光切 tab 还停在页面上（下面的外壳换了，看不到）
       switchTab('credential');
+      uni.navigateBack();
     } catch (err) {
       uni.hideLoading();
       uni.showToast({ title: errorText(err), icon: 'none', duration: 2500 });
@@ -260,6 +343,9 @@ export function useBookingPage() {
   }
 
   return {
+    statusBarHeight,
+    capsuleInset,
+    goBack,
     dateFade,
     onDateScroll,
     loading,
@@ -273,6 +359,11 @@ export function useBookingPage() {
     visitors,
     pickedIds,
     selectionLabel,
+    pageTitle,
+    ticketName,
+    ticketAudience,
+    ticketPrice,
+    unitLabel,
     onToggleVisitor,
     onAddVisitor,
     unitPrice,

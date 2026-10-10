@@ -13,6 +13,27 @@
         "navigationStyle": "custom",
         "navigationBarTitleText": "常用出行人"
       }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "我的预约"
+      }
+    },
+    {
+      "path": "pages/orders/detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "订单详情"
+      }
+    },
+    {
+      "path": "pages/booking/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "预约购票"
+      }
     }
   ],
   "globalStyle": {

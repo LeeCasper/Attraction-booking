@@ -10,15 +10,20 @@
  *
  * 由外壳渲染**一次**，四个视图共用，所以底栏自身也不会重建。
  */
-type TabKey = 'home' | 'booking' | 'credential' | 'profile';
+type TabKey = 'home' | 'area' | 'credential' | 'profile';
 
 const props = defineProps<{ active: TabKey }>();
 const emit = defineEmits<{ change: [key: TabKey] }>();
 
-/** dataPath 取值与设计稿逐字一致，方便与设计稿 HTML 对照 */
+/**
+ * `dataPath` 取值与设计稿逐字一致（方便与设计稿 HTML 对照）。
+ *
+ * ⚠️ 第 2 格的 `key` 是 `area`（景点选择页）而**不是** `booking`：这一格的内容是先选景点，
+ * 购票页是选完之后才进的二级页。`label` 仍沿用设计稿的「预约购票」。
+ */
 const TABS: { key: TabKey; icon: string; label: string; dataPath: string }[] = [
   { key: 'home', icon: 'forest', label: '首页', dataPath: 'home' },
-  { key: 'booking', icon: 'confirmation_number', label: '预约购票', dataPath: 'booking' },
+  { key: 'area', icon: 'confirmation_number', label: '预约购票', dataPath: 'booking' },
   { key: 'credential', icon: 'qr_code_scanner', label: '电子凭证', dataPath: 'digital-pass' },
   { key: 'profile', icon: 'account_circle', label: '个人中心', dataPath: 'profile' },
 ];

@@ -1,6 +1,8 @@
 account_circle
 add
+alarm
 arrow_back
+arrow_back_ios_new
 arrow_forward
 badge
 bolt
@@ -17,9 +19,11 @@ edit_note
 explore
 face
 forest
+grid_view
 id_card
 info
 landscape
+local_fire_department
 logout
 more_horiz
 nature_people
@@ -32,11 +36,14 @@ qr_code_scanner
 receipt_long
 refresh
 schedule
+search
+sensors
 settings
 shield
 support_agent
 sync
 task_alt
+tune
 verified
 verified_user
 wb_sunny

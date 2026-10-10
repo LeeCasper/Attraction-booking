@@ -9,14 +9,15 @@
     "dev:h5": "uni",
     "build:h5": "uni build",
     "type-check": "vue-tsc --noEmit",
+    "gen:classes": "node scripts/gen-classes.mjs",
     "gen:utilities": "node scripts/gen-utilities.mjs",
     "gen:icons": "node scripts/gen-icons.mjs",
     "ref:shots": "bash scripts/render-reference.sh",
     "gen:fonts": "node scripts/gen-fonts.mjs",
-    "gen": "npm run gen:utilities && npm run gen:icons && npm run gen:fonts && npm run gen:qr && npm run gen:pages",
+    "gen": "npm run gen:classes && npm run gen:utilities && npm run gen:icons && npm run gen:fonts && npm run gen:pages",
     "gen:pages": "node scripts/gen-pages.mjs",
-    "gen:qr": "node scripts/gen-qr-pattern.mjs",
-    "check:classes": "node scripts/check-classes.mjs"
+    "check:classes": "node scripts/check-classes.mjs",
+    "verify:qrcode": "node scripts/verify-qrcode.mjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",
