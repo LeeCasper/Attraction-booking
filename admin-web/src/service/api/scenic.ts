@@ -2,6 +2,23 @@ import { request } from '../request';
 
 // ============ 景区 ============
 
+/**
+ * 上传景区封面。
+ *
+ * 走同一个 request 实例：鉴权头、baseURL/代理、`{code,msg,data}` 拆包都由它处理，
+ * 只是 body 换成 FormData（axios 会自己带 multipart 边界）。返回的是**相对路径**，
+ * 存进 `coverUrl`，展示时再拼前缀。
+ */
+export function fetchUploadImage(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return request<Api.Scenic.UploadResult>({
+    url: '/admin/upload',
+    method: 'post',
+    data: form
+  });
+}
+
 /** 景区列表 */
 export function fetchGetScenicAreas() {
   return request<Api.Scenic.Area[]>({

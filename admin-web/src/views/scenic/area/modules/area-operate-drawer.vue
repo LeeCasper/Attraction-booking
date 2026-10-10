@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { fetchCreateScenicArea, fetchUpdateScenicArea } from '@/service/api';
+import { fetchCreateScenicArea, fetchUpdateScenicArea, fetchUploadImage } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
 
 defineOptions({ name: 'ScenicAreaOperateDrawer' });
@@ -31,6 +31,8 @@ const submitting = ref(false);
 
 interface Model {
   name: string;
+  /** 相对路径（`/uploads/xxx.jpg`）；展示时拼 baseURL */
+  coverUrl: string;
   address: string;
   openTime: string;
   maxCapacity: number;
@@ -63,6 +65,7 @@ const CATEGORY_OPTIONS: { value: Api.Scenic.AreaCategory; label: string }[] = [
 function createDefaultModel(): Model {
   return {
     name: '',
+    coverUrl: '',
     address: '',
     openTime: '',
     maxCapacity: 1000,
@@ -89,10 +92,11 @@ function handleInitModel() {
     return;
   }
 
-  const { name, address, openTime, maxCapacity, intro, category, status } = props.rowData;
+  const { name, coverUrl, address, openTime, maxCapacity, intro, category, status } = props.rowData;
 
   Object.assign(model.value, {
     name,
+    coverUrl: coverUrl ?? '',
     address: address ?? '',
     openTime: openTime ?? '',
     maxCapacity: maxCapacity ?? 1000,
@@ -106,11 +110,49 @@ function closeDrawer() {
   visible.value = false;
 }
 
+/**
+ * 封面预览地址：库里存的是相对路径（`/uploads/xxx.jpg`），
+ * 这里拼上管理端的服务端前缀 —— 小程序那边拼的是它自己的前缀，所以**不能存完整 URL**。
+ */
+const coverPreview = computed(() =>
+  model.value.coverUrl ? `${import.meta.env.VITE_SERVICE_BASE_URL}${model.value.coverUrl}` : ''
+);
+
+const uploading = ref(false);
+
+/** 交给 ElUpload 自己发请求：走同一个 request 实例，鉴权/代理/拆包都现成 */
+async function handleCoverUpload(options: { file: File }) {
+  uploading.value = true;
+  try {
+    const { data, error } = await fetchUploadImage(options.file);
+    if (error) return;
+    model.value.coverUrl = data.url;
+    window.$message?.success('封面已上传，保存后生效');
+  } finally {
+    uploading.value = false;
+  }
+}
+
+/** 本地先拦一道，省得白传一趟；服务端还会再校验 MIME 与大小 */
+function beforeCoverUpload(file: File) {
+  const okType = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+  if (!okType) {
+    window.$message?.error('只支持 jpeg / png / webp 图片');
+    return false;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    window.$message?.error('图片不能超过 5MB');
+    return false;
+  }
+  return true;
+}
+
 async function handleSubmit() {
   await validate();
 
   const payload: Api.Scenic.AreaPayload = {
     name: model.value.name,
+    coverUrl: model.value.coverUrl || undefined,
     address: model.value.address || undefined,
     openTime: model.value.openTime || undefined,
     maxCapacity: model.value.maxCapacity,
@@ -174,6 +216,24 @@ watch(visible, () => {
     <ElForm ref="formRef" :model="model" :rules="rules" label-position="top">
       <ElFormItem label="景区名称" prop="name">
         <ElInput v-model="model.name" placeholder="如 中心景区" />
+      </ElFormItem>
+      <ElFormItem label="景区封面">
+        <div class="w-full flex items-center gap-12px">
+          <div class="h-60px w-90px flex-center shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50">
+            <img v-if="coverPreview" :src="coverPreview" class="h-full w-full object-cover" alt="封面预览" />
+            <span v-else class="text-12px text-gray-400">未设置</span>
+          </div>
+          <ElUpload
+            :show-file-list="false"
+            accept="image/jpeg,image/png,image/webp"
+            :before-upload="beforeCoverUpload"
+            :http-request="handleCoverUpload"
+          >
+            <ElButton :loading="uploading">{{ model.coverUrl ? '更换封面' : '上传封面' }}</ElButton>
+          </ElUpload>
+          <ElButton v-if="model.coverUrl" link type="danger" @click="model.coverUrl = ''">清除</ElButton>
+        </div>
+        <div class="text-12px text-gray-400 mt-4px">建议 16:9；5MB 内，支持 jpeg / png / webp</div>
       </ElFormItem>
       <ElFormItem label="地址">
         <ElInput v-model="model.address" placeholder="请输入景区详细地址" />

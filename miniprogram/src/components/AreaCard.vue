@@ -18,7 +18,7 @@
  * 这与 `TicketCard.vue` 把首页票卡的营销角标换成 `needRealname`/`refundRule` 推导值是同一套做法。
  */
 import { computed } from 'vue';
-import type { AreaOverview } from '@/api';
+import { mediaUrl, type AreaOverview } from '@/api';
 import { fen2yuan } from '@/utils/format';
 import { CATEGORIES } from '@/views/area/behavior';
 
@@ -51,7 +51,9 @@ const FALLBACK_COVERS = [
   '/static/images/area-cover-4.jpg',
 ];
 const cover = computed(
-  () => props.area.coverUrl || FALLBACK_COVERS[props.index % FALLBACK_COVERS.length],
+  () =>
+    // 后台上传的封面是相对路径（/uploads/x.jpg），要拼成完整地址 <image> 才加载得动
+    mediaUrl(props.area.coverUrl) || FALLBACK_COVERS[props.index % FALLBACK_COVERS.length],
 );
 
 const categoryLabel = computed(

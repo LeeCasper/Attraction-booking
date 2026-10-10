@@ -10,13 +10,14 @@ import { AdminUserController } from './admin-user.controller';
 import { AdminUserService } from './admin-user.service';
 import { LogController, LogService } from './log.controller';
 import { ConfigController } from './config.controller';
+import { UploadController } from './upload.controller';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AdminUser, Role, AdminRole, RolePermission, OperationLog, SysConfig]),
     AuthModule, // 复用 AuthService.writeLog
   ],
-  controllers: [RoleController, AdminUserController, LogController, ConfigController],
+  controllers: [RoleController, AdminUserController, LogController, ConfigController, UploadController],
   providers: [RoleService, AdminUserService, LogService],
   exports: [AdminUserService],
 })

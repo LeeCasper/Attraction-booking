@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue';
-import { areaApi, ticketApi, type MiniTicket } from '@/api';
+import { areaApi, mediaUrl, ticketApi, type MiniTicket } from '@/api';
 import { errorText } from '@/api/request';
 import { currentAreaId, selectTicket, switchTab } from '@/store/shell';
 import { dayOffsetStr, fen2yuan } from '@/utils/format';
@@ -102,7 +102,8 @@ export function useHomePage() {
 
       areaName.value = area.name;
       // 封面用景点自己的；没有就留空，让设计稿那张兜底图继续显示
-      areaCover.value = area.coverUrl ?? '';
+      // 后台上传的封面是相对路径，拼完整地址（没配就用设计稿那张兜底图，见视图里的写法）
+      areaCover.value = mediaUrl(area.coverUrl);
 
       const first = detail?.announcements?.[0];
       announcement.value = first ? `${first.title}：${first.content ?? ''}`.replace(/：$/, '') : '';

@@ -37,6 +37,8 @@ declare namespace Api {
       intro?: string;
       openTime?: string;
       maxCapacity?: number;
+      /** 封面图：上传接口返回的**相对路径**（`/uploads/xxx.jpg`），不是完整 URL */
+      coverUrl?: string;
       /** 景点分类（小程序「景点选择」页的 tab）；不传 = 未分类 */
       category?: AreaCategory;
       /** 1 开放 / 2 关闭 */
@@ -48,6 +50,14 @@ declare namespace Api {
       defaultStockDays?: number;
       /** 每个时段的库存张数 */
       defaultSlotStock?: number;
+    }
+
+    /** 图片上传结果 */
+    interface UploadResult {
+      /** 相对路径，直接存进 `coverUrl` */
+      url: string;
+      size: number;
+      mimeType: string;
     }
 
     /** 一键生成默认时段/票种/库存的结果 */

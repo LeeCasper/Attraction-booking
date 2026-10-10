@@ -1,5 +1,8 @@
 import { del, get, post, put } from './request';
 
+// 资源地址拼装（后台上传的封面存的是相对路径）—— 从 api 层统一出口，组件不用去够 config
+export { mediaUrl } from './config';
+
 /**
  * 按域分组的小程序端接口。
  *

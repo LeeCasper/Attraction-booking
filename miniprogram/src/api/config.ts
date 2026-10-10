@@ -39,3 +39,21 @@ export const BASE_URL = baseUrl;
 
 /** 请求超时（毫秒） */
 export const REQUEST_TIMEOUT = 15000;
+
+/**
+ * 把服务端返回的**相对资源路径**拼成小程序能加载的完整地址。
+ *
+ * 后台上传的封面存成 `/uploads/xxx.jpg`（相对路径）—— 存完整 URL 是不行的：
+ * 同一张图在后台（`http://<host>:3000/api`）和小程序（局域网 IP）下的前缀不同。
+ * `<image src>` 认不了 `/uploads/...` 这种相对路径，会当成小程序内的本地路径去找、然后静默空着。
+ *
+ * `BASE_URL` 形如 `http://<host>:3000/api/mini`，上去一层就是 `/api`，
+ * `/api` + `/uploads/x.jpg` 就是上传接口那个只读路由。
+ */
+export function mediaUrl(path: string | null | undefined): string {
+  if (!path) return '';
+  if (/^https?:\/\//.test(path)) return path; // 已经是完整地址（比如换了图床）就原样用
+  const origin = BASE_URL.replace(/\/api\/.*$/, '');
+  const apiPrefix = BASE_URL.replace(/^https?:\/\/[^/]+/, '').replace(/\/[^/]+$/, '');
+  return `${origin}${apiPrefix}${path}`;
+}

@@ -249,6 +249,66 @@ async function main() {
   });
   check('非法分类被拒(400)', badCategory.status === 400, badCategory.status);
 
+  // ---- 图片上传（景区封面）----
+  console.log('\n[9] 图片上传与读取');
+  {
+    // 1×1 PNG
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const form = new FormData();
+    form.append('file', new Blob([png], { type: 'image/png' }), 'cover.png');
+    const up = await fetch(`${BASE}/api/admin/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const upJson = await up.json();
+    const url = upJson?.data?.url;
+    check('上传图片返回相对路径', up.status === 201 && /^\/uploads\/[a-f0-9]{16}\.png$/.test(url ?? ''), JSON.stringify(upJson));
+
+    if (url) {
+      const back = await fetch(`${BASE}/api${url}`);
+      const buf = Buffer.from(await back.arrayBuffer());
+      check(
+        '按相对路径能读回同一张图（免登录）',
+        back.status === 200 && back.headers.get('content-type') === 'image/png' && buf.length === png.length,
+        `status=${back.status} bytes=${buf.length}`,
+      );
+
+      // 传给景区，再从小程序接口读回来（封面链路端到端）
+      const withCover = await api('POST', '/api/admin/scenic/areas', {
+        token,
+        body: { name: `冒烟封面景区${RUN}`, maxCapacity: 100, coverUrl: url },
+      });
+      const coverId = withCover.json?.data?.id;
+      const overview = await api('GET', '/api/mini/areas/overview');
+      check(
+        '封面能存进景区并从小程序接口读回',
+        overview.json?.data?.areas?.find((a) => a.id === coverId)?.coverUrl === url,
+        overview.json?.data?.areas?.find((a) => a.id === coverId),
+      );
+      if (coverId) await api('DELETE', `/api/admin/scenic/areas/${coverId}`, { token });
+    }
+
+    // 类型白名单
+    const badForm = new FormData();
+    badForm.append('file', new Blob([Buffer.from('not an image')], { type: 'text/plain' }), 'a.txt');
+    const bad = await fetch(`${BASE}/api/admin/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: badForm,
+    });
+    check('非图片类型被拒(400)', bad.status === 400, bad.status);
+
+    // 路径穿越必须被挡住（文件名白名单卡死形状，越级无从谈起）
+    for (const evil of ['..%2f.env', '%2e%2e%2f.env']) {
+      const r = await fetch(`${BASE}/api/uploads/${evil}`);
+      check(`路径穿越被拒（${evil}）`, r.status === 404, r.status);
+    }
+  }
+
   // 清理
   const userId = created.json?.data?.id;
   if (userId) await api('DELETE', `/api/admin/admin-users/${userId}`, { token });

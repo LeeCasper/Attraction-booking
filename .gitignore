@@ -29,3 +29,6 @@ npm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# 后台上传的图片（运行时产物，不入库）
+server/uploads/

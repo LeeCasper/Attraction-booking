@@ -13,6 +13,12 @@ class CreateAreaDto {
   @IsOptional() @IsString() intro?: string;
   @IsOptional() @IsString() @MaxLength(64) openTime?: string;
   @IsOptional() @IsInt() @Min(1) @Max(1000000) maxCapacity?: number;
+  /**
+   * 封面图。存的是**上传接口返回的相对路径**（`/uploads/xxx.jpg`），不是完整 URL ——
+   * 同一张图在后台（`http://xxx:3000/api`）和小程序（局域网 IP）下的前缀不同，
+   * 存相对路径、由各自的客户端拼自己的服务端前缀。
+   */
+  @IsOptional() @IsString() @MaxLength(255) coverUrl?: string;
   /** 景点分类，决定小程序「景点选择」页归到哪个 tab；不传 = 未分类（只在「全部景点」出现） */
   @IsOptional() @IsIn(AREA_CATEGORIES as unknown as string[]) @IsString() category?: string;
   /** 1 开放 / 2 关闭（ValidationPipe 开启 whitelist，未声明字段会被剥离） */
