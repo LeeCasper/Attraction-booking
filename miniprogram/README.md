@@ -9,15 +9,23 @@
 | 页面 | 设计稿 | 静态还原 | 视觉动效 | 本地交互状态 |
 | --- | --- | --- | --- | --- |
 | 景区预约首页 | `design/reference/home.html` | ✅ | ✅ 呼吸点、按下态 | —（本页无选择态） |
-| 分时预约购票页 | `design/reference/booking.html` | ✅ | ✅ 日期条横向滚动 + 两端渐隐 | ✅ 选日期 / 选时段 / 勾游客 / 新增出行人 / 底部金额联动 |
+| 分时预约购票页（二级页） | `design/reference/booking.html` | ✅ 由生成器产出 | ✅ 日期条横向滚动 + 两端渐隐 | ✅ 选日期 / 选时段 / 勾游客 / 新增出行人 / 底部金额联动 |
 | 动态防伪电子凭证页 | `design/reference/credential.html` | ✅ | ✅ 60s 倒计时、二维码刷新、水印时间戳 | ✅ 通行方式三选一 |
 | 个人中心 | `design/reference/profile.html` | ✅ | ✅ 按下态 | ✅ 四态筛选 / 刷新离线凭证 → 轻提示 |
+| 景点选择与预约（外壳第 2 格） | `design/reference/areas.html` | ✅ 由生成器产出 | ✅ 按下态 | ✅ 分类真筛 / 搜索过滤 / 选中景点 / 去预约 / 筛选弹层 |
 
 > 设计稿里**没有**「展开/收起」控件（早先的说明有误）：个人中心真正可交互的只有那排四态筛选按钮，
 > 以及「刷新离线凭证 → 顶部轻提示 2s」—— 后者设计稿自带一段原生 JS 实现。
 
-**尚未做**：与后端接口联调。数据仍是设计稿原文硬编码（`views/*/behavior.ts` 里的常量），
-但交互逻辑已就位 —— 接接口时把常量换成 `/api/mini/*` 的返回值即可，组件不用动。
+**接口已全部接上**：4 个视图的数据都来自 `/api/mini/*`，**购票 → 下单 → 模拟支付 → 凭证**整条链路打通；
+另有 4 个二级页：「景点选择与预约」**有设计稿**（`design/reference/areas.html`，走生成器），
+「我的预约」「订单详情」「常用出行人」是设计稿里没有的、版式自拟。仍是静态的部分
+（后端没有对应数据，不是漏做）逐项列在 [已知偏差](#已知偏差) 里。
+
+**品牌名不在代码里**：顶栏的名称/英文名/副标题、凭证水印的「XX验真」、个人中心的页脚版本号，
+全部来自 `GET /api/mini/platform/settings`（后台「系统管理 → 参数配置 → platform」维护），
+启动时由 `src/store/settings.ts` 拉一次并落盘缓存 —— 所以**改品牌名不用重新构建**，重启小程序即可。
+购票页头卡标题与个人中心行程卡的景点名则跟随**当前景点**，与「多景区」口径一致。
 
 ## 已实现的动态效果
 
@@ -102,12 +110,30 @@ src/pages/main/index.vue          唯一页面（手写外壳）
   ├─ PageHeader                    只渲染一次
   ├─ .pg-shell__body               flex:1
   │    └─ 每个视图一个 scroll-view（v-if 懒挂载 + v-show 保留）
-  │         src/views/{home,booking,credential,profile}/index.vue   ← 生成器产出
+  │         src/views/{home,area,credential,profile}/index.vue       ← 生成器产出（外壳的 4 格）
   └─ TabBar                        只渲染一次，纯受控（只 emit，不导航）
 ```
 
 切页 = 改一个 ref、CSS 显隐 —— **没有页面转场，就不可能闪**；顶栏底栏也不再随切换重建。
 `pages.json` 只剩 `pages/main/index` 一个页面，没有任何 tabBar 配置。
+
+**底栏那 4 格与页面的对应关系**（底栏第 2 格是「景点选择」而**不是**购票页）：
+
+| 底栏 | 内容 | 形态 |
+| --- | --- | --- |
+| 首页 | 景区预约首页 | 外壳视图 |
+| **预约购票** | **景点选择与预约** | 外壳视图（设计稿自带固定标题栏，这一格由外壳让出顶栏位） |
+| 电子凭证 | 动态防伪电子凭证页 | 外壳视图 |
+| 个人中心 | 个人中心 | 外壳视图 |
+
+**购票页（游览日期 / 入园时段 / 票种）不在这 4 格里**，它是「选完景点之后」才进入的
+二级页 `src/pages/booking/index.vue`。这是产品口径：本平台管多个景点，用户点「预约购票」
+的意图首先是「去哪个景点」，而不是「买上一个景点的票」。落成二级页还有个设计上的好处 ——
+设计稿给购票页画的底部待付条是按「底栏之下」定位的，二级页没有底栏，待付条正好贴屏幕下沿。
+
+> 反向的取舍：景点选择页的设计稿画了**返回键**。作为二级页它是对的，但它是根 tab、没有
+> 「返回」可言，所以实现里把那个键去掉了（首页/凭证/个人中心三格的顶栏由外壳统一渲染，
+> 这一格因为自带标题栏而由外壳让出位置）。
 
 **每个视图各自的 scroll-view 是必需的**：只有一个页面时，若让文档滚动，
 四个 tab 会共用同一个滚动位置（切过去会停在半路）。各自一个容器，滚动位置就互不干扰。
@@ -116,7 +142,7 @@ src/pages/main/index.vue          唯一页面（手写外壳）
 全用 `v-if` 则每次切换都重建组件、视图内的状态（购票页选好的日期、凭证倒计时）会丢。
 折中是「首次访问才挂载，之后只做显隐」—— 顺带解决了一个隐蔽问题：
 **视图首次挂载时一定可见**，所以购票页那段「量 date strip 宽度」的代码拿得到真实值，
-`views/booking/behavior.ts` 一行都不用为单页架构改。
+`pages/booking/behavior.ts` 一行都不用为单页架构改。
 
 **布局责任重新划分**（`gen-pages.mjs` 的 `VIEW_DROP`）：
 
@@ -150,17 +176,54 @@ src/utils/format.ts 分→元、日期/星期、HH:mm:ss→HH:mm。**金额一�
 
 | 视图 | 数据来源 |
 | --- | --- |
-| 首页 | 仍是静态（见下） |
+| 首页 | 公告 `/areas/:id`；在园率 `/areas/:id/presence`；三张票卡 `/tickets`；快捷卡与票卡跳转见下 |
 | 购票页 | 单价 `/tickets`；日期条与时段余量 `/stocks`；出行人 `/visitors`；下单 `POST /orders` → 模拟支付 `POST /pay/mock-notify` → 自动跳凭证页 |
 | 凭证页 | 时段与持票人 `/orders/:id`；动态码 `/orders/:id/credential`（token / 60s 有效期 / 剩余 10s 时自动换码）；水印里的脱敏手机号回查 `/visitors`（凭证与订单接口都不给这个字段） |
 | 个人中心 | 四态筛选角标与统计 `/orders`；常用出行人 `/visitors` |
 | 出行人管理页 | `src/pages/visitor/index.vue` —— **设计稿里没有这一页**，版式自拟，把 `visitors` 的增删改 UI 补上 |
+| 订单列表页 | `src/pages/orders/index.vue` —— **设计稿里没有这一页**。四态筛选（与个人中心那 4 个格子同一套桶）+ 卡片显示票种/日期/张数/金额/状态 |
+| 订单详情页 | `src/pages/orders/detail.vue` —— **设计稿里没有这一页**。U-021 的六项 + 按状态给操作（取消 / 去支付 / 申请退款） |
+| 选择景点页 | `src/pages/area/index.vue` —— **由设计稿生成**（`design/reference/areas.html`「景点选择与预约」，`gen-pages` 的 `standalone` 模式）。分类 tab **真筛**（后端 `scenic_area.category`）、搜索框本地过滤、卡片显示真实的分类/起价/今日余票。三个入口：底栏**「预约购票」**（压栈打开，见 `pages/main/index.vue` 的 `onTabChange`）、首页快捷卡**「在线预约」**、banner 上那个可点的景点名 |
+
+**首页新增的交互**（设计稿首页除底部 tab 外**没有任何 id**，所以点击行为全部按 class 定位）：
+
+- 三张票卡的「立即预约」→ 记下选中的票种并切到购票 tab。**购票页会跟着换票种** ——
+  顶部那张「票种头卡」以前是生成产物里写死的「成人全票 ¥120」，现在票名/副标题/价格/单位都联动
+- 两张快捷卡：门票预约 → 购票 tab；快速通关 → 凭证 tab（PRD 的 U-002）
+- 公告条右侧的「须知」→ 如实提示「入园须知待接入」（后端没有独立的须知接口）
+
+**「我的预约」的新交互**（三个此前**完全没有 `@tap` 的死入口**）：
+
+- 个人中心「全部预约单」→ 订单列表
+- 个人中心那四个状态格 → 带着该筛选进订单列表（以前只改本地态，点了等于没反应）
+- 凭证页「申请退改」→ 该单的订单详情（**后端没有改签**，所以只接退款；退款要填原因、还要能看审核状态）
+
+订单操作按状态给，口径照服务端：**待支付**能取消与重新支付；**已支付**能申请退款（填原因，走后台审核）；
+**部分核销**明确不给退款入口。
+
+**多景区：切景点会动哪些数据**
+
+`store/shell.ts` 的 `currentAreaId`（落盘）是唯一的「当前景点」。切它会让：
+
+- **首页**（banner 标题与封面、公告、在园率、三张票卡）和**购票页**（票种、日期条、余票）重取 ——
+  这两个视图的 `loaded` 守卫以前只认「加载过/票种」、**不认识景点**，现在记的是「按哪个景点加载的」，
+  并在 `watch(currentAreaId)` 里作废 + 重取
+- `selectedTicketTypeId` 被清空（`setCurrentArea` 里做）—— 否则购票页会拿旧景点的票种 id 去找，可能**以错价下单**
+- `stockByDate` 余票缓存整体作废
+
+**不动**的：常用出行人（人级、跨景点通用）、**凭证页**（跨景点 —— 仍显示最近一张可入园订单，
+但按订单自己的 `scenicAreaId` 标注景点名）、订单列表与个人中心（跨景点看全部更自然）。
+
+> 副作用：**新建的景点没有票种/时段/库存**，切过去购票页会显示「该景点暂无可售票种」。
+> 后台目前不会自动生成，要手动建。
 
 **仍是静态的（后端没有对应接口，不是漏做）**：
-首页的开园状态 / 在园率 / 天气 / 便民四宫格 / 票卡营销角标；购票页的「限购 5 人」与入园须知文案；
+首页的开园状态与天气、便民四宫格；购票页的「限购 5 人」与入园须知文案；
 凭证页的通行方式三选一、导出离线票、闸机联网状态；个人中心的用户资料（昵称/头像/手机号/实名）、
 「年卡·优惠券」、门禁智联三行绑定状态、进行中行程卡、电子发票、履约信誉。
 **人脸**按技术方案 §7「三期前不采集」，那一行只能是 mock。
+**改签（U-026）与发票（U-027）也没做** —— 后端根本没有：改签只有 `reschedule` 建表与
+`ReservationStatus.RESCHEDULED` 枚举壳子，没有 entity/service/controller；开票连表都没有。
 
 **本轮新增的已知偏差**：
 
@@ -169,7 +232,9 @@ src/utils/format.ts 分→元、日期/星期、HH:mm:ss→HH:mm。**金额一�
 | **二维码是图案不是真码** | 把 token 编码成二维码矩阵需要引入编码器（本项目没有这个依赖）；闸机验的是 token 本体 | 图案由 token 推导（换码时图案会变），但**扫不出内容**。无订单时退回设计稿原图案 |
 | **个人中心出行人卡第二行改了文案** | 设计稿写的是「已录入人脸 / 刷身份证过闸」这类**能力标签**，后端没有任何对应字段 | 改显示**脱敏证件号** —— 有真实信息量且不编造能力状态 |
 | **接上真数据后部分文案与设计稿不同** | 设计稿的副标题、角标是占位文本，接口只给 `name`/`audience`/`price` 等字段 | 票种副标题取 `audience`（示例数据已按设计稿文案填，所以默认态一致；运营改了就会变） |
-| **首页票卡未接数据** | 三张卡类名完全相同、角标/价格单位/底部文案各不相同，要逐张绑定价位需给生成器加 `:nth` 定位再写 9 处绑定 | 首页仍显示设计稿原文；**运营改了票价首页不会变**（购票页会） |
+| **首页票卡的角标与底注换了文案** | 设计稿那三枚角标（实名制预约 / 特惠优待 / 超值推荐）与底部小字（今日可约 · 出票即用 …）都是**营销话术**，后端没有对应字段 | 改成由真实字段推出来：`needRealname` → 「实名制预约」，`refundRule` → 「提前 1 天可退 · 手续费 20%」。照抄话术等于替景区做承诺 |
+| **「四季家庭年卡」不能在线预约** | `¥388/**张**`，但后端只有「单价 × 人数」一种计价（`order.service.ts` 硬编码），按人数会算成 ¥388 × N | 卡片照常显示接口数据，但点「立即预约」提示「暂不支持在线预约」，不进购票流程。`ticket_type.sale_unit` 就是为这个判定加的 |
+| **首页票卡只展示 3 张** | 设计稿固定画了 3 个卡位，没有「更多票种」的容器 | 接口多于 3 个时，第 4 个起不渲染 |
 | **控制台有 `Do not nest other components in the text component` 警告** | 设计稿把图标 `<span>` 放在文本 `<span>` 里，生成器按块级/行内规则转成了 `<text>` 里嵌 `<view>` | 仅告警，两个平台渲染均正常；属 Phase ① 就有的产物特征 |
 
 设计来源：Stitch 项目 *Scenic Spot Reservation UI System*，设计系统「Cyan Ink & Bamboo Stone」。
@@ -203,6 +268,20 @@ appid 已写在 `src/manifest.json` 的 `mp-weixin.appid`。
 
 ### ⚠️ 改完代码后页面报 `module '...' is not defined`
 
+先确认一件事：**工具的工程目录是哪一个。**
+
+本机打开的其实是 **`dist/build/mp-weixin`**（`npm run build:mp-weixin` 的产物），
+而 `npm run dev:mp-weixin` 的 watcher 写的是 **`dist/dev/mp-weixin`** —— **两个目录**。
+挂在 build 上时，只跑 watcher 是一行改动都不会生效的，而现象看起来像「CSS 没压过」「代码没生效」。
+**改完小程序源码记得补一次 `npm run build:mp-weixin`**；或者把工具的工程切到 `dist/dev/mp-weixin`，
+那样 watcher 就够了。
+
+判断当前工具开的是哪个目录（本机）：
+
+```bash
+grep -rho "/home/lee[^\"]*mp-weixin" ~/.config/wechat-devtools/ | sort | uniq -c | sort -rn | head
+```
+
 现象是在开发者工具里看到：
 
 ```
@@ -232,6 +311,51 @@ Component is not found in path "wx://not-found"
 2. 还不行就 **关闭项目重新导入**（重开会把所有文件在启动时重新登记，绕开增量状态）；
 3. 仍不行则换基础库版本或重装工具 —— 社区里 `require is not defined` 类问题有过这种解法。
 
+### ⚠️ 删/改过页面路径后，白屏 + `el.split is not a function`
+
+```
+TypeError: MiniProgramError
+el.split is not a function
+    at ti (getMainPackageBundle.js)
+```
+
+同上一条的**镜像问题**：这次是**删掉或搬走**了页面/视图（例如把购票页从
+`views/booking/` 搬到 `pages/booking/`、把 `pages/area/` 改成 `views/area/`），
+而 `dev:mp-weixin` 的**差量编译不会清理已移除的产物** —— 旧目录还留在
+`dist/dev/mp-weixin/` 里，工具的启动期索引于是自相矛盾。
+
+排查顺序：
+
+1. **先确认产物是干净的**（多半就是这一步）：
+   ```bash
+   # 源码里没有、产物里却还在的目录
+   ls dist/dev/mp-weixin/pages dist/dev/mp-weixin/views
+   node -e "console.log(require('./dist/dev/mp-weixin/app.json').pages)"
+   ```
+   对不上就**停掉监听器、`rm -rf dist/dev`、重新 `npm run dev:mp-weixin`**（差量编译救不了，必须全量）。
+2. 再确认产物本身合法（这一步过了就说明**不是代码问题**）：
+   ```bash
+   # 每个页面的 usingComponents 相对路径是否都能解析到 .json/.wxml/.js
+   ```
+3. 然后才是工具侧：**清缓存 → 全部清除** → 重新编译；仍不行就**关闭项目重新导入**。
+
+### ⚠️ 新增页面：先建 `.vue`，再往 `pages.json` 加路由
+
+**顺序反了产物就永远缺这一页。** `pages.json` 里引用了尚不存在的页面时，
+`npm run dev:mp-weixin` 的增量编译会打：
+
+```
+pages/orders/index not found
+pages/orders/detail not found
+```
+
+然后**跳过这两页，并且后续的差量编译也不会重试**。产物目录里只剩一个 `.json`，
+没有 `.js`/`.wxml` —— 表现和上面那个 `module ... is not defined` 一模一样。
+实测踩过（本轮加订单列表/详情时）。
+
+补救：**重启 watcher 做一次全量重建**（`npm run dev:mp-weixin` 重跑一遍）。
+预防：先把 `.vue` 写出来，再改 `pages.json`。
+
 **怎么避免再踩**：把工具切到 `dist/dev/mp-weixin`，让 `npm run dev:mp-weixin` 常驻。
 dev 侧是**增量构建**——只重写变更文件、不做整目录清空，没有上述空窗期。
 （注意第 2 条与构建方式无关，新增文件时仍需重新编译或重开项目。）
@@ -242,7 +366,8 @@ dev 侧是**增量构建**——只重写变更文件、不做整目录清空，
 miniprogram/
 ├── src/
 │   ├── pages/main/index.vue    # 唯一页面：外壳（手写），顶栏+四个视图+底栏
-│   ├── views/{home,booking,credential,profile}/index.vue   # 四个视图（生成，见下）
+│   ├── views/{home,area,credential,profile}/index.vue      # 外壳的 4 个视图（生成，见下）
+│   ├── pages/booking/          # 购票页：**选完景点才进的二级页**（生成 + 手写 behavior）
 │   ├── views/*/behavior.ts     # 视图行为与 mock 数据（手写）
 │   ├── components/             # 手写组件：共用头尾 + 7 个交互区（见「交互状态怎么落地」）
 │   ├── styles/tokens.scss      # 设计 token（手写，唯一事实来源）
@@ -265,8 +390,11 @@ miniprogram/
 | `gen-utilities.mjs` | `design/classes.json` → `styles/utilities.scss` | Tailwind 类 → WXSS |
 | `gen-icons.mjs` | `design/icons.txt` → `styles/icons.scss` | Material Symbols SVG → base64 mask |
 | `gen-fonts.mjs` | `design/latin-chars.txt` → `styles/fonts.scss` | Google Fonts 拉丁子集 → base64 |
-| `gen-qr-pattern.mjs` | `design/reference/credential.html` → `components/qr-pattern.ts` | 二维码 SVG 的 58 个方块 → 数据 |
 | `gen-pages.mjs` | `design/reference/*.html` → `pages/*/index.vue` | HTML → WXML 模板 + 行为注入 |
+
+> 以前还有一个 `gen-qr-pattern.mjs`（把设计稿里那个装饰性二维码 SVG 抽成 `components/qr-pattern.ts`）。
+> 凭证页换成**真二维码**之后它没有消费者了，已连同产物一起删掉 —— 现在的二维码由
+> `utils/qrcode.ts` 用真实 token 现场编码，见「已知偏差」。
 
 `npm run gen` 全部重跑。`scripts/render-reference.sh`（`npm run ref:shots`）把设计稿渲染成参考图，
 用于像素比对 —— **必须走代理**，原因见该脚本头部注释。
@@ -329,31 +457,43 @@ miniprogram/
 
 | 项 | 原因 | 表现 |
 | --- | --- | --- |
-| **header 不绘制微信胶囊** | 真机上微信会渲染真实胶囊，自绘必然重叠 | 用 `getMenuButtonBoundingClientRect()` 预留位置；与设计稿截图在 header 右侧有可见差异，真机上反而正确 |
+| **景点选择页：设计稿的营销内容换成了真实数据** | 「国家 5A 级景区」「热度 98%」「余 1,420 张」「北门主闸 / 东门入」「建议 3-4 小时」这些后端**没有对应字段**，照抄等于替景区做承诺 | 角标一 = 景点分类（`scenic_area.category`），角标二 = 真实余票状态（只在紧张/约满时出现），标签行只留「分时预约 / 实名制」（由 `hasSlots`/`needRealname` 推导），余票行 = 今日真实剩余，起价 = 在线可售票种最低价。**看起来比设计稿信息少，但每一个数字都是真的** |
+| **景点选择页：「全景套票 ¥260」整块去掉了** | 后端没有套票/联票这个概念（没有表、没有下单路径） | 留着就是在卖一个不存在的东西。要做需要先有产品定义与数据模型 |
+| **景点选择页：页脚「客服热线 / 服务时间」** | 电话现在读平台信息 `platform.contactPhone`（**默认是空的**），服务时间没有任何字段 | 没配电话时整行隐藏（不留「客服热线：」的空壳）；服务时间去掉 |
+| **景点选择页：卡片封面是占位图** | `scenic_area.cover_url` 有字段但**后台还没有上传入口**，现在每个景点都是 null | 用设计稿里那 4 张示意图（`static/images/area-cover-*.jpg`）按序号轮换。**不要用首页那张 banner** —— 它里面烤着「景区预约首页」的字 |
+| **`FILL 1` 变体图标按描边渲染** | `gen-pages.mjs` 的 `material-symbols-outlined` 分支只看文本内容取图标名，忽略内联 `style` | 设计稿里 `sensors`（承载横幅）与 `verified_user`（页脚）标注了 `font-variation-settings: 'FILL' 1`，实现里是描边版。形状一致，填充差异很轻微。老问题，非本轮引入 |
+| **header 不绘制微信胶囊** | 真机上微信会渲染真实胶囊，自绘必然重叠 | **左对齐**的标题栏（二级页，带返回键）用 `getMenuButtonBoundingClientRect()` 预留右侧位置；与设计稿截图在 header 右侧有可见差异，真机上反而正确。<br>**居中的标题栏（`AreaTopBar`）反过来不做预留** —— 右侧内边距一加，居中基准就跟着左偏，整条标题肉眼可见不在中间（踩过：`capsuleInset` 约 100px，标题偏了 50px）。标题只有 7 个字，居中后离胶囊还有 30 多 pt，够不着 |
+| **`data-metric` 两个排版 token 的字体族换成了正文体** | 设计稿给它们的是 Space Grotesk —— 一套几何风格的展示字体（本为看板 KPI 数字准备），降级链还是 `ui-monospace / Menlo / Consolas / monospace`。放在中文界面里，`¥60`、`12:30-14:30`、`二维码验证320` 里的数字跟旁边的汉字**不是一套骨架**，很跳 | 在 `scripts/gen-utilities.mjs` 里把 `data-metric-md/lg` 的族从 `Space Grotesk` 改成 `Plus Jakarta Sans`（`text-data-metric-*` 与 `font-data-metric-*` 两层都指向 `$font-body`，**字号/字重/字距全部保留**），重新 `gen:utilities` 即可。覆盖：金额、日期胶囊、时段、订单详情、凭证页「入园时段 / 持票人」、个人中心统计数字。**`display-kpi-screen`（凭证水印）与 `label-badge`（角标/按钮，基本是中文）仍用 Space Grotesk** —— 那两处看不出差别 |
+| **凭证页的二维码是「真二维码」，不是设计稿那个装饰图案** | 设计稿画的是 22×22 的随机圆角方块，**扫不出任何东西**；而 PRD 要求它承载动态凭证 | 内容是服务端签发的 token **本体**（原样整串，不加前缀 —— 闸机就是把扫出来的原文当 `credential` 提交，见 `技术方案设计.md` §5.1）。编码器是自己带的 `utils/qrcode.ts`（字节模式，纠错 L/M/Q/H，版本 1~40 自增，算法按 Kazuhiko Arase 的 `qrcode.js`／MIT 用 TS 重写）。`npm run verify:qrcode` 会把它与 `qrcode-terminal` 自带的那份实现**逐模块比对**、并用 `qrcode-reader` 真解码回来 |
+| **二维码的绘制方式：在 JS 里编一张 1 位 PNG，交给 `<image>`** | 这个组件试过三种画法，前两种都栽在小程序端的渲染上：一格一个 `<view>`（4000+ 节点）、一行一个 `<view>` + 硬断点渐变（**真机固定少画一行**）、`<canvas type="2d">`（**开发者工具画得出来、真机 `createSelectorQuery` 拿不到节点**） | `utils/png.ts` 自己编 1 位灰度 PNG（不需要 zlib —— 用 deflate 的**存储块**），`utils/qr-render.ts` 把矩阵铺成格子图，组件只渲染一个 `<image mode="scaleToFill">`。不依赖任何平台 API、不参与层级合成、H5 与小程序同一份代码、可离线逐格验证。**代价**：1 位只能两色，设计稿那三个青色定位角变成黑的；data URI 约 **34.5KB**，每 50 秒换码重发一次 |
+| **「动态码每 N 秒刷新」的 N 改成由数据驱动** | 设计稿把这句写死成「每 60 秒刷新」，而服务端签发的 `refreshAfter` 是 **50**（token 本身 60 秒有效，但要提前 10 秒换掉，保证屏幕上不会出现已过期的码）—— 文案与行为对不上，用户一眼就看出来了 | 整句 replace 成 `<text>动态码每 {{ refreshAfterLabel }} 秒刷新 · 剩余 {{ countdownLabel }}</text>`：**N = `refreshAfter`**，**剩余 = 距下次换码还有几秒**（50 → 0，然后换码），两个数同源。⚠️ 绑定键要带 `:nth(2)` —— 匹配器用的是「包含」而非「相等」，「门票通行凭证 · 全园闸机通用」那行的类名是这三者的超集 |
+| **二维码中间的 logo 已去掉** | 设计稿在正中放了一个景区 logo，它会盖住约 16% 的码点 | 为此纠错等级原先是 H（矩阵 65×65、白框内单模块约 0.45mm，贴着「能扫」的边）。去掉后纠错回到 **M**：137 字符的 token 下矩阵 **49×49**、单模块约 **0.58mm**，好扫得多。品牌感由白框本身的 `border-primary/30` + `ring-mist-cyan-50` 保留。另外它原先还和 canvas 原生层抢层级（开发者工具里被盖成半透明） |
+| **联调身份固定成 `dev-local`**（不是偏差，是开发期的必要修复） | mock 登录的 openid 由 code 派生（`mock_openid_${code}`），而微信每次 `uni.login()` 都给**新的随机 code** ⇒ 每次重编译都是新账号、订单全丢、**凭证页永远没有内容可编** | `store/user.ts` 把 code 落盘复用（首次落 `dev-local`），真实微信模式下失败会自动回退到新 code，不影响上线。**第一次生效需要清一次数据缓存**（旧 JWT 还指向老的随机账号），或直接重新下一个单 |
 | **中文标题非宋体** | Google Fonts 国内不可达；中文字体子集 2–5MB 会超主包 2MB 上限 | 中文走系统字体栈，书卷感减弱，字号/字重仍对齐。**注：设计稿本身也没给中文指定衬线字体**（Noto Serif 不含 CJK 子集），所以偏差幅度小于预期 |
 | **`backdrop-blur` 降级** | 小程序渲染器对 `backdrop-filter` 支持不稳 | 毛玻璃变高不透明度纯色。设计稿在这些位置本就用了 90–95% 不透明度底色，差异很小 |
-| **无 hover 态** | 触屏无指针悬停 | `hover:*` / `group-hover:*` / `selection:*` 共 27 个类被丢弃，改用 `hover-class` 表达按下态 |
+| **无 hover 态** | 触屏无指针悬停 | `hover:*` / `group-hover:*` / `selection:*` / `focus:` / `focus-within:` / `placeholder:` 共 31 个类被丢弃（显式列在 `gen-utilities.mjs` 的 `INTENTIONAL_DROP` 里），改用 `hover-class` 表达按下态 |
 | **栅格用 CSS Grid** | 曾用「flex + 子项百分比宽度」，叠加 `gap` 后超过 100% 导致换行错乱 | `grid-cols-N` → `grid-template-columns: repeat(N, minmax(0,1fr))` |
+| **`pages.json` / `manifest.json` / H5 标题里的名称改不动** | 这三处的标题是 **构建期**产物（uni-app 构建时读取），运行时改不了 | 顶栏实际显示的名称来自 `GET /api/mini/platform/settings`，改后台即可；但那三处仍是写死的「枫林谷景区」。**换品牌名时要一并改这三处并重新构建**，否则开发者工具的页面标题 / H5 标签页仍是旧名 |
 | **顶栏下方多一个状态栏高度的占位块** | 设计稿的 `<main>` 只有固定的 `pt-16`（64px），那是按**没有状态栏**画的；而顶栏是「状态栏 + 56px」，真机上状态栏 40+px，于是内容被顶栏盖住（实测 44px 状态栏下被遮 37px）。H5 看 **不出来**，因为状态栏为 0 | `PageHeader` 里加了一个高度 = 真实状态栏的占位块。H5 上高度为 0、与设计稿逐像素一致；真机上自动让位，间距恒为 7px。**不能用 uni-app 的 `--status-bar-height` 代替** —— 它在产物里是构建时写死的 `25px`，运行时不更新 |
 | **底栏只用了半个底部安全区** | 设计稿给底栏的是完整的 `pb-safe`，真机（安全区 34px）上菜单文字下面会留出一大条空白带，看着像底栏被拉高了 | 改用 `$safe-bottom-tabbar`（`calc(env(safe-area-inset-bottom) * 0.5)`，34px → 17px）：菜单明显更贴近屏幕下沿，仍留在 Home Indicator 手势条之上。**用 `env()` 相乘而不是写死 px 是必须的** —— 无安全区的机型上它恒为 0，写死会让那些机型凭空多出底部留白。`TabBar` 的 padding-bottom、`TabBar` 的让位块、`BookingBar` 的 bottom 偏移**三处必须同值**，否则底栏与上方内容错位 |
 
 ## 体积
 
-构建后主包约 **708 KB**（上限 2 MB）：
+构建后主包约 **1.2 MB**（上限 2 MB）：
 
 | 组成 | 大小 |
 | --- | --- |
-| `app.wxss`（字体 + 图标 + 工具类，base64 后膨胀） | 144 KB |
-| `static/`（3 张位图） | 172 KB |
-| `components/`（共用头尾 + 7 个交互组件，含各自的 wxml/wxss/js/json） | 140 KB |
-| `views/`（四个视图的 wxml/wxss/js/json） | 132 KB |
-| `common/`（vendor 等） | 76 KB |
-| `pages/`（唯一页面的外壳） | 24 KB |
+| `static/`（7 张位图：首页/购票/个人中心 3 张 + 景点卡封面 4 张） | 420 KB |
+| `app.wxss`（字体 + 图标 + 工具类，base64 后膨胀） | 约 170 KB |
+| `components/`（共用头尾 + 10 个交互组件，含各自的 wxml/wxss/js/json） | 约 180 KB |
+| `views/` + `pages/`（四个视图 + 五个页面） | 约 280 KB |
+| `common/`（vendor 等） | 约 80 KB |
 
-比纯静态时增长约 124 KB，来自 7 个交互组件、四个视图与外壳 —— 离上限还很远。
+**景点卡那 4 张封面图是最大的一块新增**（约 250 KB）：`scenic_area.cover_url` 还没有后台上传入口，
+所以先内置占位。等后台能传封面、或把占位图压得更狠，这块可以降下来。
 
 字体是 3 个**可变字体**文件（按字重区间声明）——曾按字重逐个生成，同一份文件被内嵌 3–4 遍，243 KB → 68.9 KB。
-图标 44 个用 `-webkit-mask-image` 而非把颜色烘进 SVG：设计稿里同一图标有 9 种着色，
+图标 52 个用 `-webkit-mask-image` 而非把颜色烘进 SVG：设计稿里同一图标有 9 种着色，
 mask 方案下每个图标只需一份 SVG，颜色由 `background-color` 决定。
 
 ## 依赖版本（改动前务必读）
