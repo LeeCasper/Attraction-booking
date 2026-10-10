@@ -92,6 +92,27 @@ declare namespace Api {
       updatedAt: string;
     }
 
+    /**
+     * 有专用表单的配置键（见 `views/system/config/modules/config-schema.ts`）。
+     * 不在这张表里的键会回落到 JSON 编辑器。
+     */
+    type ConfigKey = 'platform' | 'reservation' | 'capacity_alarm' | 'refund';
+
+    /** 平台品牌与联系方式（与 `GET /api/mini/platform/settings` 同形状） */
+    interface PlatformSettings {
+      name: string;
+      nameEn: string;
+      subtitle: string;
+      logoUrl?: string;
+      contactPhone?: string;
+      icp?: string;
+      copyright?: string;
+      /** 产品名，页脚渲染成「{name}{productName} {version}」 */
+      productName?: string;
+      /** 版本号，自带 V 前缀 */
+      version?: string;
+    }
+
     /** 权限树节点（用于角色权限分配） */
     interface PermissionNode {
       /** 权限标识，如 ticket:create */

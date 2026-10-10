@@ -26,7 +26,11 @@ interface MetricItem {
 }
 
 const areas = ref<Api.Scenic.Area[]>([]);
-const areaId = ref<number | null>(null);
+/**
+ * 当前统计范围。**0 = 全部景区**（景点 id 从 1 开始，不会冲突）。
+ * 用 `0` 而不是 `null`，是因为 ElOption 的 value 类型不收 `null`。
+ */
+const areaId = ref<number>(0);
 const autoRefresh = ref(true);
 const loading = ref(false);
 /** 最近一次成功刷新的时间 */
@@ -254,8 +258,9 @@ async function loadData() {
   refreshFailed.value = false;
 
   const [realtimeRes, hourlyRes] = await Promise.all([
-    fetchGetRealtime(areaId.value ?? undefined),
-    fetchGetHourlyTrend(areaId.value ?? undefined)
+    // 0（全部景区）→ 不传 areaId，由后端按全部景区汇总
+    fetchGetRealtime(areaId.value || undefined),
+    fetchGetHourlyTrend(areaId.value || undefined)
   ]);
 
   // 失败时保留上一次成功的数据，仅置位提示
@@ -312,8 +317,8 @@ onMounted(async () => {
 
   if (!error && areaList.length > 0) {
     areas.value = areaList;
-    // 一期单景区：默认选中第一个；多景区时用户在顶部切换
-    areaId.value = areaList[0].id;
+    // 默认停在「全部景区」汇总（areaId 保持 null）。
+    // 以前是强制选中第一个 —— 多景区下你**永远只能看到 1 号景点的数据**，汇总根本选不出来
   }
 
   initChart();
@@ -359,6 +364,11 @@ onUnmounted(() => {
           <div class="flex items-center gap-8px">
             <span class="text-14px text-gray-500">景区</span>
             <ElSelect v-model="areaId" placeholder="全部景区" class="w-220px" @change="handleAreaChange">
+              <!--
+ value 为 null = 全部景区汇总。以前**没有这一项** ——
+                   占位符写着「全部景区」却选不到，而不传 areaId 时后端又会 `?? 1` 静默退回 1 号景点 
+-->
+              <ElOption label="全部景区" :value="0" />
               <ElOption v-for="area in areas" :key="area.id" :label="area.name" :value="area.id" />
             </ElSelect>
           </div>

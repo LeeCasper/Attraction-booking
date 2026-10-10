@@ -10,10 +10,22 @@ export function fetchGetScenicAreas() {
   });
 }
 
-/** 新建景区 */
+/** 新建景区（payload 里带 generateDefaults 时会一并生成默认时段/票种/库存） */
 export function fetchCreateScenicArea(data: Api.Scenic.AreaPayload) {
-  return request<{ id: number }>({
+  return request<Api.Scenic.CreateAreaResult>({
     url: '/admin/scenic/areas',
+    method: 'post',
+    data
+  });
+}
+
+/** 给已存在的景区补默认时段/票种/库存（幂等，可重复调用） */
+export function fetchGenerateScenicAreaDefaults(
+  id: number,
+  data?: { defaultStockDays?: number; defaultSlotStock?: number }
+) {
+  return request<Api.Scenic.AreaDefaultsResult>({
+    url: `/admin/scenic/areas/${id}/defaults`,
     method: 'post',
     data
   });
