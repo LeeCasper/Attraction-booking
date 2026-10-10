@@ -40,7 +40,11 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
             <ElButton type="primary" plain size="small" onClick={() => openEditModal(row)}>
               编辑
             </ElButton>
-          ) : null}
+          ) : (
+            // 有 config:read、没有 config:update 的角色（如景区管理员/财务）能看不能改，
+            // 明说一句，别让人对着空的操作列猜是不是页面坏了
+            <span class="text-12px text-gray-400">只读</span>
+          )}
         </div>
       )
     }

@@ -63,17 +63,16 @@ export class ExportController {
       throw new BadRequestException(`不支持的导出类型：${type}`);
     }
 
-    const id = areaId ?? 1;
     const file =
       type === 'orders'
-        ? await this.exportService.orders(id, query.start, query.end)
+        ? await this.exportService.orders(areaId, query.start, query.end)
         : type === 'verifications'
-          ? await this.exportService.verifications(id, query.start, query.end)
+          ? await this.exportService.verifications(areaId, query.start, query.end)
           : type === 'passages'
-            ? await this.exportService.passages(id, query.start, query.end)
+            ? await this.exportService.passages(areaId, query.start, query.end)
             : type === 'refunds'
-              ? await this.exportService.refunds(id, query.start, query.end)
-              : await this.exportService.daily(id, query.start, query.end);
+              ? await this.exportService.refunds(areaId, query.start, query.end)
+              : await this.exportService.daily(areaId, query.start, query.end);
 
     // 导出属敏感操作，记入操作日志（谁在什么时候导了什么）
     const admin = (req as Request & { admin?: { id: number } }).admin;
@@ -81,7 +80,8 @@ export class ExportController {
       await this.authService.writeLog(admin.id, 'export:report', 'export', null, {
         type,
         label: EXPORT_LABEL[type],
-        areaId: id,
+        // 不传 = 全部景区，日志里如实记 null
+        areaId: areaId ?? null,
         start: query.start,
         end: query.end,
       });

@@ -39,7 +39,9 @@ const EXPORT_OPTIONS: Array<{ command: Api.Analysis.ExportType; label: string }>
 ];
 
 const areas = ref<Api.Scenic.Area[]>([]);
-const areaId = ref<number | null>(null);
+// **0 = 全部景区**，与实时看板同一套（景点 id 从 1 开始，不会冲突）。
+// 用 0 而不是 null：ElOption 的 value 类型不收 null
+const areaId = ref<number>(0);
 const rangeMode = ref<RangeMode>('7');
 const dateRange = ref<string[] | null>(getRangeByDays(7));
 const granularity = ref<Granularity>('day');
@@ -138,7 +140,7 @@ async function loadTraffic() {
   if (!range) return;
 
   const { data, error } = await fetchGetTraffic({
-    areaId: areaId.value ?? undefined,
+    areaId: areaId.value || undefined,
     granularity: granularity.value,
     ...range
   });
@@ -166,7 +168,7 @@ async function loadData() {
   refreshFailed.value = false;
 
   const params: Api.Analysis.RangeParams = {
-    areaId: areaId.value ?? undefined,
+    areaId: areaId.value || undefined,
     ...range
   };
 
@@ -238,7 +240,7 @@ async function handleExport(command: Api.Analysis.ExportType) {
 
   try {
     await exportReport(command, {
-      areaId: areaId.value ?? undefined,
+      areaId: areaId.value || undefined,
       ...range
     });
     window.$message?.success('报表已开始下载');
@@ -258,8 +260,9 @@ onMounted(async () => {
 
   if (!error && areaList.length > 0) {
     areas.value = areaList;
-    // 一期单景区：默认选中第一个；多景区时用户在顶部切换
-    areaId.value = areaList[0].id;
+    // **不默认选中第一个**：停在 0 = 全部景区，与后端口径一致
+    // （多景区下把「全部」静默变成「示例山景区」，数字看着合理、其实只是一家的）
+    areaId.value = 0;
   }
 
   await loadData();
@@ -284,6 +287,7 @@ onMounted(async () => {
             <div class="flex items-center gap-8px">
               <span class="text-14px text-gray-500">景区</span>
               <ElSelect v-model="areaId" placeholder="全部景区" class="w-200px" @change="handleAreaChange">
+                <ElOption label="全部景区" :value="0" />
                 <ElOption v-for="area in areas" :key="area.id" :label="area.name" :value="area.id" />
               </ElSelect>
             </div>

@@ -98,6 +98,39 @@ async function main() {
     JSON.stringify(finance.data),
   );
 
+  // ---- 「不传 areaId = 全部景区」的口径比对 ----
+  // ⚠️ 这里**不能用上面那个 `range`**：它本身就带了 `areaId=`（见第 62 行），
+  // 再拼一个 `&areaId=` 就成了重复参数，服务端只认第一个 —— 结果每个景区都查的是同一个，
+  // 断言会以「全是 0」的形式静静失败（我就是这么踩的）。所以这里自己拼 start/end。
+  {
+    const span = `start=${start}&end=${end}`;
+    const areas = await api('GET', '/api/admin/scenic/areas', { token });
+    const list = areas.data ?? [];
+    const all = await api('GET', `/api/admin/analysis/finance?${span}`, { token });
+    let sum = 0;
+    for (const a of list) {
+      const one = await api('GET', `/api/admin/analysis/finance?${span}&areaId=${a.id}`, { token });
+      sum += one.data?.grossAmount ?? 0;
+    }
+    check(
+      '运营分析：不传 areaId 的收入 = 各景区之和（不是默认 1 号景区）',
+      all.data?.grossAmount === sum,
+      `全部 ${all.data?.grossAmount} vs 逐景区 ${sum}（${list.length} 个景区）`,
+    );
+
+    // 导出同理：不传 areaId 应当能出 CSV（以前会静默导出 1 号景区）
+    // BOM 要用 Buffer 判：fetch 的 text() 会按规范把 UTF-8 BOM 吃掉
+    const res = await fetch(`${BASE}/api/admin/export/daily?${span}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const buf = Buffer.from(await res.arrayBuffer());
+    check(
+      '导出：不传 areaId 也能出带 BOM 的 CSV（全部景区）',
+      res.status === 200 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf,
+      `status=${res.status}`,
+    );
+  }
+
   const overview = await api('GET', `/api/admin/analysis/overview?${range}`, { token });
   check(
     '概览一次返回转化/财务/票种/渠道',

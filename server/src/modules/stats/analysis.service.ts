@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { OrderStatus, ReservationStatus } from '../../common/enums/status.enum';
 import { addDaysStr, businessDate, diffDays } from '../../common/utils/date.util';
+import { areaCondition } from '../../common/utils/sql.util';
 
 /**
  * 运营分析（设计文档 §6.3.2）
@@ -16,7 +17,8 @@ export class AnalysisService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** 预约与经营趋势（按日） */
-  async trend(areaId: number, start: string, end: string) {
+  async trend(areaId: number | undefined, start: string, end: string) {
+    const area = areaCondition(areaId, 'r.scenic_area_id');
     const rows: Record<string, unknown>[] = await this.dataSource.query(
       `SELECT r.date AS date,
               COUNT(DISTINCT r.order_id) AS orders,
@@ -25,7 +27,7 @@ export class AnalysisService {
               COALESCE(SUM(CASE WHEN o.status IN (?, ?, ?) THEN o.amount ELSE 0 END), 0) AS income
          FROM reservation r
          JOIN orders o ON o.id = r.order_id
-        WHERE r.scenic_area_id = ? AND r.date BETWEEN ? AND ?
+        WHERE ${area.sql} AND r.date BETWEEN ? AND ?
           AND o.status NOT IN (?, ?)
         GROUP BY r.date
         ORDER BY r.date`,
@@ -33,7 +35,7 @@ export class AnalysisService {
         OrderStatus.PAID,
         OrderStatus.PARTIAL_VERIFIED,
         OrderStatus.VERIFIED,
-        areaId,
+        ...area.params,
         start,
         end,
         OrderStatus.CANCELLED,
@@ -45,9 +47,10 @@ export class AnalysisService {
       `SELECT DATE(f.refunded_at) AS date, COUNT(*) AS cnt, COALESCE(SUM(f.actual_amount), 0) AS amount
          FROM refund f
          JOIN orders o ON o.id = f.order_id
-        WHERE o.scenic_area_id = ? AND f.status = ? AND DATE(f.refunded_at) BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'o.scenic_area_id').sql} AND f.status = ?
+          AND DATE(f.refunded_at) BETWEEN ? AND ?
         GROUP BY DATE(f.refunded_at)`,
-      [areaId, 30, start, end],
+      [...areaCondition(areaId, 'o.scenic_area_id').params, 30, start, end],
     );
 
     return this.fillDateRange(start, end).map((date) => {
@@ -69,7 +72,7 @@ export class AnalysisService {
   }
 
   /** 转化指标：核销率 / 退单率 / 爽约率 */
-  async conversion(areaId: number, start: string, end: string) {
+  async conversion(areaId: number | undefined, start: string, end: string) {
     const [base]: { reserved: string; verified: string; expired: string }[] =
       await this.dataSource.query(
         `SELECT COALESCE(SUM(r.total_count), 0) AS reserved,
@@ -77,17 +80,18 @@ export class AnalysisService {
                 COALESCE(SUM(CASE WHEN r.date < CURDATE() AND r.verify_count = 0 THEN r.total_count ELSE 0 END), 0) AS expired
            FROM reservation r
            JOIN orders o ON o.id = r.order_id
-          WHERE r.scenic_area_id = ? AND r.date BETWEEN ? AND ?
+          WHERE ${areaCondition(areaId, 'r.scenic_area_id').sql} AND r.date BETWEEN ? AND ?
             AND o.status NOT IN (?, ?)`,
-        [areaId, start, end, OrderStatus.CANCELLED, OrderStatus.PENDING_PAY],
+        [...areaCondition(areaId, 'r.scenic_area_id').params, start, end, OrderStatus.CANCELLED, OrderStatus.PENDING_PAY],
       );
 
     const [orders]: { paid: string; refunded: string }[] = await this.dataSource.query(
       `SELECT COUNT(*) AS paid,
               SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS refunded
          FROM orders
-        WHERE scenic_area_id = ? AND status >= ? AND DATE(pay_time) BETWEEN ? AND ?`,
-      [OrderStatus.REFUNDED, areaId, OrderStatus.PAID, start, end],
+        WHERE ${areaCondition(areaId, 'scenic_area_id').sql} AND status >= ?
+          AND DATE(pay_time) BETWEEN ? AND ?`,
+      [OrderStatus.REFUNDED, ...areaCondition(areaId, 'scenic_area_id').params, OrderStatus.PAID, start, end],
     );
 
     const reserved = Number(base?.reserved ?? 0);
@@ -115,7 +119,12 @@ export class AnalysisService {
   }
 
   /** 客流分析：分时 / 日 / 月 */
-  async traffic(areaId: number, start: string, end: string, granularity: 'hour' | 'day' | 'month') {
+  async traffic(
+    areaId: number | undefined,
+    start: string,
+    end: string,
+    granularity: 'hour' | 'day' | 'month',
+  ) {
     const format = granularity === 'hour' ? '%H' : granularity === 'month' ? '%Y-%m' : '%Y-%m-%d';
     const rows: Record<string, unknown>[] = await this.dataSource.query(
       `SELECT DATE_FORMAT(passed_at, ?) AS bucket,
@@ -123,10 +132,10 @@ export class AnalysisService {
               SUM(CASE WHEN direction = 2 AND result IN (1, 4) THEN 1 ELSE 0 END) AS outCount,
               SUM(CASE WHEN result = 2 THEN 1 ELSE 0 END) AS rejected
          FROM passage_record
-        WHERE scenic_area_id = ? AND DATE(passed_at) BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'scenic_area_id').sql} AND DATE(passed_at) BETWEEN ? AND ?
         GROUP BY bucket
         ORDER BY bucket`,
-      [format, areaId, start, end],
+      [format, ...areaCondition(areaId, 'scenic_area_id').params, start, end],
     );
 
     return rows.map((r) => ({
@@ -138,7 +147,7 @@ export class AnalysisService {
   }
 
   /** 票种分析：销量、收入、占比 */
-  async byTicketType(areaId: number, start: string, end: string) {
+  async byTicketType(areaId: number | undefined, start: string, end: string) {
     const rows: Record<string, unknown>[] = await this.dataSource.query(
       `SELECT tt.id, tt.name,
               COUNT(oi.id) AS sold,
@@ -148,11 +157,18 @@ export class AnalysisService {
          JOIN orders o ON o.id = oi.order_id
          JOIN reservation r ON r.id = o.reservation_id
          JOIN ticket_type tt ON tt.id = oi.ticket_type_id
-        WHERE r.scenic_area_id = ? AND r.date BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'r.scenic_area_id').sql} AND r.date BETWEEN ? AND ?
           AND o.status NOT IN (?, ?, ?)
         GROUP BY tt.id, tt.name
         ORDER BY sold DESC`,
-      [areaId, start, end, OrderStatus.CANCELLED, OrderStatus.PENDING_PAY, OrderStatus.REFUNDED],
+      [
+        ...areaCondition(areaId, 'r.scenic_area_id').params,
+        start,
+        end,
+        OrderStatus.CANCELLED,
+        OrderStatus.PENDING_PAY,
+        OrderStatus.REFUNDED,
+      ],
     );
 
     const totalSold = rows.reduce((s, r) => s + Number(r.sold ?? 0), 0);
@@ -170,20 +186,23 @@ export class AnalysisService {
   }
 
   /** 渠道分析：订单量、核销、金额 */
-  async byChannel(areaId: number, start: string, end: string) {
+  async byChannel(areaId: number | undefined, start: string, end: string) {
+    const sub = areaCondition(areaId, 'o2.scenic_area_id');
+    const main = areaCondition(areaId, 'o.scenic_area_id');
     const rows: Record<string, unknown>[] = await this.dataSource.query(
       `SELECT o.channel,
               COUNT(DISTINCT o.id) AS orders,
               COALESCE(SUM(o.amount), 0) AS amount,
               (SELECT COUNT(*) FROM verification v WHERE v.reservation_id IN (
                   SELECT r2.id FROM reservation r2 WHERE r2.order_id IN (
-                    SELECT o2.id FROM orders o2 WHERE o2.channel = o.channel AND o2.scenic_area_id = ?
+                    SELECT o2.id FROM orders o2
+                     WHERE o2.channel = o.channel AND ${sub.sql}
                   ) AND r2.date BETWEEN ? AND ?
               )) AS verifications
          FROM orders o
-        WHERE o.scenic_area_id = ? AND DATE(o.pay_time) BETWEEN ? AND ? AND o.status >= ?
+        WHERE ${main.sql} AND DATE(o.pay_time) BETWEEN ? AND ? AND o.status >= ?
         GROUP BY o.channel`,
-      [areaId, start, end, areaId, start, end, OrderStatus.PAID],
+      [...sub.params, start, end, ...main.params, start, end, OrderStatus.PAID],
     );
 
     return rows.map((r) => ({
@@ -195,26 +214,28 @@ export class AnalysisService {
   }
 
   /** 财务分析：收入 / 退款 / 实收 */
-  async finance(areaId: number, start: string, end: string) {
+  async finance(areaId: number | undefined, start: string, end: string) {
     const [income]: { cnt: string; amount: string }[] = await this.dataSource.query(
       `SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS amount
          FROM orders
-        WHERE scenic_area_id = ? AND status >= ? AND DATE(pay_time) BETWEEN ? AND ?`,
-      [areaId, OrderStatus.PAID, start, end],
+        WHERE ${areaCondition(areaId, 'scenic_area_id').sql} AND status >= ?
+          AND DATE(pay_time) BETWEEN ? AND ?`,
+      [...areaCondition(areaId, 'scenic_area_id').params, OrderStatus.PAID, start, end],
     );
 
     const [refund]: { cnt: string; amount: string; fee: string }[] = await this.dataSource.query(
       `SELECT COUNT(*) AS cnt, COALESCE(SUM(actual_amount), 0) AS amount, COALESCE(SUM(fee), 0) AS fee
          FROM refund
         WHERE status = 30 AND DATE(refunded_at) BETWEEN ? AND ?
-          AND order_id IN (SELECT id FROM orders WHERE scenic_area_id = ?)`,
-      [start, end, areaId],
+          AND order_id IN (SELECT id FROM orders WHERE ${areaCondition(areaId, 'scenic_area_id').sql})`,
+      [start, end, ...areaCondition(areaId, 'scenic_area_id').params],
     );
 
     const [today]: { amount: string }[] = await this.dataSource.query(
       `SELECT COALESCE(SUM(amount), 0) AS amount FROM orders
-        WHERE scenic_area_id = ? AND status >= ? AND DATE(pay_time) = CURDATE()`,
-      [areaId, OrderStatus.PAID],
+        WHERE ${areaCondition(areaId, 'scenic_area_id').sql} AND status >= ?
+          AND DATE(pay_time) = CURDATE()`,
+      [...areaCondition(areaId, 'scenic_area_id').params, OrderStatus.PAID],
     );
 
     const gross = Number(income?.amount ?? 0);

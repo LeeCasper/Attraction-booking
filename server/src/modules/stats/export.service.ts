@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { areaCondition } from '../../common/utils/sql.util';
 import { DataSource } from 'typeorm';
 
 /** 导出文件 */
@@ -27,7 +28,7 @@ export class ExportService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** 订单明细导出（一行一位游客） */
-  async orders(areaId: number, start: string, end: string): Promise<CsvFile> {
+  async orders(areaId: number | undefined, start: string, end: string): Promise<CsvFile> {
     const rows: Record<string, any>[] = await this.dataSource.query(
       `SELECT o.order_no, o.status, o.amount, o.channel, o.created_at, o.pay_time,
               r.date AS visit_date, ts.name AS slot_name,
@@ -41,10 +42,10 @@ export class ExportService {
          LEFT JOIN visitor v ON v.id = oi.visitor_id
          LEFT JOIN ticket_type tt ON tt.id = oi.ticket_type_id
          LEFT JOIN payment p ON p.order_id = o.id AND p.status = 2
-        WHERE o.scenic_area_id = ? AND DATE(o.created_at) BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'o.scenic_area_id').sql} AND DATE(o.created_at) BETWEEN ? AND ?
         ORDER BY o.id DESC
         LIMIT ?`,
-      [areaId, start, end, ExportService.MAX_ROWS],
+      [...areaCondition(areaId, 'o.scenic_area_id').params, start, end, ExportService.MAX_ROWS],
     );
 
     return this.build(`订单明细_${start}_${end}`, rows, [
@@ -66,7 +67,7 @@ export class ExportService {
   }
 
   /** 核销记录导出 */
-  async verifications(areaId: number, start: string, end: string): Promise<CsvFile> {
+  async verifications(areaId: number | undefined, start: string, end: string): Promise<CsvFile> {
     const rows: Record<string, any>[] = await this.dataSource.query(
       `SELECT v.verify_time, v.channel, v.gate_id, v.operator_id,
               o.order_no, r.date AS visit_date, ts.name AS slot_name,
@@ -78,10 +79,10 @@ export class ExportService {
          LEFT JOIN order_item oi ON oi.id = v.order_item_id
          LEFT JOIN ticket_type tt ON tt.id = oi.ticket_type_id
          LEFT JOIN visitor vi ON vi.id = oi.visitor_id
-        WHERE r.scenic_area_id = ? AND DATE(v.verify_time) BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'r.scenic_area_id').sql} AND DATE(v.verify_time) BETWEEN ? AND ?
         ORDER BY v.id DESC
         LIMIT ?`,
-      [areaId, start, end, ExportService.MAX_ROWS],
+      [...areaCondition(areaId, 'r.scenic_area_id').params, start, end, ExportService.MAX_ROWS],
     );
 
     return this.build(`核销记录_${start}_${end}`, rows, [
@@ -99,16 +100,16 @@ export class ExportService {
   }
 
   /** 通行记录导出 */
-  async passages(areaId: number, start: string, end: string): Promise<CsvFile> {
+  async passages(areaId: number | undefined, start: string, end: string): Promise<CsvFile> {
     const rows: Record<string, any>[] = await this.dataSource.query(
       `SELECT p.passed_at, p.direction, p.result, p.reject_reason, p.gate_id, p.reservation_id,
               g.gate_no, g.name AS gate_name
          FROM passage_record p
          LEFT JOIN gate_device g ON g.id = p.gate_id
-        WHERE p.scenic_area_id = ? AND DATE(p.passed_at) BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'p.scenic_area_id').sql} AND DATE(p.passed_at) BETWEEN ? AND ?
         ORDER BY p.id DESC
         LIMIT ?`,
-      [areaId, start, end, ExportService.MAX_ROWS],
+      [...areaCondition(areaId, 'p.scenic_area_id').params, start, end, ExportService.MAX_ROWS],
     );
 
     return this.build(`通行记录_${start}_${end}`, rows, [
@@ -123,17 +124,17 @@ export class ExportService {
   }
 
   /** 退款单导出 */
-  async refunds(areaId: number, start: string, end: string): Promise<CsvFile> {
+  async refunds(areaId: number | undefined, start: string, end: string): Promise<CsvFile> {
     const rows: Record<string, any>[] = await this.dataSource.query(
       `SELECT f.refund_no, f.status, f.amount, f.actual_amount, f.fee, f.reason,
               f.created_at, f.audited_at, f.refunded_at, f.wx_refund_id,
               o.order_no, o.amount AS order_amount
          FROM refund f
          JOIN orders o ON o.id = f.order_id
-        WHERE o.scenic_area_id = ? AND DATE(f.created_at) BETWEEN ? AND ?
+        WHERE ${areaCondition(areaId, 'o.scenic_area_id').sql} AND DATE(f.created_at) BETWEEN ? AND ?
         ORDER BY f.id DESC
         LIMIT ?`,
-      [areaId, start, end, ExportService.MAX_ROWS],
+      [...areaCondition(areaId, 'o.scenic_area_id').params, start, end, ExportService.MAX_ROWS],
     );
 
     return this.build(`退款单_${start}_${end}`, rows, [
@@ -153,10 +154,10 @@ export class ExportService {
   }
 
   /** 日统计导出（经营报表） */
-  async daily(areaId: number, start: string, end: string): Promise<CsvFile> {
+  async daily(areaId: number | undefined, start: string, end: string): Promise<CsvFile> {
     const rows: Record<string, any>[] = await this.dataSource.query(
-      `SELECT * FROM daily_stats WHERE scenic_area_id = ? AND date BETWEEN ? AND ? ORDER BY date`,
-      [areaId, start, end],
+      `SELECT * FROM daily_stats WHERE ${areaCondition(areaId, 'scenic_area_id').sql} AND date BETWEEN ? AND ? ORDER BY date`,
+      [...areaCondition(areaId, 'scenic_area_id').params, start, end],
     );
 
     return this.build(`经营日报_${start}_${end}`, rows, [
