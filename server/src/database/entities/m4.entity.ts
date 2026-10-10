@@ -9,6 +9,13 @@ export class Reconciliation {
   @Column({ type: 'date' })
   date: string;
 
+  /**
+   * 所属景区。对账是**按景区**跑的，这一列是唯一键的一部分 ——
+   * 少了它，定时任务遍历所有景区时后一个景区会**覆盖**前一个的记录。
+   */
+  @Column({ name: 'scenic_area_id', type: 'bigint' })
+  scenicAreaId: number;
+
   /** wxpay / alipay / ota */
   @Column({ length: 16, default: 'wxpay' })
   channel: string;

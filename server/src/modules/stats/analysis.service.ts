@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { OrderStatus, ReservationStatus } from '../../common/enums/status.enum';
+import { addDaysStr, businessDate, diffDays } from '../../common/utils/date.util';
 
 /**
  * 运营分析（设计文档 §6.3.2）
@@ -236,26 +237,16 @@ export class AnalysisService {
 
   /** 填充日期区间（无数据补 0，便于前端画连续折线） */
   private fillDateRange(start: string, end: string): string[] {
+    // 纯日历日序列，不碰本地时间（原来手写 getMonth/getDate，随进程时区漂移）
     const days: string[] = [];
-    const cursor = new Date(`${start}T00:00:00`);
-    const last = new Date(`${end}T00:00:00`);
-    let guard = 0;
-    while (cursor <= last && guard < 400) {
-      const m = `${cursor.getMonth() + 1}`.padStart(2, '0');
-      const d = `${cursor.getDate()}`.padStart(2, '0');
-      days.push(`${cursor.getFullYear()}-${m}-${d}`);
-      cursor.setDate(cursor.getDate() + 1);
-      guard++;
-    }
+    const span = Math.min(diffDays(start, end), 399);
+    for (let i = 0; i <= span; i++) days.push(addDaysStr(start, i));
     return days;
   }
 
   private toDate(v: unknown): string {
-    if (v instanceof Date) {
-      const m = `${v.getMonth() + 1}`.padStart(2, '0');
-      const d = `${v.getDate()}`.padStart(2, '0');
-      return `${v.getFullYear()}-${m}-${d}`;
-    }
+    // 按业务时区格式化，不用本地 getMonth/getDate —— 后者随进程时区漂移
+    if (v instanceof Date) return businessDate(v);
     return String(v).slice(0, 10);
   }
 }

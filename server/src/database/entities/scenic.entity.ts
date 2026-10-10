@@ -23,6 +23,14 @@ export class ScenicArea {
   @Column({ name: 'max_capacity', type: 'int', default: 10000 })
   maxCapacity: number;
 
+  /**
+   * 景点分类：`main` 主景区 / `nature` 自然风光 / `culture` 历史人文 /
+   * `cable` 索道缆车 / `night` 夜游演艺；NULL = 未分类（小程序端只在「全部景点」里出现）。
+   * 联合类型必须显式写 `type`，否则 TypeORM 推断成 Object 会报 DataTypeNotSupportedError。
+   */
+  @Column({ name: 'category', type: 'varchar', length: 16, nullable: true })
+  category: string | null;
+
   @Column({ type: 'tinyint', default: 1 })
   status: number;
 

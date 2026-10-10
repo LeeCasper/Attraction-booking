@@ -37,6 +37,15 @@ export class TicketTypeService {
     name: string;
     audience?: string;
     basePrice: number;
+    /**
+     * `person` 按人计价 / `ticket` 按张计价。
+     *
+     * 必须可传：设计稿上的「四季家庭年卡」是 ¥388/**张**，而下单只有「单价 × 人数」
+     * 一种计价，按人数算会变成 388 × 人数 —— 标成 `ticket` 后小程序据此提示
+     * 「暂不支持在线预约」（`miniprogram/src/views/booking/behavior.ts`）。
+     * 此项缺失时年卡会被当成按人卖的票，静默多收钱。
+     */
+    saleUnit?: string;
     refundRule?: Record<string, unknown>;
     needRealname?: number;
     remark?: string;
@@ -49,6 +58,7 @@ export class TicketTypeService {
         name: body.name,
         audience: body.audience,
         basePrice: body.basePrice,
+        saleUnit: body.saleUnit ?? 'person',
         refundRule: body.refundRule ?? null,
         needRealname: body.needRealname ?? 1,
         remark: body.remark,

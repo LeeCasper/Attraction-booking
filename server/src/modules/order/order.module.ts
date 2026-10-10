@@ -11,6 +11,7 @@ import {
   TimeSlot,
 } from '../../database/entities/ticket.entity';
 import { PurchaseRule } from '../ticket/purchase-rule.entity';
+import { Refund } from '../../database/entities/pay.entity';
 import { TicketModule } from '../ticket/ticket.module';
 
 @Module({
@@ -26,6 +27,8 @@ import { TicketModule } from '../ticket/ticket.module';
       TicketStock,
       PriceCalendar,
       PurchaseRule,
+      // 订单列表/详情要带退款状态，否则客户端不知道「审核中/已拒绝」
+      Refund,
     ]),
     TicketModule, // StockCacheService
   ],

@@ -104,9 +104,17 @@ async function main() {
   // 需要一个「当前时间落在核销时段容差内」的时段。
   // 优先复用已有的冒烟时段（避免每次运行都新增时段、让库存维度无限增长），没有才新建。
   const now = new Date();
-  const startH = new Date(now.getTime() - 60 * 60 * 1000);
-  const endH = new Date(now.getTime() + 60 * 60 * 1000);
-  const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  //
+  // ⚠️ 时间必须**夹在当天之内**。原来直接取 `now±1h` 的时分，跨零点时会出事：
+  // 00:57 跑时 start 变成前一天的 `23:57`、end 是 `01:57`，而服务端按**字符串**比
+  // `startTime < endTime`，`'23:57' >= '01:57'` 直接 400「开始时间需早于结束时间」——
+  // 结果这套冒烟在 **00:00~01:00 之间根本跑不起来**（实测过）。
+  const clampHm = (deltaHours) => {
+    const h = Math.min(23, Math.max(0, now.getHours() + deltaHours));
+    return `${pad(h)}:00`;
+  };
+  const startTime = clampHm(-1);
+  const endTime = clampHm(2);
   const minutesOf = (t) => {
     const [h, m] = String(t).split(':').map(Number);
     return h * 60 + m;
@@ -125,8 +133,8 @@ async function main() {
       body: {
         scenicAreaId: areaId,
         name: `冒烟时段${RUN % 1000}`,
-        startTime: hm(startH),
-        endTime: hm(endH),
+        startTime,
+        endTime,
         sortOrder: 99,
       },
     });
@@ -223,6 +231,19 @@ async function main() {
     JSON.stringify(verify1.json),
   );
   check('返回游客姓名与剩余人数', verify1.data?.visitorName === '核销测试甲' && verify1.data?.remaining === 1, JSON.stringify(verify1.data));
+
+  // 此时订单是「部分核销(30)」—— 不允许退款。
+  // 理由：退款金额按**整单金额**算（见 PayService.calcRefund），不看已核销人数，
+  // 放行的话 2 人单核销 1 人后退款会把已经消费掉的那张票的钱也退掉。
+  const partialRefund = await api('POST', `/api/mini/orders/${orderId}/refund`, {
+    token,
+    body: { reason: '部分核销后尝试退款' },
+  });
+  check(
+    '部分核销(30)的订单不能申请退款',
+    partialRefund.status === 400,
+    `实际 ${partialRefund.status} ${JSON.stringify(partialRefund.json)}`,
+  );
 
   // 在园人数以「通行回执」为准，核验通过本身不计数
   const afterVerify = await api('GET', '/api/admin/dashboard/realtime', { token: adminToken });
@@ -326,6 +347,27 @@ async function main() {
   check('看板返回承载率', typeof dash.data?.capacityRate === 'number' && dash.data.capacityRate >= 0);
   check('看板返回闸机在线率', typeof dash.data?.gateOnlineRate === 'number');
   check('看板返回今日核销与通道数据', typeof dash.data?.verificationCount === 'number' && typeof dash.data?.inToday === 'number');
+
+  // **业务日期回归**：看板的 `date` 是服务端算出来的「今天」，必须与本机（东八区）的今天一致。
+  // 这正对着那个 UTC bug —— 服务端原来用 `toISOString().slice(0,10)`，
+  // 每天 00:00–08:00 会返回昨天，这条断言在凌晨跑就会失败（白天跑看不出来）。
+  const localToday = today();
+  check(
+    `服务端的「今天」= 本地今天（${localToday}）`,
+    dash.data?.date === localToday,
+    `服务端 ${dash.data?.date} / 本地 ${localToday}`,
+  );
+
+  // 小程序首页「在园率」走的是免登录的 areas/:id/presence ——
+  // 直接在这里比它和看板的值，确保两处**口径没有漂移**（都以内通行回执为准）
+  const miniPresence = await api('GET', `/api/mini/areas/${areaId}/presence`);
+  check(
+    '小程序在园接口免登录且与看板口径一致',
+    miniPresence.data?.current === dash.data?.presence &&
+      miniPresence.data?.capacityRate === dash.data?.capacityRate &&
+      typeof miniPresence.data?.maxCapacity === 'number',
+    `小程序 ${JSON.stringify(miniPresence.data)} vs 看板 presence=${dash.data?.presence} rate=${dash.data?.capacityRate}`,
+  );
 
   const hourly = await api('GET', `/api/admin/dashboard/hourly?areaId=${areaId}`, { token: adminToken });
   check('分时趋势返回 24 小时', Array.isArray(hourly.data) && hourly.data.length === 24);

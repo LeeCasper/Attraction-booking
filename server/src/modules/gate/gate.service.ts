@@ -9,6 +9,7 @@ import { Blacklist } from '../../database/entities/user.entity';
 import { CredentialService } from '../verify/credential.service';
 import { VerifyService } from '../verify/verify.service';
 import { randomBytes } from 'crypto';
+import { businessToday } from '../../common/utils/date.util';
 
 /** 心跳超时判定（秒）：超过该时长未心跳即视为离线 */
 const HEARTBEAT_TIMEOUT_SECONDS = 90;
@@ -62,7 +63,7 @@ export class GateService {
     const gate = await this.gateRepo.findOne({ where: { id: gateId } });
     if (!gate) throw new NotFoundException('闸机不存在');
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     const reservations: { id: number }[] = await this.resRepo.manager.query(
       `SELECT r.id FROM reservation r
          JOIN orders o ON o.id = r.order_id

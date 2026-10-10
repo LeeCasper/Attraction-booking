@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS scenic_area (
   cover_url    VARCHAR(512) NULL,
   open_time    VARCHAR(64)  NULL COMMENT '开放时间描述 08:00-17:00',
   max_capacity INT          NOT NULL DEFAULT 10000 COMMENT '最大瞬时承载量',
+  category     VARCHAR(16)  NULL COMMENT '景点分类 main主景区/nature自然风光/culture历史人文/cable索道缆车/night夜游演艺，NULL=未分类',
   status       TINYINT      NOT NULL DEFAULT 1 COMMENT '1开放 2关闭',
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -81,6 +82,11 @@ CREATE TABLE IF NOT EXISTS ticket_type (
   name          VARCHAR(64)  NOT NULL COMMENT '成人票/儿童票…',
   audience      VARCHAR(64)  NULL COMMENT '适用人群',
   base_price    INT          NOT NULL DEFAULT 0 COMMENT '基础价(分)',
+  -- 计价单位：person=按人卖（下单金额 = 单价 × 人数），ticket=按张卖。
+  -- ⚠️ 目前**只有 person 实现了计价** —— order.service.ts 是硬编码的
+  --    `金额 = 单价 × 人数`，每张票对应一位游客。ticket 目前仅用于在客户端
+  --    标记「该票种暂不支持在线预约」，避免把它按人数算成错金额。
+  sale_unit     VARCHAR(16)  NOT NULL DEFAULT 'person' COMMENT '计价单位 person|ticket',
   refund_rule   JSON         NULL COMMENT '退改规则 {before_day:1,fee_rate:0.2…}',
   need_realname TINYINT      NOT NULL DEFAULT 1 COMMENT '是否实名',
   status        TINYINT      NOT NULL DEFAULT 1 COMMENT '1上架 2下架',
@@ -494,6 +500,7 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
 CREATE TABLE IF NOT EXISTS reconciliation (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   date            DATE NOT NULL COMMENT '对账日期',
+  scenic_area_id  BIGINT UNSIGNED NOT NULL COMMENT '所属景区（对账是**按景区**跑的，缺了这列多景区会互相覆盖）',
   channel         VARCHAR(16) NOT NULL DEFAULT 'wxpay' COMMENT 'wxpay/alipay/ota',
   order_count     INT NOT NULL DEFAULT 0 COMMENT '订单侧笔数',
   order_amount    BIGINT NOT NULL DEFAULT 0 COMMENT '订单侧金额(分)',
@@ -506,7 +513,7 @@ CREATE TABLE IF NOT EXISTS reconciliation (
   status          TINYINT NOT NULL DEFAULT 10 COMMENT '10 已核对无差异 20 存在差异 30 核对失败',
   remark          VARCHAR(255) NULL,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_date_channel (date, channel),
+  UNIQUE KEY uk_date_channel_area (date, channel, scenic_area_id),
   KEY idx_status (status)
 ) ENGINE=InnoDB COMMENT='对账记录（订单/支付/退款三方核对）';
 

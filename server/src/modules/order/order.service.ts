@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -14,7 +15,7 @@ import { CIPHER } from '../security/security.module';
 import { StockCacheService, ReserveResult } from '../ticket/stock-cache.service';
 import { OrderItemStatus, OrderStatus, PaymentStatus, ReservationStatus } from '../../common/enums/status.enum';
 import { OrderItem, Orders, Reservation } from '../../database/entities/order.entity';
-import { Payment } from '../../database/entities/pay.entity';
+import { Payment, Refund } from '../../database/entities/pay.entity';
 import { Blacklist, Visitor } from '../../database/entities/user.entity';
 import {
   PriceCalendar,
@@ -26,9 +27,9 @@ import { PurchaseRule } from '../ticket/purchase-rule.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { generateOrderNo } from './order-no.util';
 import { RedisClient, REDIS_CLIENT } from '../redis/redis.constants';
-
-/** 支付超时时间（分钟），与 sys_config.reservation.payTimeoutMinutes 对应 */
-const PAY_TIMEOUT_MINUTES = 15;
+import { businessDayEnd } from '../../common/utils/date.util';
+import { SysConfigService } from '../system/sys-config.service';
+import { DEFAULT_RESERVATION } from '../../common/constants/config-defaults';
 
 @Injectable()
 export class OrderService {
@@ -44,11 +45,36 @@ export class OrderService {
     @InjectRepository(PriceCalendar) private readonly priceRepo: Repository<PriceCalendar>,
     @InjectRepository(PurchaseRule) private readonly ruleRepo: Repository<PurchaseRule>,
     @InjectRepository(Blacklist) private readonly blacklistRepo: Repository<Blacklist>,
+    @InjectRepository(Refund) private readonly refundRepo: Repository<Refund>,
     @Inject(CIPHER) private readonly cipher: CipherUtil,
     @Inject(REDIS_CLIENT) private readonly redis: RedisClient,
     private readonly dataSource: DataSource,
     private readonly stockCache: StockCacheService,
+    private readonly sysConfig: SysConfigService,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * 当前生效的支付超时（分钟）。
+   *
+   * 优先级：`sys_config.reservation.payTimeoutMinutes`（后台「参数配置」可改）
+   *       > `PAY_TIMEOUT_MINUTES` env > 15。
+   *
+   * **每次调用都读一遍，且必须在这里读、不能提到模块级常量** —— `ConfigModule` 加载 `.env`
+   * 晚于模块级常量求值，缓存住就会一直用进程启动那一刻的值（CLAUDE.md 约束 11 的同源问题）；
+   * 同理，缓存住的话管理员在后台改了也读不到。
+   *
+   * 微信预支付单的 `expireMinutes` 也要用这个值 —— 否则会出现「我们的 payDeadline 还没到，
+   * 微信单已经过期」的两套时间。
+   */
+  async payTimeoutMinutes(): Promise<number> {
+    const envTimeout = this.config.get<number>('wxpay.payTimeoutMinutes') ?? 15;
+    const reservation = await this.sysConfig.get('reservation', {
+      ...DEFAULT_RESERVATION,
+      payTimeoutMinutes: envTimeout,
+    });
+    return Number(reservation.payTimeoutMinutes ?? envTimeout);
+  }
 
   /**
    * 创建订单（设计文档 §4.2）
@@ -58,6 +84,8 @@ export class OrderService {
    */
   async create(userId: number, dto: CreateOrderDto) {
     const visitors = dto.visitors;
+
+    const payTimeoutMinutes = await this.payTimeoutMinutes();
 
     // ---- 1. 票种 / 时段校验 ----
     const ticketType = await this.typeRepo.findOne({ where: { id: dto.ticketTypeId, status: 1 } });
@@ -160,7 +188,7 @@ export class OrderService {
           amount,
           status: OrderStatus.PENDING_PAY,
           channel: 'mini',
-          payDeadline: new Date(Date.now() + PAY_TIMEOUT_MINUTES * 60_000),
+          payDeadline: new Date(Date.now() + payTimeoutMinutes * 60_000),
         });
         const orderId = Number(orderIns.identifiers[0].id);
 
@@ -196,7 +224,7 @@ export class OrderService {
 
       return {
         ...order,
-        payDeadline: new Date(Date.now() + PAY_TIMEOUT_MINUTES * 60_000),
+        payDeadline: new Date(Date.now() + payTimeoutMinutes * 60_000),
         ticketName: ticketType.name,
         slotName: slot.name,
         visitorCount: visitors.length,
@@ -326,15 +354,31 @@ export class OrderService {
     const orders = await this.ordersRepo.find({ where, order: { id: 'DESC' }, take: 50 });
     if (orders.length === 0) return [];
 
-    const items = await this.itemRepo.find({ where: { orderId: In(orders.map((o) => o.id)) } });
-    const reservations = await this.dataSource.getRepository(Reservation).find({
-      where: { orderId: In(orders.map((o) => o.id)) },
-    });
+    const orderIds = orders.map((o) => o.id);
+    const [items, reservations, refunds] = await Promise.all([
+      this.itemRepo.find({ where: { orderId: In(orderIds) } }),
+      this.dataSource.getRepository(Reservation).find({ where: { orderId: In(orderIds) } }),
+      // 按 id 倒序，下面 find 取到的就是该单**最新**一条退款单
+      this.refundRepo.find({ where: { orderId: In(orderIds) }, order: { id: 'DESC' } }),
+    ]);
+
+    // 票种名：列表原本只给 itemCount，卡片就没法说清「买的是什么票」，
+    // 只能显示订单号 —— 那等于没有列表。一张订单只有一个票种（下单时单选 ticketTypeId）。
+    const typeIds = [...new Set(items.map((i) => i.ticketTypeId))];
+    const types = typeIds.length ? await this.typeRepo.find({ where: { id: In(typeIds) } }) : [];
+    const ticketNameOf = (orderId: number) => {
+      const first = items.find((i) => i.orderId === orderId);
+      return first ? (types.find((t) => t.id === first.ticketTypeId)?.name ?? '') : '';
+    };
 
     return orders.map((o) => ({
       ...o,
       itemCount: items.filter((i) => i.orderId === o.id).length,
+      ticketName: ticketNameOf(o.id),
       reservation: reservations.find((r) => r.orderId === o.id) ?? null,
+      // 申请退款后订单状态**不变**（仍是 20/30），只多一条待审的退款单 ——
+      // 没有这个字段，客户端就无从知道「审核中 / 已拒绝」，只会看到「待入园」。
+      refundStatus: refunds.find((r) => r.orderId === o.id)?.status ?? null,
     }));
   }
 
@@ -356,11 +400,28 @@ export class OrderService {
     const slot = reservation
       ? await this.slotRepo.findOne({ where: { id: reservation.timeSlotId } })
       : null;
+    // 最新一条退款单（整单退时 orderItemId 为 null）
+    const refund = await this.refundRepo.findOne({ where: { orderId }, order: { id: 'DESC' } });
 
     return {
       ...order,
       reservation,
       timeSlot: slot,
+      refundStatus: refund?.status ?? null,
+      refund: refund
+        ? {
+            id: Number(refund.id),
+            refundNo: refund.refundNo,
+            status: refund.status,
+            /** 申请退款金额（分） */
+            amount: refund.amount,
+            /** 扣手续费后实退（分） */
+            actualAmount: refund.actualAmount,
+            fee: refund.fee,
+            reason: refund.reason,
+            auditRemark: refund.auditRemark,
+          }
+        : null,
       items: items.map((i) => {
         const v = visitors.find((x) => x.id === i.visitorId);
         return {
@@ -528,7 +589,8 @@ export class OrderService {
 
   private secondsUntilEndOfDay(): number {
     const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+    // 「次日零点」按业务时区算，别用本地 getDate/构造 —— 后者随进程时区漂移
+    const end = businessDayEnd(now);
     return Math.max(60, Math.floor((end.getTime() - now.getTime()) / 1000));
   }
 }

@@ -15,6 +15,9 @@ import { TicketStock, TicketType } from '../../database/entities/ticket.entity';
 import { OrderItemStatus, OrderStatus, RefundStatus, ReservationStatus } from '../../common/enums/status.enum';
 import { StockCacheService } from '../ticket/stock-cache.service';
 import { generateRefundNo } from '../order/order-no.util';
+import { businessToday, diffDays } from '../../common/utils/date.util';
+import { SysConfigService } from '../system/sys-config.service';
+import { DEFAULT_REFUND_RULE } from '../../common/constants/config-defaults';
 
 /** 退款金额计算所需上下文 */
 interface RefundContext {
@@ -37,6 +40,7 @@ export class PayService {
     private readonly orderService: OrderService,
     private readonly stockCache: StockCacheService,
     private readonly dataSource: DataSource,
+    private readonly sysConfig: SysConfigService,
   ) {}
 
   // ==================== 支付 ====================
@@ -120,7 +124,14 @@ export class PayService {
     const order = await this.ordersRepo.findOne({ where: { id: orderId, userId } });
     if (!order) throw new NotFoundException('订单不存在');
 
-    if (![OrderStatus.PAID, OrderStatus.PARTIAL_VERIFIED].includes(order.status)) {
+    // ⚠️ **只允许「已支付、尚未核销」的订单退款。**
+    // 部分核销（PARTIAL_VERIFIED）以前也放行，但退款金额是按**整单 `order.amount`** 算的
+    // （见 calcRefund），不看已核销人数 —— 2 人的单核销 1 人后能整单全额退，
+    // 等于把已经消费掉的那张票的钱也退了。这里收紧，不让它继续退错钱。
+    if (order.status === OrderStatus.PARTIAL_VERIFIED) {
+      throw new BadRequestException('已有票核销，不支持退款');
+    }
+    if (order.status !== OrderStatus.PAID) {
       throw new BadRequestException('当前订单状态不可申请退款');
     }
 
@@ -319,20 +330,24 @@ export class PayService {
     fee: number;
     actual: number;
   }> {
-    const rule = ctx.ticketType?.refundRule ?? {};
-    const beforeDay = Number((rule as Record<string, unknown>).beforeDay ?? 1);
-    const feeRate = Number((rule as Record<string, unknown>).feeRate ?? 0.2);
-    const expiredNoRefund = (rule as Record<string, unknown>).expiredNoRefund !== false;
+    // 全局退改规则来自 sys_config（后台「参数配置」页可改），票种自身的 refund_rule
+    // **按字段覆盖**它 —— 只设了 feeRate 的票种仍会继承全局的 beforeDay。
+    // 两套键名故意保持一致（beforeDay/feeRate/expiredNoRefund）：种子里的旧形状
+    // 曾经叫 beforeDayFeeRate/sameDayFeeRate，与这里读的对不上，于是「后台改了不生效」。
+    const global = await this.sysConfig.get('refund', DEFAULT_REFUND_RULE);
+    const rule = { ...global, ...(ctx.ticketType?.refundRule ?? {}) } as Record<string, unknown>;
+    const beforeDay = Number(rule.beforeDay ?? 1);
+    const feeRate = Number(rule.feeRate ?? 0.2);
+    const expiredNoRefund = rule.expiredNoRefund !== false;
 
     const total = ctx.order.amount;
     if (!ctx.reservation) {
       return { refundable: true, fee: 0, actual: total };
     }
 
-    const visitDate = new Date(`${ctx.reservation.date}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const daysAhead = Math.round((visitDate.getTime() - today.getTime()) / 86400000);
+    // 按**日历日**算差。原来用 Date 的本地午夜相减，虽然本机时区下是对的，
+    // 但结果会随进程时区漂移（跑在 UTC 容器里就会多算一天）
+    const daysAhead = diffDays(businessToday(), ctx.reservation.date);
 
     if (daysAhead < 0) {
       // 已过预约日

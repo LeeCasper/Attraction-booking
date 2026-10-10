@@ -1,9 +1,11 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ScenicService } from './scenic.service';
+import { ScenicDefaultsService } from '../ticket/scenic-defaults.service';
 import { AuthService } from '../auth/auth.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { AREA_CATEGORIES, DEFAULT_SLOT_STOCK, DEFAULT_STOCK_DAYS } from '../../common/constants/scenic-defaults';
 
 class CreateAreaDto {
   @IsString() @MinLength(2) @MaxLength(128) name: string;
@@ -11,8 +13,27 @@ class CreateAreaDto {
   @IsOptional() @IsString() intro?: string;
   @IsOptional() @IsString() @MaxLength(64) openTime?: string;
   @IsOptional() @IsInt() @Min(1) @Max(1000000) maxCapacity?: number;
+  /** 景点分类，决定小程序「景点选择」页归到哪个 tab；不传 = 未分类（只在「全部景点」出现） */
+  @IsOptional() @IsIn(AREA_CATEGORIES as unknown as string[]) @IsString() category?: string;
   /** 1 开放 / 2 关闭（ValidationPipe 开启 whitelist，未声明字段会被剥离） */
   @IsOptional() @IsIn([1, 2]) status?: number;
+}
+
+/**
+ * 新建景区用。**必须单独一个类**，不能把这些字段加进 `CreateAreaDto`：
+ * `PUT areas/:id` 复用 `CreateAreaDto`，加进去等于让「编辑景区」也能触发生成。
+ */
+class CreateAreaWithDefaultsDto extends CreateAreaDto {
+  /** 一键生成默认时段/票种，并为其生成未来若干天的分时库存 */
+  @IsOptional() @IsBoolean() generateDefaults?: boolean;
+  @IsOptional() @IsInt() @Min(1) @Max(30) defaultStockDays?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(100000) defaultSlotStock?: number;
+}
+
+/** 给已存在的（裸）景区补默认配置 */
+class GenerateAreaDefaultsDto {
+  @IsOptional() @IsInt() @Min(1) @Max(30) defaultStockDays?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(100000) defaultSlotStock?: number;
 }
 
 class CreateAnnouncementDto {
@@ -29,6 +50,7 @@ class UpdateAnnouncementDto extends CreateAnnouncementDto {
 export class ScenicController {
   constructor(
     private readonly scenicService: ScenicService,
+    private readonly defaultsService: ScenicDefaultsService,
     private readonly authService: AuthService,
   ) {}
 
@@ -41,11 +63,41 @@ export class ScenicController {
 
   @Post('areas')
   @Permissions('scenic:create')
-  @ApiOperation({ summary: '创建景区' })
-  async createArea(@Body() dto: CreateAreaDto, @Req() req: Express.Request) {
+  @ApiOperation({ summary: '创建景区（可选一键生成默认时段/票种/库存）' })
+  async createArea(@Body() dto: CreateAreaWithDefaultsDto, @Req() req: Express.Request) {
     const r = await this.scenicService.createArea(dto);
-    await this.authService.writeLog(this.adminId(req), 'scenic:create', 'scenic_area', Number(r.id), dto);
-    return { id: Number(r.id) };
+    const id = Number(r.id);
+
+    // 景区先建出来（独立一步，不参与下面的事务）；默认配置失败也不回滚景区
+    let defaults: Awaited<ReturnType<ScenicDefaultsService['generateFor']>> | undefined;
+    if (dto.generateDefaults) {
+      defaults = await this.defaultsService.generateFor(id, {
+        days: dto.defaultStockDays ?? DEFAULT_STOCK_DAYS,
+        slotStock: dto.defaultSlotStock ?? DEFAULT_SLOT_STOCK,
+        operatorId: this.adminId(req),
+      });
+    }
+
+    await this.authService.writeLog(this.adminId(req), 'scenic:create', 'scenic_area', id, { ...dto, defaults });
+    return { id, defaults };
+  }
+
+  @Post('areas/:id/defaults')
+  @Permissions('scenic:update')
+  @ApiOperation({ summary: '为已有景区补默认时段/票种/库存（幂等，可重复调用）' })
+  async generateDefaults(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: GenerateAreaDefaultsDto,
+    @Req() req: Express.Request,
+  ) {
+    await this.scenicService.getArea(id);
+    const r = await this.defaultsService.generateFor(id, {
+      days: dto.defaultStockDays ?? DEFAULT_STOCK_DAYS,
+      slotStock: dto.defaultSlotStock ?? DEFAULT_SLOT_STOCK,
+      operatorId: this.adminId(req),
+    });
+    await this.authService.writeLog(this.adminId(req), 'scenic:defaults', 'scenic_area', id, r);
+    return r;
   }
 
   @Put('areas/:id')

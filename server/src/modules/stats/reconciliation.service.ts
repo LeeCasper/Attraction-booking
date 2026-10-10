@@ -111,9 +111,9 @@ export class ReconciliationService {
 
     await this.dataSource.query(
       `INSERT INTO reconciliation
-         (date, channel, order_count, order_amount, payment_count, payment_amount,
+         (date, scenic_area_id, channel, order_count, order_amount, payment_count, payment_amount,
           refund_count, refund_amount, diff_count, diff_detail, status, remark)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE
          order_count=VALUES(order_count), order_amount=VALUES(order_amount),
          payment_count=VALUES(payment_count), payment_amount=VALUES(payment_amount),
@@ -122,6 +122,9 @@ export class ReconciliationService {
          status=VALUES(status), remark=VALUES(remark)`,
       [
         date,
+        // ⚠️ 必须写景区：唯一键是 (date, channel, scenic_area_id)。
+        // 以前没有这一列，定时任务遍历所有景区时**后一个会覆盖前一个**，只有最后一个景区的数据存活
+        areaId,
         channel,
         record.orderCount,
         record.orderAmount,
@@ -150,13 +153,34 @@ export class ReconciliationService {
       this.logger.log(`对账完成 ${date}：无差异（订单 ${record.orderCount} 笔）`);
     }
 
-    return { date, channel, ...record };
+    return { date, scenicAreaId: areaId, channel, ...record };
   }
 
-  /** 对账记录列表 */
-  async list(page: number, pageSize: number, status?: number) {
+  /**
+   * 对**所有开放景区**逐个跑对账。
+   *
+   * 看板/日结的「全部景区」都是这个语义。之所以要逐个跑而不是合成一次：
+   * 对账结果表是按景区一行的（`(date, channel, scenic_area_id)` 唯一），
+   * 合成一行会丢掉「哪个景区对不上」这个信息。
+   */
+  async runAll(date: string, channel = 'wxpay') {
+    const areas: { id: number }[] = await this.dataSource.query('SELECT id FROM scenic_area WHERE status = 1');
+    const results = [];
+    for (const a of areas) results.push(await this.run(Number(a.id), date, channel));
+    return results;
+  }
+
+  /**
+   * 对账记录列表。
+   *
+   * `areaId` 可选：不传 = 全部景区（列表本身就是跨景区混排，按 `date` 倒序）。
+   */
+  async list(page: number, pageSize: number, status?: number, areaId?: number) {
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (areaId) where.scenicAreaId = areaId;
     const [items, total] = await this.repo.findAndCount({
-      where: status ? { status } : {},
+      where,
       order: { date: 'DESC' },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -164,8 +188,17 @@ export class ReconciliationService {
     return { items, total };
   }
 
-  /** 对账详情（含差异明细） */
-  async detail(date: string, channel = 'wxpay') {
-    return this.repo.findOne({ where: { date, channel } });
+  /**
+   * 对账详情（含差异明细）。
+   *
+   * ⚠️ 加了景区维度后，同一天同一个渠道**每个景区各有一行**。
+   * 前端现在把返回值当**单个对象**用（`/admin/reconciliations/:date`），
+   * 所以这里在不传 `areaId` 时只取一行（`id ASC` 的第一行，保证结果稳定）。
+   * **「按景点看对账明细」留到下一轮**：那时把接口改成数组、前端加景区选择。
+   */
+  async detail(date: string, channel = 'wxpay', areaId?: number) {
+    const where: Record<string, unknown> = { date, channel };
+    if (areaId) where.scenicAreaId = areaId;
+    return this.repo.findOne({ where, order: { id: 'ASC' } });
   }
 }

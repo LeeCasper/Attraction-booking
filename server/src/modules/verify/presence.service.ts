@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RedisClient, REDIS_CLIENT } from '../redis/redis.constants';
 import { DataSource } from 'typeorm';
+import { businessToday } from '../../common/utils/date.util';
 
 /**
  * 在园人数（设计文档 §6.4.6）
@@ -19,7 +20,7 @@ export class PresenceService {
   ) {}
 
   private today(): string {
-    return new Date().toISOString().slice(0, 10);
+    return businessToday();
   }
 
   private key(kind: 'in' | 'out', areaId: number, date = this.today()): string {

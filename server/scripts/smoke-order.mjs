@@ -115,6 +115,14 @@ async function main() {
 
   const miniTickets = await api('GET', `/api/mini/tickets?areaId=${areaId}&date=${D_MAIN}`);
   check('票种列表含当日价格', miniTickets.data?.[0]?.price > 0, JSON.stringify(miniTickets.data?.[0]));
+  // 计价单位：客户端据此把「按张卖」的票种标为暂不支持在线预约 ——
+  // 下单只有「单价 × 人数」一种计价，按张会被算成错金额
+  check(
+    '票种带计价单位 saleUnit（person|ticket）',
+    miniTickets.data?.length > 0 &&
+      miniTickets.data.every((t) => t.saleUnit === 'person' || t.saleUnit === 'ticket'),
+    JSON.stringify(miniTickets.data?.map((t) => `${t.name}=${t.saleUnit}`)),
+  );
 
   const stocksBefore = await api('GET', `/api/mini/stocks?ticketTypeId=${ticketTypeId}&date=${D_MAIN}`);
   const availableBefore = stocksBefore.data?.find((s) => s.timeSlotId === slotId)?.available;
@@ -232,6 +240,30 @@ async function main() {
   });
   check('退款申请成功（提前 30 天免手续费）', refundApply.data?.fee === 0, JSON.stringify(refundApply.json));
   const refundId = refundApply.data?.refundId;
+
+  // 申请退款只是**提交申请**：订单状态不变，只多一条待审的退款单。
+  // 客户端要靠 refundStatus 才知道「审核中」，否则只会看到「待入园」。
+  const appliedDetail = await api('GET', `/api/mini/orders/${orderId1}`, { token });
+  check(
+    '申请后详情能读到退款状态=待审核(10)，且订单状态本身不变(20)',
+    appliedDetail.data?.refund?.status === 10 && appliedDetail.data?.status === 20,
+    JSON.stringify({ refund: appliedDetail.data?.refund, status: appliedDetail.data?.status }),
+  );
+  const appliedList = await api('GET', '/api/mini/orders', { token });
+  const appliedRow = appliedList.data?.find((o) => o.id === orderId1);
+  check('列表带 refundStatus', appliedRow?.refundStatus === 10, JSON.stringify(appliedRow?.refundStatus));
+  check(
+    '列表带票种名（原先只有 itemCount，卡片没法说清买的是什么票）',
+    !!appliedRow?.ticketName,
+    JSON.stringify(appliedRow?.ticketName),
+  );
+
+  // 重复申请应被拒（前端据此不再展示「申请退款」）
+  const refundAgain = await api('POST', `/api/mini/orders/${orderId1}/refund`, {
+    token,
+    body: { reason: '重复申请' },
+  });
+  check('已有待审核申请时重复申请被拒(400)', refundAgain.status === 400, `实际 ${refundAgain.status}`);
 
   const refundList = await api('GET', '/api/admin/refunds?status=10&pageSize=50', { token: adminToken });
   check('后台可见待审核退款单', refundList.data?.items?.some((r) => r.id === refundId));

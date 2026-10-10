@@ -18,6 +18,17 @@ export class TicketType {
   @Column({ name: 'base_price', type: 'int', default: 0 })
   basePrice: number;
 
+  /**
+   * 计价单位：`person` = 按人卖，`ticket` = 按张卖。
+   *
+   * ⚠️ **目前只有 `person` 实现了计价** —— `order.service.ts` 是硬编码的
+   * `金额 = 单价 × 人数`（每位游客一条 order_item）。`ticket` 仅用于让客户端
+   * 把「按张卖」的票种标为暂不支持在线预约，避免被按人数算成错金额。
+   * 完整支持按张（数量选择 UI + 计价模型）是后续独立的一件事。
+   */
+  @Column({ name: 'sale_unit', type: 'varchar', length: 16, default: 'person' })
+  saleUnit: string;
+
   @Column({ name: 'refund_rule', type: 'json', nullable: true })
   refundRule: Record<string, unknown> | null;
 

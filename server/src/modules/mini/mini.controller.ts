@@ -25,6 +25,8 @@ import { PayService } from '../pay/pay.service';
 import { WxPayService } from '../pay/wxpay.service';
 import { CreateOrderDto } from '../order/dto/create-order.dto';
 import { CredentialService } from '../verify/credential.service';
+import { SysConfigService } from '../system/sys-config.service';
+import { DEFAULT_PLATFORM_SETTINGS } from '../../common/constants/platform-defaults';
 
 class MiniLoginDto {
   /** wx.login 返回的 code；本地模拟登录时任意字符串即可 */
@@ -46,6 +48,7 @@ export class MiniController {
     private readonly payService: PayService,
     private readonly wxpay: WxPayService,
     private readonly credentialService: CredentialService,
+    private readonly sysConfig: SysConfigService,
   ) {}
 
   // ==================== 登录 ====================
@@ -58,10 +61,33 @@ export class MiniController {
 
   // ==================== 景区与票务（无需登录）====================
 
+  /**
+   * 平台品牌与联系方式（顶栏名称/英文名/副标题、客服电话、版本号…）。
+   *
+   * 只返回 `platform` 这一包，不返回合并后的全量配置 —— 小程序用不到退款费率、
+   * 告警阈值这些内部口径，暴露面越窄越不容易被动。
+   *
+   * 匿名可达：`MiniAuthGuard` 是**逐路由** `@UseGuards` 挂的，这里不写就放行
+   * （与上面几个 `areas` 接口同款）。小程序那边用 `{ anonymous: true }` 调。
+   */
+  @Get('platform/settings')
+  @ApiOperation({ summary: '平台信息（免登录）' })
+  platformSettings() {
+    return this.sysConfig.get('platform', DEFAULT_PLATFORM_SETTINGS);
+  }
+
   @Get('areas')
   @ApiOperation({ summary: '景区列表' })
   listAreas() {
     return this.ticketService.listAreas();
+  }
+
+  // ⚠️ 必须声明在 `areas/:id` **之前** —— 否则 'overview' 会被当成 :id 命中，
+  // ParseIntPipe 直接 400（Nest 按声明顺序匹配路由）
+  @Get('areas/overview')
+  @ApiOperation({ summary: '景区一览（含分类/起价/今日余票/实时在园，景点选择页用）' })
+  listAreasOverview() {
+    return this.ticketService.listAreasOverview();
   }
 
   @Get('areas/:id')
@@ -70,6 +96,14 @@ export class MiniController {
     const area = await this.ticketService.areaDetail(id);
     if (!area) throw new NotFoundException('景区不存在');
     return area;
+  }
+
+  @Get('areas/:id/presence')
+  @ApiOperation({ summary: '实时在园情况（首页在园率）' })
+  async areaPresence(@Param('id', ParseIntPipe) id: number) {
+    const presence = await this.ticketService.areaPresence(id);
+    if (!presence) throw new NotFoundException('景区不存在');
+    return presence;
   }
 
   @Get('tickets')
@@ -99,7 +133,8 @@ export class MiniController {
       amount: order.amount,
       description: `景区门票 ${order.visitorCount} 张`,
       openid: user.openid,
-      expireMinutes: 15,
+      // 与订单的 payDeadline 同源 —— 否则微信单先过期、我们的截止时间还没到
+      expireMinutes: await this.orderService.payTimeoutMinutes(),
     });
     return { ...order, payParams: pay.payParams, mock: this.wxpay.mock };
   }
@@ -135,7 +170,7 @@ export class MiniController {
       amount: order.amount,
       description: `景区门票 ${order.items.length} 张`,
       openid: user.openid,
-      expireMinutes: 15,
+      expireMinutes: await this.orderService.payTimeoutMinutes(),
     });
     return { orderNo: order.orderNo, payParams: pay.payParams, mock: this.wxpay.mock };
   }

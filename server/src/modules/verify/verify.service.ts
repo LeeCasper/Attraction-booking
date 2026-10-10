@@ -14,6 +14,7 @@ import {
   OrderStatus,
   ReservationStatus,
 } from '../../common/enums/status.enum';
+import { businessToday } from '../../common/utils/date.util';
 
 /** 核销结果码（闸机据此播报语音/屏幕提示） */
 export enum VerifyCode {
@@ -102,20 +103,34 @@ export class VerifyService {
     return this.doVerify(reservation, ctx, this.credential.fingerprint(token));
   }
 
-  /** 身份证核验（刷证通行）：按证件哈希匹配同预约下的游客 */
-  async verifyByIdCard(idCardHash: string, areaId: number, ctx: VerifyContext): Promise<VerifyOutcome> {
-    const today = new Date().toISOString().slice(0, 10);
+  /**
+   * 身份证核验（刷证通行）：按证件哈希匹配同预约下的游客。
+   *
+   * `areaId` **可选**：闸机侧会传自己所属的景点做限定；
+   * 后台核销台不传 —— 它的语义是「查这个人今天在哪个景点有有效预约」，本就不绑定景点。
+   *
+   * ⚠️ 这里以前被后台调用时传的是字面量 `0`（见 `verify.controller.ts`），
+   * 而条件里有 `r.scenic_area_id = ?` —— `0` 永远匹配不到任何预约，
+   * **后台那条手工刷证核销路径一直是坏的**（永远返回「今日无有效预约」）。
+   */
+  async verifyByIdCard(idCardHash: string, areaId: number | undefined, ctx: VerifyContext): Promise<VerifyOutcome> {
+    const today = businessToday();
     const visitor = await this.visitorRepo.findOne({ where: { idCardHash } });
     if (!visitor) return this.reject(VerifyCode.INVALID_CREDENTIAL, '未找到该证件的预约', ctx);
+
+    const areaCond = areaId ? ' AND r.scenic_area_id = ?' : '';
+    const params: unknown[] = [visitor.id, today];
+    if (areaId) params.push(areaId);
+    params.push(OrderStatus.PAID, OrderStatus.PARTIAL_VERIFIED, OrderStatus.VERIFIED);
 
     const rows = await this.dataSource.query(
       `SELECT r.id FROM reservation r
          JOIN order_item oi ON oi.order_id = r.order_id
          JOIN orders o ON o.id = r.order_id
-        WHERE oi.visitor_id = ? AND r.date = ? AND r.scenic_area_id = ?
+        WHERE oi.visitor_id = ? AND r.date = ?${areaCond}
           AND o.status IN (?, ?, ?)
         ORDER BY r.id DESC LIMIT 1`,
-      [visitor.id, today, areaId, OrderStatus.PAID, OrderStatus.PARTIAL_VERIFIED, OrderStatus.VERIFIED],
+      params,
     );
     if (!rows.length) return this.reject(VerifyCode.INVALID_CREDENTIAL, '今日无有效预约', ctx);
 
@@ -173,7 +188,7 @@ export class VerifyService {
     }
 
     // 日期校验（当天有效）
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     if (reservation.date !== today) {
       return this.reject(
         VerifyCode.WRONG_DATE,

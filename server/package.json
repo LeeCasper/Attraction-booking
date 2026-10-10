@@ -16,7 +16,9 @@
     "loadtest:oversell": "k6 run loadtest/oversell.js",
     "loadtest:gate": "k6 run loadtest/gate.js",
     "lint": "tsc --noEmit",
-    "smoke:visitor": "node scripts/smoke-visitor.mjs"
+    "smoke:visitor": "node scripts/smoke-visitor.mjs",
+    "smoke:date": "ts-node --transpile-only scripts/smoke-date.ts",
+    "smoke:config": "ts-node --transpile-only scripts/smoke-config.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

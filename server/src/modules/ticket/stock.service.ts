@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { StockChangeLog, TicketStock, TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import { StockCacheService } from './stock-cache.service';
+import { addDaysStr, diffDays } from '../../common/utils/date.util';
 
 @Injectable()
 export class StockService {
@@ -49,9 +50,10 @@ export class StockService {
     if (slots.length === 0) throw new BadRequestException('该景区未配置时段，请先创建时段');
 
     const dates: string[] = [];
-    for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
-      dates.push(d.toISOString().slice(0, 10));
-    }
+    // 纯日历日序列。原来的 `new Date(start)` 按 UTC 解析纯日期串、`getDate/setDate` 又按本地加减，
+    // 只是在本机时区下碰巧正确，换负偏移的时区就会整体偏一天
+    const span = diffDays(start, end);
+    for (let i = 0; i <= span; i++) dates.push(addDaysStr(start, i));
 
     let created = 0;
     await this.dataSource.transaction(async (em) => {

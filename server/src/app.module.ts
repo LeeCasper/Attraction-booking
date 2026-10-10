@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import configuration from './config/configuration';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { SysConfigModule } from './modules/system/sys-config.module';
 import { ScenicModule } from './modules/scenic/scenic.module';
 import { TicketModule } from './modules/ticket/ticket.module';
 import { RedisModule } from './modules/redis/redis.module';
@@ -49,6 +50,8 @@ const guards: Provider[] = [
     }),
     RedisModule,
     SecurityModule,
+    // 参数配置读取（退改规则/预警阈值/支付超时/平台信息）
+    SysConfigModule,
     AuthModule,
     AdminModule,
     ScenicModule,

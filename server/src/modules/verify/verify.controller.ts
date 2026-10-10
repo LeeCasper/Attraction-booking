@@ -49,7 +49,9 @@ export class VerifyController {
     if (dto.credential) {
       outcome = await this.verifyService.verifyByCredential(dto.credential, ctx);
     } else if (dto.idCardHash) {
-      outcome = await this.verifyService.verifyByIdCard(dto.idCardHash, 0, ctx);
+      // 不传 areaId：后台核销台的语义是「这个人今天在哪个景点有有效预约」，本就不绑定景点。
+      // 以前传的是字面量 0，而服务端会拼 `r.scenic_area_id = 0` —— 永远匹配不到，这条路一直是坏的
+      outcome = await this.verifyService.verifyByIdCard(dto.idCardHash, undefined, ctx);
     } else if (dto.orderNo) {
       outcome = await this.verifyService.verifyManual(dto.orderNo, dto.idCardSuffix ?? '', ctx);
     } else {

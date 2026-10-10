@@ -9,6 +9,19 @@ config();
 
 import * as bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
+// 默认时段/票种/限购/退改规则：与后台「新建景区一键生成」共用同一份，避免两边漂移
+import {
+  DEFAULT_PURCHASE_RULE,
+  DEFAULT_TICKET_REFUND_RULE,
+  DEFAULT_TICKET_TYPES,
+  DEFAULT_TIME_SLOTS,
+} from '../src/common/constants/scenic-defaults';
+import { DEFAULT_PLATFORM_SETTINGS } from '../src/common/constants/platform-defaults';
+import {
+  DEFAULT_CAPACITY_ALARM,
+  DEFAULT_REFUND_RULE,
+  DEFAULT_RESERVATION,
+} from '../src/common/constants/config-defaults';
 
 const ROLES: { code: string; name: string; remark: string; permissions: string[] }[] = [
   { code: 'super', name: '超级管理员', remark: '内置角色，拥有全部权限', permissions: ['*'] },
@@ -105,47 +118,41 @@ async function main() {
   const [areas]: any[] = await conn.query('SELECT id FROM scenic_area LIMIT 1');
   if (areas.length === 0) {
     const [res]: any = await conn.query(
-      `INSERT INTO scenic_area (name, address, intro, open_time, max_capacity, status)
-       VALUES ('示例山景区', '某某市某某区风景路 1 号', '示例景区，M1 联调用', '08:00-17:00', 50000, 1)`,
+      `INSERT INTO scenic_area (name, address, intro, open_time, max_capacity, category, status)
+       VALUES ('示例山景区', '某某市某某区风景路 1 号', '示例景区，M1 联调用', '08:00-17:00', 50000, 'main', 1)`,
     );
     const areaId = Number(res.insertId);
 
     // 时段
     const slotIds: number[] = [];
-    for (const [i, s] of [
-      ['上午场 08:00-10:00', '08:00', '10:00'],
-      ['上午场 10:00-12:00', '10:00', '12:00'],
-      ['下午场 13:00-15:00', '13:00', '15:00'],
-      ['下午场 15:00-17:00', '15:00', '17:00'],
-    ].entries()) {
+    for (const [i, s] of DEFAULT_TIME_SLOTS.entries()) {
       const [r]: any = await conn.query(
         'INSERT INTO time_slot (scenic_area_id, name, start_time, end_time, sort_order, status) VALUES (?,?,?,?,?,1)',
-        [areaId, s[0], s[1], s[2], i],
+        [areaId, s.name, s.startTime, s.endTime, i],
       );
       slotIds.push(Number(r.insertId));
     }
-    console.log('✓ 已创建示例景区与 4 个时段');
+    console.log(`✓ 已创建示例景区与 ${DEFAULT_TIME_SLOTS.length} 个时段`);
 
-    // 票种 —— 三个，与小程序设计稿上的三张票卡对齐（成人全票 / 优待票 / 四季家庭年卡）。
-    // `audience` 在小程序端被当作票卡的第二行说明文案渲染，所以这里直接填设计稿的副标题。
-    const ticketTypes: [string, string, number][] = [
-      ['成人全票', '含核心景区及山水栈道通用', 12000],
-      ['优待票（长者 / 学生）', '60周岁及以上长者、全日制在读学生', 6000],
-      ['四季家庭年卡', '两大一小全年无限次入园 · 赠观光缆车', 38800],
-    ];
-    for (const [name, audience, basePrice] of ticketTypes) {
-      const [t]: any = await conn.query(
-        `INSERT INTO ticket_type (scenic_area_id, name, audience, base_price, refund_rule, need_realname, status, remark)
-         VALUES (?, ?, ?, ?, ?, 1, 1, '示例票种')`,
-        [areaId, name, audience, basePrice, JSON.stringify({ beforeDay: 1, feeRate: 0.2, expiredNoRefund: true })],
+    // 票种 —— 默认值与后台「新建景区一键生成」共用 `DEFAULT_TICKET_TYPES`，避免两边漂移
+    for (const t of DEFAULT_TICKET_TYPES) {
+      const [ins]: any = await conn.query(
+        `INSERT INTO ticket_type (scenic_area_id, name, audience, base_price, sale_unit, refund_rule, need_realname, status, remark)
+         VALUES (?, ?, ?, ?, ?, ?, 1, 1, '示例票种')`,
+        [areaId, t.name, t.audience, t.basePrice, t.saleUnit, JSON.stringify(DEFAULT_TICKET_REFUND_RULE)],
       );
       await conn.query(
         `INSERT INTO purchase_rule (ticket_type_id, per_user_per_order, per_user_per_day, per_idcard_per_day)
-         VALUES (?, 4, 5, 1)`,
-        [Number(t.insertId)],
+         VALUES (?, ?, ?, ?)`,
+        [
+          Number(ins.insertId),
+          DEFAULT_PURCHASE_RULE.perUserPerOrder,
+          DEFAULT_PURCHASE_RULE.perUserPerDay,
+          DEFAULT_PURCHASE_RULE.perIdcardPerDay,
+        ],
       );
     }
-    console.log(`✓ 已创建 ${ticketTypes.length} 个示例票种（成人全票 120 / 优待票 60 / 家庭年卡 388）与限购规则`);
+    console.log(`✓ 已创建 ${DEFAULT_TICKET_TYPES.length} 个示例票种（成人全票 120 / 优待票 60 / 家庭年卡 388）与限购规则`);
 
     // 公告 —— 小程序首页的公告条直接读它（`GET /api/mini/areas/:id` 的 announcements）
     await conn.query(
@@ -156,7 +163,16 @@ async function main() {
     console.log('✓ 已创建示例公告「入园分时预约须知」');
     console.log(`\n提示：可用 POST /api/admin/stocks/generate 为未来日期生成分时库存`);
   } else {
-    console.log('✓ 已存在景区数据，跳过示例数据');
+    // 老库里示例景区没有分类（`category` 是后加的列）—— 只给**种子里那个**示例景区补，
+    // 条件里带 `category IS NULL`，所以管理员自己改过分类就不会被覆盖
+    const [fixed]: any = await conn.query(
+      "UPDATE scenic_area SET category='main' WHERE name='示例山景区' AND category IS NULL",
+    );
+    console.log(
+      fixed.affectedRows
+        ? '✓ 已存在景区数据，并为示例山景区补上分类'
+        : '✓ 已存在景区数据，跳过示例数据',
+    );
   }
 
   // ---- 示例闸机（供 gate-simulator 联调）----
@@ -180,16 +196,42 @@ async function main() {
   }
 
   // ---- 参数配置 ----
+  // 这四行的 `config_value` 现在**真的会被读取**（`SysConfigService`）：
+  //   reservation    → 下单时的支付超时（order.service.ts）
+  //   capacity_alarm → 承载量分级告警阈值（jobs/stats.job.ts）
+  //   refund         → 退款手续费全局兜底，票种自身规则按字段覆盖（pay.service.ts）
+  //   platform       → 小程序顶栏品牌/联系方式（GET /api/mini/platform/settings）
   const configs: [string, object, string][] = [
-    ['reservation', { payTimeoutMinutes: 15, cancelOnTimeout: true }, '预约规则：支付超时时间'],
-    ['capacity_alarm', { warn80: true, warn90: true, warn100: true }, '承载量分级预警开关(80%/90%/100%)'],
-    ['refund', { beforeDayFeeRate: 0, sameDayFeeRate: 0.2, expiredNoRefund: true }, '全局退改规则(票种可覆盖)'],
+    ['reservation', DEFAULT_RESERVATION, '预约规则：支付超时时间'],
+    ['capacity_alarm', DEFAULT_CAPACITY_ALARM, '承载量分级预警阈值(在园率)'],
+    ['refund', DEFAULT_REFUND_RULE, '全局退改规则(票种可覆盖)'],
+    ['platform', DEFAULT_PLATFORM_SETTINGS, '平台信息(名称/联系方式/版本)'],
   ];
   for (const [key, value, remark] of configs) {
     await conn.query(
       'INSERT INTO sys_config (config_key, config_value, remark) VALUES (?,?,?) ON DUPLICATE KEY UPDATE remark=VALUES(remark)',
       [key, JSON.stringify(value), remark],
     );
+  }
+
+  // ---- 旧形状配置的一次性归一 ----
+  // 上面的 upsert 是 `ON DUPLICATE KEY UPDATE remark=...`，**故意不覆盖 config_value**
+  // —— 改成覆盖的话每次重跑种子都会冲掉管理员改过的值。
+  // 但旧形状留在库里就等于「改了不生效」，所以这里做一次性迁移：
+  //   capacity_alarm 原本是布尔开关 {warn80,warn90,warn100}，阈值却是硬编码在任务里的
+  //   refund         原本是 {beforeDayFeeRate,sameDayFeeRate}，与退款代码实际读的
+  //                  ticket_type.refund_rule（{beforeDay,feeRate}）**根本不是一套键名**
+  // 守卫条件是「旧键存在」，所以跑第二遍不再命中，也不会碰已经是新形状的值。
+  const migrations: { key: string; legacyPath: string; value: object }[] = [
+    { key: 'refund', legacyPath: '$.sameDayFeeRate', value: DEFAULT_REFUND_RULE },
+    { key: 'capacity_alarm', legacyPath: '$.warn80', value: DEFAULT_CAPACITY_ALARM },
+  ];
+  for (const m of migrations) {
+    const [r]: any = await conn.query(
+      'UPDATE sys_config SET config_value = ? WHERE config_key = ? AND JSON_EXTRACT(config_value, ?) IS NOT NULL',
+      [JSON.stringify(m.value), m.key, m.legacyPath],
+    );
+    if (r.affectedRows) console.log(`✓ 已将 ${m.key} 的旧形状归一为新形状`);
   }
   console.log('✓ 参数配置已就绪');
 

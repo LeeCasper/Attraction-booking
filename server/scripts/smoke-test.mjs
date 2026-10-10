@@ -42,6 +42,9 @@ const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
 const start = fmt(today);
 const end = fmt(new Date(today.getTime() + 6 * 86400000));
 
+/** 运行标识：保证每次运行建的景区名唯一 */
+const RUN = Date.now() % 100000;
+
 async function main() {
   console.log(`\n=== M1 冒烟测试 (${BASE}) ===\n`);
 
@@ -90,10 +93,25 @@ async function main() {
     token,
     body: { ticketTypeId: typeId, startDate: start, endDate: end, total: 100 },
   });
+  // 断言「生成后每个（日期 × 时段）都有且仅有一行」。
+  //
+  // 原来断言的是 `created % 7 === 0`（新增行数是天数的整数倍）—— 那依赖「跑之前库里恰好缺哪些行」：
+  // 冒烟脚本自己会造时段，时段集合一变、或某个日期只缺部分时段，这条就假失败。
+  // 实测撞到过（24/25），状态收敛后自己又好了。
+  // 区间天数：两端都用同一种解析（带时间 → 本地），差值不受时区影响
+  const days = Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
   check(
-    `批量生成库存（7 天 × ${slotCount} 时段，新增 ${gen.json?.data?.created} 条）`,
-    (gen.json?.data?.created ?? 0) % 7 === 0,
+    `批量生成库存（${days} 天 × ${slotCount} 时段，本次新增 ${gen.json?.data?.created} 条）`,
+    (gen.json?.data?.created ?? 0) >= 0,
     JSON.stringify(gen.json?.data),
+  );
+  const stocked = await api('GET', `/api/admin/stocks?ticketTypeId=${typeId}&start=${start}&end=${end}`, { token });
+  const stockRows = stocked.json?.data ?? [];
+  const stockKeys = new Set(stockRows.map((r) => `${r.date}#${r.timeSlotId}`));
+  check(
+    `日期区间内每个（日期 × 时段）恰好一行（${stockRows.length} 行 / 无重复）`,
+    stockRows.length === days * slotCount && stockKeys.size === stockRows.length,
+    JSON.stringify({ rows: stockRows.length, expect: days * slotCount, unique: stockKeys.size }),
   );
 
   const genAgain = await api('POST', '/api/admin/stocks/generate', {
@@ -175,6 +193,61 @@ async function main() {
   check('日志记录了库存生成', actions.includes('stock:generate'), actions.join(','));
   check('日志记录了库存调整', actions.includes('stock:adjust'));
   check('日志记录了登录', actions.includes('login'));
+
+  // 7. 景点一览（小程序「景点选择与预约」页的数据源）
+  console.log('\n[7] 景点一览接口');
+  const overview = await api('GET', '/api/mini/areas/overview');
+  check('免登录可读（该页在小程序启动后即打开，不保证已登录）', overview.status === 200, overview.status);
+  const ovAreas = overview.json?.data?.areas ?? [];
+  check('返回景点列表', ovAreas.length > 0, ovAreas.length);
+  const ov = ovAreas.find((a) => a.id === areaId) ?? ovAreas[0];
+  check('每项带分类字段（可为 null）', 'category' in ov, ov);
+  check('每项带今日余票', typeof ov.remaining === 'number', ov.remaining);
+  check('每项带在园情况', typeof ov.presence?.capacityRate === 'number', ov.presence);
+  check('每项带是否有启用时段', typeof ov.hasSlots === 'boolean', ov.hasSlots);
+
+  // 起价口径：只看**在线可售**（按人计价）的票种 —— 按张卖的年卡进不了购票流程
+  const ovTickets = await api('GET', `/api/mini/tickets?areaId=${ov.id}&date=${start}`);
+  const sellable = (ovTickets.json?.data ?? []).filter((t) => t.saleUnit === 'person').map((t) => t.price);
+  check(
+    'minPrice = 可售票种里的最低价',
+    sellable.length > 0 && ov.minPrice === Math.min(...sellable),
+    { minPrice: ov.minPrice, sellable },
+  );
+
+  // 汇总口径必须与后台看板「全部景区」（不传 areaId）一致：Σ在园 / Σ容量
+  const dash = await api('GET', '/api/admin/dashboard/realtime', { token });
+  const sum = overview.json?.data?.summary;
+  check(
+    'summary 容量 = 各开放景点容量之和',
+    sum?.maxCapacity === dash.json?.data?.maxCapacity,
+    { summary: sum?.maxCapacity, dashboard: dash.json?.data?.maxCapacity },
+  );
+  check(
+    'summary 在园 = 各开放景点在园之和',
+    sum?.current === dash.json?.data?.presence,
+    { summary: sum?.current, dashboard: dash.json?.data?.presence },
+  );
+
+  // 分类能写能读（后台配了分类，小程序端才筛得出来）
+  const CATEGORY = 'nature';
+  const catArea = await api('POST', '/api/admin/scenic/areas', {
+    token,
+    body: { name: `冒烟分类景区${RUN}`, maxCapacity: 100, category: CATEGORY },
+  });
+  const catId = catArea.json?.data?.id;
+  check('新建景区可带分类', !!catId, catArea.json);
+  const afterCreate = await api('GET', '/api/mini/areas/overview');
+  check(
+    '分类能从接口读回',
+    afterCreate.json?.data?.areas?.find((a) => a.id === catId)?.category === CATEGORY,
+    afterCreate.json?.data?.areas?.find((a) => a.id === catId),
+  );
+  const badCategory = await api('POST', '/api/admin/scenic/areas', {
+    token,
+    body: { name: `冒烟非法分类${RUN}`, maxCapacity: 100, category: 'not-a-category' },
+  });
+  check('非法分类被拒(400)', badCategory.status === 400, badCategory.status);
 
   // 清理
   const userId = created.json?.data?.id;

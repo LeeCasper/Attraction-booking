@@ -48,10 +48,16 @@ export class OpsController {
     @Req() req: Request,
   ) {
     const adminId = (req as Request & { admin: { id: number } }).admin.id;
-    const result = await this.reconciliation.run(areaId ?? 1, query.date);
+    // 不传 areaId = 全部开放景区逐个对账（与看板「全部」同一套语义）。
+    // 以前是 `areaId ?? 1` —— 多景区下会把「全部」静默变成 1 号景区
+    const result = areaId
+      ? await this.reconciliation.run(areaId, query.date)
+      : await this.reconciliation.runAll(query.date);
     await this.authService.writeLog(adminId, 'reconcile:run', 'reconciliation', null, {
       date: query.date,
-      diffCount: result.diffCount,
+      // 不传 areaId 时 result 是数组（逐景区一条）
+      areas: Array.isArray(result) ? result.length : 1,
+      diffCount: Array.isArray(result) ? result.reduce((sum, r) => sum + r.diffCount, 0) : result.diffCount,
     });
     return result;
   }

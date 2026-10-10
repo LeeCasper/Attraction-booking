@@ -5,6 +5,7 @@ import { GateService } from '../modules/gate/gate.service';
 import { PresenceService } from '../modules/verify/presence.service';
 import { StatsService } from '../modules/stats/stats.service';
 import { ScenicArea } from '../database/entities/scenic.entity';
+import { BUSINESS_TZ_FOR_DECORATOR, addDaysStr, businessToday } from '../common/utils/date.util';
 
 /**
  * 闸机与客流相关定时任务
@@ -57,10 +58,13 @@ export class GateJob {
   }
 
   /** 每日 00:30 重算前一日统计 */
-  @Cron('30 0 * * *')
+  // 显式指定业务时区：@Cron 默认按**进程时区**触发，容器化后可能变成 UTC，
+  // 那样日结/对账会在错误的时刻跑（`30 0 * * *` 会变成北京 08:30）。
+  // ⚠️ 装饰器在 import 期求值，早于 `.env` 加载，所以这里只能用默认值常量。
+  @Cron('30 0 * * *', { timeZone: BUSINESS_TZ_FOR_DECORATOR })
   async rebuildYesterdayStats() {
     try {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const yesterday = addDaysStr(businessToday(), -1);
       const areas = await this.dataSource.getRepository(ScenicArea).find();
       for (const area of areas) {
         await this.statsService.rebuildDaily(Number(area.id), yesterday);

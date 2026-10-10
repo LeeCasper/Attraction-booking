@@ -1,6 +1,14 @@
 export default () => ({
   port: Number(process.env.PORT ?? 3000),
   env: process.env.NODE_ENV ?? 'development',
+  /**
+   * 业务时区（IANA 名）。
+   *
+   * 「今天/昨天」这类**日历日**必须按它算，不能按 `toISOString()`（那是 UTC，见
+   * `common/utils/date.util.ts` 的说明）。必须与 MySQL 的
+   * `--default-time-zone`（当前 `+08:00`）和部署主机的时区一致。
+   */
+  businessTz: process.env.BUSINESS_TZ ?? 'Asia/Shanghai',
   db: {
     host: process.env.DB_HOST ?? '127.0.0.1',
     port: Number(process.env.DB_PORT ?? 3306),

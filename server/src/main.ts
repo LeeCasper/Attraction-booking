@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { networkInterfaces } from 'node:os';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -35,6 +36,18 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
   console.log(`[server] listening on http://localhost:${port} (docs at /docs)`);
+
+  // 小程序端（真机 / 微信开发者工具）打不到 localhost，必须用**局域网 IP**，
+  // 而那个 IP 换网络就会变、写死在 miniprogram 里必然过期（已因此出过一次
+  // 「首页什么都没有、控制台只有 request:fail timeout」的假故障）。
+  // 所以把它打出来：换网络时照着改 `miniprogram/.env.local` 的 `VITE_API_BASE` 即可。
+  const lan = Object.values(networkInterfaces())
+    .flat()
+    .filter((n) => n && n.family === 'IPv4' && !n.internal)
+    .map((n) => n!.address);
+  if (lan.length) {
+    console.log(`[server] 小程序端请用局域网地址：${lan.map((ip) => `http://${ip}:${port}/api/mini`).join('  或  ')}`);
+  }
 }
 
 bootstrap();

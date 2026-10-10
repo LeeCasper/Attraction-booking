@@ -10,6 +10,8 @@ class CreateTicketTypeDto {
   @IsString() @MinLength(2) @MaxLength(64) name: string;
   @IsOptional() @IsString() @MaxLength(64) audience?: string;
   @IsInt() @Min(0) @Max(100000000) basePrice: number;
+  /** person 按人 / ticket 按张；不传按 person（数据库默认值也是 person） */
+  @IsOptional() @IsIn(['person', 'ticket']) saleUnit?: string;
   @IsOptional() @IsObject() refundRule?: Record<string, unknown>;
   @IsOptional() @IsIn([0, 1]) needRealname?: number;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
