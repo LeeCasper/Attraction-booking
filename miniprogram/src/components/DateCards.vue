@@ -74,7 +74,18 @@ function pick(d: DateOption) {
 </script>
 
 <template>
-  <view class="flex gap-2_5 overflow-x-auto py-2 scrollbar-none snap-x px-4">
+  <!--
+    ⚠️ 根节点**只留排布**（flex + gap），别把设计稿那层滚动容器的类照搬过来：
+      - `overflow-x-auto`：会造出**第二层滚动容器**，于是真正滚动的是它、而不是外面的
+        `<scroll-view>` —— 一方面 `@scroll`（左右渐隐遮罩靠它更新）永远不触发，
+        另一方面下面那条吸附规则会作用在「滚动内容」上而不是滚动容器上，见下。
+      - `px-4`：内边距必须**留在滚动容器上**（见 `page-bindings.mjs` 的 `pg-date-scroll`）。
+        挂在滚动内容上时，`scroll-snap-type: x mandatory` 会把第一张 `snap-start` 卡
+        吸附到「滚动端口」的起点 —— 而滚动端口是**padding box**，内边距不算在内 ⇒
+        吸附时那 16px 被滚掉，**第一张卡直接贴到屏幕左边缘**（实测 0.0pt，
+        而票种卡/时段卡都在 16pt，一眼就不齐）。
+  -->
+  <view class="flex gap-2_5">
     <view v-for="d in dates" :key="d.value" :class="cardClass(d)" @tap="pick(d)">
       <text :class="weekClass(d)">{{ d.week }}</text>
       <text :class="labelClass(d)">{{ d.label }}</text>

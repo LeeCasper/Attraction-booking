@@ -405,6 +405,27 @@ miniprogram/
 `npm run gen` 全部重跑。`scripts/render-reference.sh`（`npm run ref:shots`）把设计稿渲染成参考图，
 用于像素比对 —— **必须走代理**，原因见该脚本头部注释。
 
+### 横向滚动条：内边距与吸附属于**滚动容器**，不属于滚动内容
+
+设计稿里这一条是「一个 div 同时承担滚动容器与内容」：
+
+```html
+<div class="flex gap-2.5 overflow-x-auto py-2 snap-x px-4" id="calendarScroll"> …卡片… </div>
+```
+
+移植到 `<scroll-view>` 时**不能整串照搬到内容上**（`gen-pages.mjs` 的 `wrapInner`/`ownClass` 就是干这个的）。
+踩过一次（购票页的游览日期条）：
+
+| 类 | 放在滚动**内容**上会怎样 |
+| --- | --- |
+| `px-4` | 内边距跟着内容滚；而 `scroll-snap-type: x mandatory` 会把第一张 `snap-start` 卡吸附到**滚动端口**起点 —— 滚动端口是 padding box、不含内边距 ⇒ 那 16px 被滚掉，**第一张卡直接贴屏幕边**（实测 0pt，而票种卡/时段卡都在 16pt） |
+| `overflow-x-auto` | 造出**第二层滚动容器**，真正滚动的是它 ⇒ 外面 `<scroll-view>` 的 `@scroll` 永不触发，两侧渐隐遮罩（靠它更新）永远不动 |
+| `snap-x` | 属于滚动容器；而且用 `mandatory` 时哪怕内边距在容器上、吸附也会把卡片吸到贴边 —— 要配 `scroll-padding-left/right` |
+
+所以：**内边距、`py-*`、吸附都放在 `<scroll-view>` 自己的类上**（购票页是 `pg-date-scroll`，
+样式写在 `page-bindings.mjs` 的 `PAGE_BINDINGS.booking.style` 里），内容只留 `flex gap-*`。
+吸附建议用 `proximity` 而非 `mandatory`：静止时不会被强行吸到贴边。
+
 ### 设计稿里补过的 `id`
 
 绑定是按 **id 或 class 子集**定位的，且要求命中**恰好 1 个**元素（多了会静默改错元素，所以直接判失败）。

@@ -213,9 +213,15 @@ onLoad(() => { void load(); });`,
       },
       // 横向滚动必须用 <scroll-view>：小程序里普通 view 的 overflow-x 不能可靠滚动。
       // 设计稿的 flex 滚动类挪给 DateCards 组件根节点，scroll-view 只留 w-full。
+      // 横向滚动必须用 <scroll-view>：小程序里普通 view 的 overflow-x 不能可靠滚动。
+      // 设计稿那层滚动容器上还有 `px-4 py-2 snap-x` —— 它们**必须留在滚动容器上**
+      // （页面本级的 `pg-date-scroll`，见下面 style），别挪进 DateCards：
+      //   · `px-4` 挂在滚动内容上时会被 scroll-snap 吸附滚掉 ⇒ 第一张卡贴屏幕边
+      //   · `overflow-x-auto` 挂在内容上会造出第二层滚动容器 ⇒ 真正滚的是它，
+      //     外面这个 `<scroll-view>` 的 `@scroll` 永不触发，左右渐隐遮罩就永远不动
       '#calendarScroll': {
         tag: 'scroll-view',
-        ownClass: 'w-full',
+        ownClass: 'w-full pg-date-scroll',
         attrs: { 'scroll-x': 'true', 'show-scrollbar': 'false', '@scroll': 'onDateScroll' },
         inner: '<DateCards :dates="dates" :value="date" @change="onPickDate" />',
       },
@@ -237,9 +243,26 @@ onLoad(() => { void load(); });`,
           '<BookingBar :amount="totalAmount" :count="headcount" :can-submit="canSubmit" @submit="onSubmit" />',
       },
     },
-    // 状态类要给到比工具类更高的特异性，否则压不过元素自带的 opacity-0
+    /**
+     * 日期横向条（`pg-date-scroll` 加在 `<scroll-view>` 上）。
+     *
+     * 三条都是刻意的，改之前先读：
+     *  1. `padding` 放在**滚动容器**上 —— 放内容上会被吸附滚掉（第一张卡贴屏幕边）
+     *  2. `scroll-padding-*` 让**吸附点**从这道内边距之后开始算。滚动端口是 padding box、
+     *     不含 padding，没有它的话哪怕内边距留在容器上，吸附时也会把卡片吸到贴边
+     *  3. `scroll-snap-type: x proximity` 而不是设计稿的 `mandatory`：
+     *     proximity 只在「快要对齐」时才吸，静止时不会强行把第一张卡吸到贴边 ——
+     *     设计稿那种 mandatory 在浏览器里也一样会吃掉内边距，只是它把内边距放在容器上、
+     *     又没测过贴边的情况。手感不变（滑动到头仍会对齐）。
+     */
     style: `.pg-page .is-on { opacity: 0.9; }
-.pg-page .is-off { opacity: 0; }`,
+.pg-page .is-off { opacity: 0; }
+.pg-page .pg-date-scroll {
+  padding: 15.38rpx 30.77rpx;
+  scroll-padding-left: 30.77rpx;
+  scroll-padding-right: 30.77rpx;
+  scroll-snap-type: x proximity;
+}`,
   },
 
   /**
