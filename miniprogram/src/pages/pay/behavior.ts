@@ -159,13 +159,16 @@ export function usePayPage() {
   const visitors = ref<{ id: number; name: string; idCard: string; phone: string }[]>([]);
 
   /**
-   * 另外两种支付方式**只存在于设计稿里**：后端 `wxpay` 模块只有微信 JSAPI 支付，
-   * 亲属卡与数字人民币都没有渠道可调。所以它们保持设计稿的「未选中」静态样式，
-   * 点了如实说一句 —— 不假装能选，也不把版式删掉一半。
+   * 支付方式。
+   *
+   * **能走通的只有微信 JSAPI**（后端 `wxpay` 模块没有别的渠道）。
+   * 「微信亲属卡 / 零钱通」那一行这轮**已按用户要求删掉**（摆一个点不动的东西不如不留）；
+   * 「数字人民币（e-CNY）」保留但不可选 —— 点了如实说一句，不假装能选。
+   * 点微信支付不做事：它本来就是选中的那个。
    */
-  function onPickPay(id: 'family' | 'ecny') {
-    const title = id === 'family' ? '微信亲属卡 / 零钱通' : '数字人民币 (e-CNY)';
-    uni.showToast({ title: `${title} 暂未开通，请使用微信支付`, icon: 'none' });
+  function onPickPay(id: 'wechat' | 'ecny') {
+    if (id === 'wechat') return;
+    uni.showToast({ title: '数字人民币暂未开通，请使用微信支付', icon: 'none', duration: 2500 });
   }
 
   // —— 协议勾选：设计稿默认已勾，支付按钮据此置灰 ——

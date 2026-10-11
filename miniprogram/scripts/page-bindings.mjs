@@ -559,7 +559,10 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
    * 这里只落实现。要点：版式尽量不动，但**不抄一个系统做不到的承诺**。
    */
   pay: {
-    imports: ["import { usePayPage } from './behavior';"],
+    imports: [
+      "import { usePayPage } from './behavior';",
+      "import PayMethods from '@/components/PayMethods.vue';",
+    ],
     // 二级页（购票页 / 订单详情进来的），收不到外壳的 `props.active` ——
     // 首次加载挂在小程序页生命周期上，由 behavior 自己 `onLoad` 里读 query 里的订单号触发。
     // 只解模板真正用到的（其余状态经由 `canPay`/`payButtonLabel` 这类计算属性间接体现）
@@ -716,15 +719,21 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 两行的版式原样保留（设计稿就是这么画的），但点了如实提示「暂未开通」——
       // 删掉它们会让这一块只剩一行，保留又必须有反馈，所以两个都留、只把话说清楚。
       //
-      // ⚠️ 绑的是**整行**而不是设计稿留的 `#pay-check-2/3` —— 那两个 id 在右侧的勾选**图标**上，
-      // 而设计稿的 onclick 是写在行上的：只绑图标就变成「只有戳中那个小圈才有反应」，
-      // 可整行都画着 `cursor-pointer`、看起来哪儿都能点。
-      // 两行 class 完全相同，只能按文档顺序定位（第 1、2 个 = 亲属卡、数字人民币）。
-      'flex items-center justify-between p-2.5 rounded-lg bg-surface-container-low cursor-pointer :nth(1)': {
-        attrs: { '@tap': "onPickPay('family')" },
-      },
-      'flex items-center justify-between p-2.5 rounded-lg bg-surface-container-low cursor-pointer :nth(2)': {
-        attrs: { '@tap': "onPickPay('ecny')" },
+      // —— 6. 支付方式：整块换成组件 ——
+      //
+      // 设计稿画了**三行**（微信支付 / 微信亲属卡·零钱通 / 数字人民币），每行是「彩色圆底 +
+      // Material 图标」。这轮按用户要求改成：
+      //   · **删掉「亲属卡 / 零钱通」那一行**（后端只有微信 JSAPI，没有那个渠道）
+      //   · 图标换成**真品牌图**（`static/images/pay-wechat.png` / `pay-ecny.png`）
+      //   · 整体更素：图标不套圆圈、副标题一行、右侧只留一枚勾选圈
+      // 数字人民币仍然不可选（点了提示「暂未开通」），理由与实现见 `PayMethods.vue` 的注解。
+      //
+      // 组件根节点自己带 `flex flex-col gap-2`（原来那层 `space-y-2.5` 的等价物）——
+      // 自定义组件会多一层节点，容器类不落在根上，两行之间的间距就没了。
+      'space-y-2.5': {
+        // 选中态**写死微信支付**：能真正走通的只有它（数字人民币点了会提示未开通），
+        // 所以这里不需要把「选了哪种」做成响应式状态
+        replace: '<PayMethods value="wechat" @pick="onPickPay" />',
       },
 
       // —— 7. 退改与入园须知 ——
