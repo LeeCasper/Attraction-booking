@@ -312,6 +312,48 @@ async function main() {
     }
   }
 
+  // ---- 删除景区的「引用保护」----
+  // init.sql 一条外键都没有（刻意不用 FK），所以硬删景区不级联：闸机会核不了单、
+  // 订单会变成「按景区看不到、但总额里还算着」的孤儿。这里断言「有引用就拒」，
+  // 并且**引用清空后必须还能删**（否则运营再也没法删掉建错的景区）。
+  console.log('\n[10] 删除景区的引用保护');
+  {
+    const area = await api('POST', '/api/admin/scenic/areas', {
+      token,
+      body: { name: `冒烟待删景区${RUN}`, maxCapacity: 50 },
+    });
+    const delAreaId = area.json?.data?.id;
+    check('新建一个干净景区（不带默认时段/票种）', !!delAreaId, JSON.stringify(area.json));
+
+    const fresh = await api('DELETE', `/api/admin/scenic/areas/${delAreaId}`, { token });
+    check('没有任何引用时能删掉（不误伤）', fresh.status === 200 || fresh.status === 201, `${fresh.status} ${fresh.json?.msg}`);
+
+    const area2 = await api('POST', '/api/admin/scenic/areas', {
+      token,
+      body: { name: `冒烟待删景区B${RUN}`, maxCapacity: 50 },
+    });
+    const delAreaId2 = area2.json?.data?.id;
+    const type = await api('POST', '/api/admin/ticket-types', {
+      token,
+      body: { scenicAreaId: delAreaId2, name: `冒烟待删票种${RUN}`, basePrice: 1000, saleUnit: 'person' },
+    });
+    const delTypeId = type.json?.data?.id;
+    check('给它挂一个票种', !!delTypeId, JSON.stringify(type.json));
+
+    const blocked = await api('DELETE', `/api/admin/scenic/areas/${delAreaId2}`, { token });
+    check('有票种引用时删除被拒(409)', blocked.status === 409, `${blocked.status} ${blocked.json?.msg}`);
+    check(
+      '拒绝时说明了原因与替代做法',
+      /票种/.test(blocked.json?.msg ?? '') && /关闭/.test(blocked.json?.msg ?? ''),
+      blocked.json?.msg,
+    );
+
+    // 收尾：清掉引用后应当能删
+    await api('DELETE', `/api/admin/ticket-types/${delTypeId}`, { token });
+    const removed = await api('DELETE', `/api/admin/scenic/areas/${delAreaId2}`, { token });
+    check('引用清空后可以删掉', removed.status === 200 || removed.status === 201, `${removed.status} ${removed.json?.msg}`);
+  }
+
   // 清理
   const userId = created.json?.data?.id;
   if (userId) await api('DELETE', `/api/admin/admin-users/${userId}`, { token });
