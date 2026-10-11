@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { fetchCreateScenicArea, fetchUpdateScenicArea, fetchUploadImage } from '@/service/api';
+import { fetchCreateScenicArea, fetchUpdateScenicArea } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
+import AreaImageField from './area-image-field.vue';
 
 defineOptions({ name: 'ScenicAreaOperateDrawer' });
 
@@ -31,8 +32,12 @@ const submitting = ref(false);
 
 interface Model {
   name: string;
-  /** 相对路径（`/uploads/xxx.jpg`）；展示时拼 baseURL */
+  /** 封面（相对路径 `/uploads/xxx.jpg`）：景点列表卡 / 首页「推荐景点」卡 */
   coverUrl: string;
+  /** 首页轮播图（相对路径）；空 = 小程序里回落到封面 */
+  bannerUrl: string;
+  /** 购票页头卡缩略图（相对路径）；空 = 回落到封面 */
+  thumbnailUrl: string;
   address: string;
   openTime: string;
   maxCapacity: number;
@@ -66,6 +71,8 @@ function createDefaultModel(): Model {
   return {
     name: '',
     coverUrl: '',
+    bannerUrl: '',
+    thumbnailUrl: '',
     address: '',
     openTime: '',
     maxCapacity: 1000,
@@ -92,11 +99,14 @@ function handleInitModel() {
     return;
   }
 
-  const { name, coverUrl, address, openTime, maxCapacity, intro, category, status } = props.rowData;
+  const { name, coverUrl, bannerUrl, thumbnailUrl, address, openTime, maxCapacity, intro, category, status } =
+    props.rowData;
 
   Object.assign(model.value, {
     name,
     coverUrl: coverUrl ?? '',
+    bannerUrl: bannerUrl ?? '',
+    thumbnailUrl: thumbnailUrl ?? '',
     address: address ?? '',
     openTime: openTime ?? '',
     maxCapacity: maxCapacity ?? 1000,
@@ -111,54 +121,33 @@ function closeDrawer() {
 }
 
 /**
- * 封面预览地址：库里存的是相对路径（`/uploads/xxx.jpg`），
- * 这里拼上管理端的服务端前缀 —— 小程序那边拼的是它自己的前缀，所以**不能存完整 URL**。
+ * 表单 → 提交体。
+ *
+ * 抽出来是为了让 `handleSubmit` 的圈复杂度降下来（eslint `complexity` 上限 20）——
+ * 每个 `|| undefined` 都是一个分支，三张图加进来正好把它顶爆。顺带也更清楚：
+ * 这里是「空字符串一律提交 undefined」，即「清空」= 不带这个字段。
  */
-const coverPreview = computed(() =>
-  model.value.coverUrl ? `${import.meta.env.VITE_SERVICE_BASE_URL}${model.value.coverUrl}` : ''
-);
-
-const uploading = ref(false);
-
-/** 交给 ElUpload 自己发请求：走同一个 request 实例，鉴权/代理/拆包都现成 */
-async function handleCoverUpload(options: { file: File }) {
-  uploading.value = true;
-  try {
-    const { data, error } = await fetchUploadImage(options.file);
-    if (error) return;
-    model.value.coverUrl = data.url;
-    window.$message?.success('封面已上传，保存后生效');
-  } finally {
-    uploading.value = false;
-  }
-}
-
-/** 本地先拦一道，省得白传一趟；服务端还会再校验 MIME 与大小 */
-function beforeCoverUpload(file: File) {
-  const okType = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
-  if (!okType) {
-    window.$message?.error('只支持 jpeg / png / webp 图片');
-    return false;
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    window.$message?.error('图片不能超过 5MB');
-    return false;
-  }
-  return true;
-}
-
-async function handleSubmit() {
-  await validate();
-
-  const payload: Api.Scenic.AreaPayload = {
+function buildPayload(): Api.Scenic.AreaPayload {
+  return {
     name: model.value.name,
-    coverUrl: model.value.coverUrl || undefined,
+    // ⚠️ 三张图的「空」要传 **null**（= 清空）而不是 undefined（= 不改动）——
+    // `repo.update(id, body)` 会忽略 undefined 的字段，传 undefined 的话「清除」按钮
+    // 点了等于没反应（老封面那条就是这个毛病）。文本字段仍是「不传 = 不改动」。
+    coverUrl: model.value.coverUrl || null,
+    bannerUrl: model.value.bannerUrl || null,
+    thumbnailUrl: model.value.thumbnailUrl || null,
     address: model.value.address || undefined,
     openTime: model.value.openTime || undefined,
     maxCapacity: model.value.maxCapacity,
     intro: model.value.intro || undefined,
     category: model.value.category || undefined
   };
+}
+
+async function handleSubmit() {
+  await validate();
+
+  const payload = buildPayload();
 
   submitting.value = true;
   try {
@@ -217,27 +206,28 @@ watch(visible, () => {
       <ElFormItem label="景区名称" prop="name">
         <ElInput v-model="model.name" placeholder="如 中心景区" />
       </ElFormItem>
-      <ElFormItem label="景区封面">
-        <div class="w-full flex items-center gap-12px">
-          <div class="h-60px w-90px flex-center shrink-0 overflow-hidden border border-gray-200 rounded bg-gray-50">
-            <img v-if="coverPreview" :src="coverPreview" class="h-full w-full object-cover" alt="封面预览" />
-            <span v-else class="text-12px text-gray-400">未设置</span>
-          </div>
-          <ElUpload
-            :show-file-list="false"
-            accept="image/jpeg,image/png,image/webp"
-            :before-upload="beforeCoverUpload"
-            :http-request="handleCoverUpload"
-          >
-            <ElButton :loading="uploading">{{ model.coverUrl ? '更换封面' : '上传封面' }}</ElButton>
-          </ElUpload>
-          <ElButton v-if="model.coverUrl" link type="danger" @click="model.coverUrl = ''">清除</ElButton>
-        </div>
-        <div class="mt-4px text-12px text-gray-400">
-          上传后，小程序里的首页轮播、景点列表卡、购票页头卡缩略图都用这张图；不传则用内置占位图
-        </div>
-        <div class="mt-2px text-12px text-gray-400">建议 16:9；5MB 内，支持 jpeg / png / webp</div>
-      </ElFormItem>
+      <!--
+ 三张图各有各的画幅：列表卡要横图、轮播要宽图、购票页头卡是方图。
+           只传封面也能跑，另两张都回落到封面（回落规则写在各字段的说明里）。 
+-->
+      <AreaImageField
+        v-model="model.coverUrl"
+        label="景区封面"
+        hint="小程序里的景点列表卡与首页「推荐景点」卡用这张图；不传则用内置占位图"
+      />
+      <AreaImageField
+        v-model="model.bannerUrl"
+        label="首页轮播图"
+        hint="小程序首页顶部轮播用这张图；不传则回落到封面"
+        ratio-hint="建议 21:9 宽图（轮播会被裁成宽幅）；5MB 内，支持 jpeg / png / webp"
+      />
+      <AreaImageField
+        v-model="model.thumbnailUrl"
+        label="购票页缩略图"
+        hint="小程序购票页头卡那张 64×64 小图；不传则回落到封面"
+        ratio-hint="建议 1:1 方图；5MB 内，支持 jpeg / png / webp"
+        preview-class="h-60px w-60px"
+      />
       <ElFormItem label="地址">
         <ElInput v-model="model.address" placeholder="请输入景区详细地址" />
       </ElFormItem>

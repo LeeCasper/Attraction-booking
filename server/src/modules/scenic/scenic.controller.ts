@@ -18,7 +18,17 @@ class CreateAreaDto {
    * 同一张图在后台（`http://xxx:3000/api`）和小程序（局域网 IP）下的前缀不同，
    * 存相对路径、由各自的客户端拼自己的服务端前缀。
    */
-  @IsOptional() @IsString() @MaxLength(255) coverUrl?: string;
+  // ⚠️ 显式允许 `null`：**清空**要传 null 而不是「不传」——
+  // `repo.update(id, body)` 会忽略 undefined 的字段，不传等于保持原值（「清除」按钮会变成没反应）。
+  @IsOptional() @IsString() @MaxLength(255) coverUrl?: string | null;
+  /**
+   * 首页轮播图。与封面同一套口径（存相对路径）；不传 = 回落到封面。
+   * 之所以分三个字段：三处的画幅不同 —— 列表卡/推荐卡要横图、轮播要宽图、
+   * 购票页头卡是 64×64 的方图，一张图在三处里必然有两处是被裁的。
+   */
+  @IsOptional() @IsString() @MaxLength(255) bannerUrl?: string | null;
+  /** 缩略图（购票页头卡，建议方图）；不传 = 回落到封面 */
+  @IsOptional() @IsString() @MaxLength(255) thumbnailUrl?: string | null;
   /** 景点分类，决定小程序「景点选择」页归到哪个 tab；不传 = 未分类（只在「全部景点」出现） */
   @IsOptional() @IsIn(AREA_CATEGORIES as unknown as string[]) @IsString() category?: string;
   /** 1 开放 / 2 关闭（ValidationPipe 开启 whitelist，未声明字段会被剥离） */

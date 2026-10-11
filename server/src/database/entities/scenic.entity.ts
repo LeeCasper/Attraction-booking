@@ -14,8 +14,17 @@ export class ScenicArea {
   @Column({ type: 'text', nullable: true })
   intro: string | null;
 
+  /** 封面（相对路径）：景点列表卡 / 首页「推荐景点」卡用 */
   @Column({ name: 'cover_url', type: 'varchar', length: 512, nullable: true })
   coverUrl: string | null;
+
+  /** 首页轮播图（相对路径，建议宽图）；空则回落到 `coverUrl` */
+  @Column({ name: 'banner_url', type: 'varchar', length: 512, nullable: true })
+  bannerUrl: string | null;
+
+  /** 缩略图（相对路径，建议方图）：购票页头卡用；空则回落到 `coverUrl` */
+  @Column({ name: 'thumbnail_url', type: 'varchar', length: 512, nullable: true })
+  thumbnailUrl: string | null;
 
   @Column({ name: 'open_time', type: 'varchar', length: 64, nullable: true })
   openTime: string | null;

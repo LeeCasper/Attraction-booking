@@ -46,9 +46,40 @@ const FALLBACK_COVERS = [
   '/static/images/area-cover-4.jpg',
 ];
 
-/** 景点封面（完整地址）；没配封面就按 `index` 返回一张兜底图 */
-export function areaCoverOf(area: { coverUrl: string | null }, index: number): string {
+/** 景区三张图的最小形状（后端 `MiniArea` 的子集，便于单测/组件按结构传入） */
+export interface AreaImages {
+  coverUrl: string | null;
+  bannerUrl?: string | null;
+  thumbnailUrl?: string | null;
+}
+
+/**
+ * 景点**封面**（完整地址）；没配封面就按 `index` 返回一张兜底图。
+ * 用在景点列表卡与首页「推荐景点」卡（横图）。
+ */
+export function areaCoverOf(area: AreaImages, index: number): string {
   return mediaUrl(area.coverUrl) || FALLBACK_COVERS[index % FALLBACK_COVERS.length]!;
+}
+
+/**
+ * 首页**轮播图**；没配就回落到封面（封面也没有才用兜底图轮换）。
+ *
+ * 三个字段的由来：三处画幅不同 —— 列表卡要横图、轮播要宽图、购票页头卡是 64×64 的方图。
+ * 用一个字段包打三处，必然有两处被裁；但**只传封面也能跑**，运营不必一上来就传三张。
+ */
+export function areaBannerOf(area: AreaImages, index: number): string {
+  return mediaUrl(area.bannerUrl) || areaCoverOf(area, index);
+}
+
+/**
+ * 购票页头卡的**缩略图**；没配就回落到封面。
+ *
+ * 两个都没有时返回**空串** —— 调用处（购票页头卡那张 `<image>`）会回落到设计稿里那张图
+ * （`image` 绑定就是「表达式为空则用设计稿的图」这个语义）。这里不塞占位图，
+ * 是因为那张方图是设计稿定的样子，凭空换一张反而与稿子不一致。
+ */
+export function areaThumbOf(area: AreaImages): string {
+  return mediaUrl(area.thumbnailUrl) || mediaUrl(area.coverUrl);
 }
 
 /** 卡片上的余票档位：无可售票种 / 约满 / 紧张 / 充足 */

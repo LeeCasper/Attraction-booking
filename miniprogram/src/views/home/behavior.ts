@@ -2,7 +2,7 @@ import { ref, watch } from 'vue';
 import { areaApi, type AreaOverview } from '@/api';
 import { errorText } from '@/api/request';
 import { currentAreaId, setCurrentArea, switchTab } from '@/store/shell';
-import { CAPACITY_BANNER_LABEL, areaCoverOf, areaStockStatus, capacityTone } from '@/utils/area';
+import { CAPACITY_BANNER_LABEL, areaBannerOf, areaStockStatus, capacityTone } from '@/utils/area';
 
 /**
  * 首页（景区预约首页）。
@@ -99,7 +99,8 @@ export function useHomePage() {
       slides.value = areas.slice(0, HOME_SLIDE_SLOTS).map((a, i) => ({
         id: a.id,
         name: a.name,
-        cover: areaCoverOf(a, i),
+        // 轮播位优先用「轮播图」，没配回落到封面
+        cover: areaBannerOf(a, i),
         statusLabel: `开园中 · ${CAPACITY_BANNER_LABEL[capacityTone(a.presence.capacityRate)]}`,
         presenceLabel: `在园率 ${Math.round(a.presence.capacityRate * 100)}%`,
       }));

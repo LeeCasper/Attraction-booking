@@ -1,7 +1,8 @@
 import { computed, getCurrentInstance, onMounted, reactive, ref, watch } from 'vue';
-import { areaApi, mediaUrl, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
+import { areaApi, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
 import { errorText } from '@/api/request';
 import { currentAreaId } from '@/store/shell';
+import { areaThumbOf } from '@/utils/area';
 import { dayOffsetStr, fen2yuan, hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
@@ -118,12 +119,12 @@ export function useBookingPage() {
   /** 当前景点名 —— 头卡标题「{景点} · 景区门票」用它，不再写死某个景点的名字 */
   const areaName = ref('');
   /**
-   * 当前景点的封面 —— 头卡那张 64×64 缩略图用它。
+   * 头卡那张 64×64 缩略图：优先「缩略图」，没配回落到「封面」（见 `utils/area.ts`）。
    *
    * 以前这里在设计稿里是一张**写死的位图**（`/static/images/banner-booking.jpg`），
-   * 后台把景点封面换掉也不动。现在跟 `scenic_area.cover_url` 走（后台景区抽屉里可传），
-   * 值为空时视图侧回落到设计稿那张图（见 `page-bindings.mjs` 的 `image` 绑定）。
-   * ⚠️ 后台上传的封面存的是**相对路径**，必须经 `mediaUrl()` 拼成完整地址。
+   * 后台换封面也不动。两个字段都没配时值为空，视图侧回落到设计稿那张图
+   * （见 `page-bindings.mjs` 的 `image` 绑定）。
+   * ⚠️ 后台上传的图存的是**相对路径**，由 `areaThumbOf()` 统一拼前缀。
    */
   const areaCover = ref('');
   const dates = ref<DateOption[]>([]);
@@ -252,7 +253,7 @@ export function useBookingPage() {
       const area = picked ?? areas[0];
       if (!area) throw new Error('没有开放中的景点');
       areaName.value = area.name;
-      areaCover.value = mediaUrl(area.coverUrl);
+      areaCover.value = areaThumbOf(area);
 
       const today = dayOffsetStr(0);
       const tickets = await ticketApi.list(area.id, today);

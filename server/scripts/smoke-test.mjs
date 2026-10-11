@@ -280,18 +280,35 @@ async function main() {
         `status=${back.status} bytes=${buf.length}`,
       );
 
-      // 传给景区，再从小程序接口读回来（封面链路端到端）
+      // 传给景区，再从小程序接口读回来（三张图的链路端到端）。
+      // 景区有三张图：封面（列表卡/推荐卡）、轮播图（首页）、缩略图（购票页头卡）——
+      // 三处画幅不同，所以拆成三个字段；**都不传也能跑**（客户端逐级回落，见 utils/area.ts）。
       const withCover = await api('POST', '/api/admin/scenic/areas', {
         token,
-        body: { name: `冒烟封面景区${RUN}`, maxCapacity: 100, coverUrl: url },
+        body: { name: `冒烟封面景区${RUN}`, maxCapacity: 100, coverUrl: url, bannerUrl: url, thumbnailUrl: url },
       });
       const coverId = withCover.json?.data?.id;
       const overview = await api('GET', '/api/mini/areas/overview');
+      const row = overview.json?.data?.areas?.find((a) => a.id === coverId);
+      check('封面能存进景区并从小程序接口读回', row?.coverUrl === url, JSON.stringify(row));
       check(
-        '封面能存进景区并从小程序接口读回',
-        overview.json?.data?.areas?.find((a) => a.id === coverId)?.coverUrl === url,
-        overview.json?.data?.areas?.find((a) => a.id === coverId),
+        '轮播图 / 缩略图也能存进景区并从小程序接口读回',
+        row?.bannerUrl === url && row?.thumbnailUrl === url,
+        JSON.stringify({ bannerUrl: row?.bannerUrl, thumbnailUrl: row?.thumbnailUrl }),
       );
+      // 只传封面时另两张应为 null —— 回落到封面这件事在**客户端**做（`utils/area.ts`），
+      // 服务端不替它补值：补了就看不出「运营到底配了几张」
+      const onlyCover = await api('POST', '/api/admin/scenic/areas', {
+        token,
+        body: { name: `冒烟仅封面景区${RUN}`, maxCapacity: 100, coverUrl: url },
+      });
+      const onlyCoverRow = (await api('GET', '/api/mini/areas')).json?.data?.find((a) => a.id === onlyCover.json?.data?.id);
+      check(
+        '只传封面时轮播图/缩略图为 null（回落由客户端做）',
+        onlyCoverRow?.coverUrl === url && onlyCoverRow?.bannerUrl === null && onlyCoverRow?.thumbnailUrl === null,
+        JSON.stringify(onlyCoverRow),
+      );
+      if (onlyCover.json?.data?.id) await api('DELETE', `/api/admin/scenic/areas/${onlyCover.json.data.id}`, { token });
       if (coverId) await api('DELETE', `/api/admin/scenic/areas/${coverId}`, { token });
     }
 

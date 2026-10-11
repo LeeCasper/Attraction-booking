@@ -32,6 +32,9 @@ export class MiniTicketService {
       id: a.id,
       name: a.name,
       coverUrl: a.coverUrl,
+      // 轮播图 / 缩略图：没配就留空，由客户端逐级回落到封面（见 miniprogram 的 utils/area.ts）
+      bannerUrl: a.bannerUrl,
+      thumbnailUrl: a.thumbnailUrl,
       openTime: a.openTime,
       intro: a.intro,
     }));
@@ -99,6 +102,8 @@ export class MiniTicketService {
         id: area.id,
         name: area.name,
         coverUrl: area.coverUrl,
+        bannerUrl: area.bannerUrl,
+        thumbnailUrl: area.thumbnailUrl,
         openTime: area.openTime,
         intro: area.intro,
         category: area.category,

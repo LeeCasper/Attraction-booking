@@ -17,7 +17,12 @@ declare namespace Api {
       name: string;
       address: string | null;
       intro: string | null;
+      /** 封面（相对路径）：小程序景点列表卡 / 首页「推荐景点」卡 */
       coverUrl: string | null;
+      /** 首页轮播图（相对路径）；空则小程序里回落到封面 */
+      bannerUrl: string | null;
+      /** 缩略图（相对路径，建议方图）：小程序购票页头卡；空则回落到封面 */
+      thumbnailUrl: string | null;
       /** 开放时间描述，如 08:00-17:00 */
       openTime: string | null;
       /** 最大承载量（承载率预警基准） */
@@ -37,8 +42,15 @@ declare namespace Api {
       intro?: string;
       openTime?: string;
       maxCapacity?: number;
-      /** 封面图：上传接口返回的**相对路径**（`/uploads/xxx.jpg`），不是完整 URL */
-      coverUrl?: string;
+      /**
+       * 封面图：上传接口返回的**相对路径**（`/uploads/xxx.jpg`），不是完整 URL。
+       * ⚠️ 清空要传 `null`（不是省略）—— 省略等于「不改动」，后端会保留原值。
+       */
+      coverUrl?: string | null;
+      /** 首页轮播图（同封面口径）；null = 清空（小程序里回落封面） */
+      bannerUrl?: string | null;
+      /** 购票页头卡缩略图（同封面口径）；null = 清空（回落封面） */
+      thumbnailUrl?: string | null;
       /** 景点分类（小程序「景点选择」页的 tab）；不传 = 未分类 */
       category?: AreaCategory;
       /** 1 开放 / 2 关闭 */
@@ -54,7 +66,7 @@ declare namespace Api {
 
     /** 图片上传结果 */
     interface UploadResult {
-      /** 相对路径，直接存进 `coverUrl` */
+      /** 相对路径，直接存进封面/轮播图/缩略图之中对应的那个字段 */
       url: string;
       size: number;
       mimeType: string;

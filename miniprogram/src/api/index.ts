@@ -15,7 +15,12 @@ export { mediaUrl } from './config';
 export interface MiniArea {
   id: number;
   name: string;
+  /** 封面（相对路径 `/uploads/x.jpg`）：景点列表卡 / 首页「推荐景点」卡 */
   coverUrl: string | null;
+  /** 首页轮播图；没配就回落到 `coverUrl`（见 `utils/area.ts` 的逐级回落） */
+  bannerUrl: string | null;
+  /** 缩略图（购票页头卡，方图）；没配就回落到 `coverUrl` */
+  thumbnailUrl: string | null;
   openTime: string | null;
   intro: string | null;
 }
