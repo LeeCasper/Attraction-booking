@@ -6,8 +6,26 @@ import { request } from '../request';
  * 上传景区封面。
  *
  * 走同一个 request 实例：鉴权头、baseURL/代理、`{code,msg,data}` 拆包都由它处理，
- * 只是 body 换成 FormData（axios 会自己带 multipart 边界）。返回的是**相对路径**，
- * 存进 `coverUrl`，展示时再拼前缀。
+ * 只是 body 换成 FormData。返回的是**相对路径**，存进 `coverUrl`，展示时再拼前缀。
+ *
+ * ⚠️ **`Content-Type: undefined` 这一行不能删，也不能改成 `'multipart/form-data'`。**
+ *
+ * 请求实例的默认头是 `application/json`（`@sa/axios` 的 `createAxiosConfig` 里写死），
+ * 而 axios 的 `transformRequest` 有这么一段：
+ *
+ * ```js
+ * if (isFormData(data)) return hasJSONContentType ? JSON.stringify(formDataToJSON(data)) : data;
+ * ```
+ *
+ * 于是**带上 json 头的 FormData 会被转成 JSON 字符串发出去**（实测 body 是 `{"file":{}}`），
+ * 服务端 multer 收不到任何 multipart 字段 ⇒ `POST /api/admin/upload` 回
+ * 400「没有收到文件（字段名应为 file）」，后台表现就是「上传封面没反应」。
+ * 置成 `undefined` 才会走 `return data` 分支，由 **axios/浏览器自己补上带 boundary 的
+ * `multipart/form-data`**（浏览器端是浏览器补，Node 端是 axios 的 http 适配器自己算边界）。
+ *
+ * 也不能写成 `'multipart/form-data'`：浏览器**不会**给已经显式设好的类型补 boundary，
+ * 服务端同样解不出来（⚠️ 这条在 Node 里测不出来 —— axios 的 http 适配器会自己算边界，
+ * 所以本地脚本无论怎么写都是 201，只有浏览器才暴露）。
  */
 export function fetchUploadImage(file: File) {
   const form = new FormData();
@@ -15,7 +33,8 @@ export function fetchUploadImage(file: File) {
   return request<Api.Scenic.UploadResult>({
     url: '/admin/upload',
     method: 'post',
-    data: form
+    data: form,
+    headers: { 'Content-Type': undefined }
   });
 }
 

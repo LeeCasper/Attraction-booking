@@ -48,6 +48,20 @@ pnpm build        # 产物在 dist/
 > ⚠️ 新增接口时，**前端按钮的权限标识必须与后端 `@Permissions` 完全一致** —— 不一致会出现「按钮看不见但接口能调」（或反之）的错位。曾出现对账按钮用 `config:update` 而后端声明 `order:read` 的情况，已统一为 `reconcile:run`。
 路由权限写在页面 `meta.roles` 里，超管经 `VITE_STATIC_SUPER_ROLE` 直通。
 
+### 上传文件（FormData）：必须显式清掉 `Content-Type`
+
+请求实例的默认头是 `application/json`（模板的 `@sa/axios` 里写死），而 axios 见到 json 头会
+**把 FormData 转成 JSON 字符串**发出去 —— 服务端收不到任何 multipart 字段，回 400。
+所以每个上传调用都要带上：
+
+```ts
+request({ url: '/admin/upload', method: 'post', data: form, headers: { 'Content-Type': undefined } });
+```
+
+**不能**写成 `'multipart/form-data'`（浏览器不会给显式设好的类型补 boundary）；
+也**别指望本地 Node 脚本能验出来** —— axios 的 http 适配器会自己算边界，怎么写都是 201，
+只有浏览器才暴露。样例见 `src/service/api/scenic.ts` 的 `fetchUploadImage`。
+
 ### 路由
 
 采用 `VITE_AUTH_ROUTE_MODE=static` + elegant-router 文件路由：`src/views/**` 的新增/删除会自动同步路由（`pnpm gen-route` 手工生成）。
