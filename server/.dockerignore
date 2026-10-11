@@ -1,0 +1,16 @@
+# 依赖与产物都从零装/编（镜像里重建），别从本机拷进去
+node_modules
+dist
+
+# 配置与密钥：env 由 compose 注入，绝不烘进镜像
+.env
+.env.*
+*.pem
+
+# 上传目录是**卷**（compose 挂载），拷进镜像等于每次部署冲掉用户传的图
+uploads
+
+# ⚠️ `scripts/` 不能排除：seed 与冒烟脚本都在里面，`tools` 那个 target 要跑它们
+# （ts-node 跑 `.ts`，`src/` 也得在，所以 tools 用的是 builder 层）
+loadtest
+*.log
