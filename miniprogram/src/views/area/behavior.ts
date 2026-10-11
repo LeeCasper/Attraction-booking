@@ -121,22 +121,20 @@ export function useAreaPage() {
    * 但只想换个景点（还没打算买票）的用户也需要一条路。
    *
    * ⚠️ 本页是外壳的**根 tab**，所以两条路径都**不 `navigateBack`**：
-   * 整卡点击只是选中并留在这一页；「去预约」是 `navigateTo` 压一张购票页上去，
+   * 整卡点击只是选中并留在这一页（卡片自带选中高亮，**不再弹「已切换到 X」的提示** ——
+   * 那是一条没有信息量的重复反馈）；「去预约」是 `navigateTo` 压一张购票页上去，
    * 从购票页返回时回到的正是这里。
    */
   function pick(a: AreaOverview, goBooking: boolean) {
     setCurrentArea(a.id);
-    if (goBooking) {
-      // 没有可售票种的景点（只配了「按张卖」的票种）不进购票页 —— 进去也买不了，
-      // 页面上只会是一堆「—」。卡片上本来就把价格位换成了「暂无可售票种」，这里再说明一次
-      if (stockStatus(a) === 'none') {
-        uni.showToast({ title: `${a.name}暂无可在线预约的票种`, icon: 'none', duration: 2500 });
-        return;
-      }
-      uni.navigateTo({ url: '/pages/booking/index' });
+    if (!goBooking) return;
+    // 没有可售票种的景点（只配了「按张卖」的票种）不进购票页 —— 进去也买不了，
+    // 页面上只会是一堆「—」。卡片上本来就把价格位换成了「暂无可售票种」，这里再说明一次
+    if (stockStatus(a) === 'none') {
+      uni.showToast({ title: `${a.name}暂无可在线预约的票种`, icon: 'none', duration: 2500 });
       return;
     }
-    uni.showToast({ title: `已切换到${a.name}`, icon: 'none', duration: 1200 });
+    uni.navigateTo({ url: '/pages/booking/index' });
   }
 
   const onPickArea = (a: AreaOverview) => pick(a, false);
