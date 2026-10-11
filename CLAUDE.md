@@ -654,12 +654,15 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
     ② `GET /orders/:id/credential` 回 **409**；③ **核验链路**新增 `VerifyCode.REFUND_PENDING`
     （`verify.service.doVerify` 查 `refund` 里 10/20 的单据）—— 刷身份证/人脸走不到小程序，只能在服务端拦。
     只在 10/20 拦：**40 已拒绝、50 退款失败是「没退成」，凭证照常可用**。
-  - **凭证号**：服务端从预约**派生**（`order.service.credentialNoOf`）：`V` + 预约日 + 预约 id 补 6 位，
-    列表与详情共用 `withCredentialNo()`（两处各写一遍迟早漂移）。不放一列的理由：不用回填历史数据、
-    可人工反查。⚠️ 只是展示用，闸机不认它。
+  - **凭证号**：`V` + 预约日 + `-` + 8 位随机字符（`reservation.credential_no`，**唯一索引**）——
+    建单时随机生成并落库。第一版是「预约 id 派生」的（不落库），用户一眼看出**太容易猜**：
+    顺序 id 拼出来的号，拿自己的 ±1 就能念出隔壁的号，而客服与闸机口都是**按号核对**的。
+    字母表 `23456789ABCDEFGHJKMNPQRSTVWXYZ` 去掉了 I/L/O/U 与 0/1（要人念、人抄）。
+    历史数据：`npm run backfill:credential-no`（幂等，只补 NULL 的）。⚠️ 只是展示用，闸机不认它。
   - 订单列表卡片右下角补了「**查看凭证**」（待入园/部分核销才有；退款审核中优先显示「退款审核中」）。
     ⚠️ 列表是二级页，`switchTab` 前必须**先退到外壳**（`navigateBack({delta: 栈深-1})`），
     否则切了 tab 用户看到的还是列表页。
-  - `smoke:gate` 56 → **61**、`smoke:order` 35 → **37**（凭证号格式 + 退款中 409 + REFUND_PENDING 三段）。
+  - `smoke:gate` 56 → **62**、`smoke:order` 35 → **38**（凭证号格式与「不含顺序 id」、退款中 409、
+    核验 REFUND_PENDING 三段）。凭证号改随机落库后要记得 `npm run backfill:credential-no`。
     顺带记一个坑：接口字段名是 `approve`（不是 `approved`），写错会被 `whitelist: true` 静默剥掉、
     审核 400 而退款单停在待审核 —— 冒烟里那句「先确认这一步」的断言就是为了让中间步骤不静默失败。

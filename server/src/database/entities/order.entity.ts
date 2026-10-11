@@ -109,6 +109,15 @@ export class Reservation {
   @Column({ name: 'total_count', type: 'int' })
   totalCount: number;
 
+  /**
+   * 凭证号（**展示用**，随机、不可猜，落库带唯一索引）。
+   *
+   * 老数据可能为空（库是后加的列，见 `scripts/backfill-credential-no.ts`）——
+   * 客户端拿不到就整行不显示，不是错误。
+   */
+  @Column({ name: 'credential_no', type: 'varchar', length: 24, nullable: true })
+  credentialNo: string | null;
+
   @Column({ name: 'created_at', type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 

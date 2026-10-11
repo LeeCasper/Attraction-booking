@@ -260,12 +260,14 @@ CREATE TABLE IF NOT EXISTS reservation (
   status         TINYINT NOT NULL DEFAULT 10 COMMENT '10待使用 20已使用 30已取消 40已过期 50已改签',
   verify_count   INT NOT NULL DEFAULT 0,
   total_count    INT NOT NULL,
+  credential_no  VARCHAR(24) NULL COMMENT '凭证号(展示用):V+预约日+8位随机,支持按号反查',
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_order (order_id),
   KEY idx_area_date_slot (scenic_area_id, date, time_slot_id),
-  KEY idx_date_status (date, status)
-) ENGINE=InnoDB COMMENT='预约(凭证 Token 动态签发,不落静态码)';
+  KEY idx_date_status (date, status),
+  UNIQUE KEY uk_credential_no (credential_no)
+) ENGINE=InnoDB COMMENT='预约(凭证 Token 动态签发,不落静态码;credential_no 仅供人工核对)';
 
 CREATE TABLE IF NOT EXISTS verification (
   id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

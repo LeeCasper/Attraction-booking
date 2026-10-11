@@ -25,41 +25,11 @@ import {
 } from '../../database/entities/ticket.entity';
 import { PurchaseRule } from '../ticket/purchase-rule.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { generateOrderNo } from './order-no.util';
+import { generateCredentialNo, generateOrderNo } from './order-no.util';
 import { RedisClient, REDIS_CLIENT } from '../redis/redis.constants';
 import { businessDayEnd } from '../../common/utils/date.util';
 import { SysConfigService } from '../system/sys-config.service';
 import { DEFAULT_RESERVATION } from '../../common/constants/config-defaults';
-
-/**
- * 凭证号（**展示用**）。
- *
- * 库里的 `reservation` 没有这一列，也不打算加 —— 它由预约本身派生：
- * `V` + 预约日 + 预约 id（补足 6 位），例如 `V20261011-000171`。
- * 选择派生而不是存一列的理由：
- *   - **不会漂移**：同一条预约每次算出来都一样，也不需要给历史数据回填
- *   - **可人工反查**：闸机口/客服拿到这串就能看出是哪天、哪条预约
- * ⚠️ 机器契约仍然只有**动态 token**（闸机不认这个号），它纯粹是给人看的。
- * 核验链路上的门禁判定一律走 token / 证件，不要拿它当凭据。
- */
-export function credentialNoOf(reservation: { id: number; date: unknown } | null): string | null {
-  if (!reservation) return null;
-  const date = String(reservation.date ?? '').replace(/-/g, '');
-  if (!date) return null;
-  return `V${date}-${String(reservation.id).padStart(6, '0')}`;
-}
-
-/**
- * 把凭证号并进预约对象。
- *
- * 列表与详情**共用这一个函数** —— 两处各写一遍的话，哪天改了格式就会出现
- * 「列表上的凭证号和详情里的不一样」这种最难查的问题。
- */
-function withCredentialNo<T extends { id: number; date: unknown }>(
-  r: T | null,
-): (T & { credentialNo: string | null }) | null {
-  return r ? { ...r, credentialNo: credentialNoOf(r) } : null;
-}
 
 @Injectable()
 export class OrderService {
@@ -230,6 +200,9 @@ export class OrderService {
           status: ReservationStatus.PENDING,
           verifyCount: 0,
           totalCount: visitors.length,
+          // 凭证号：随机、不可猜、落库（唯一索引兜底）。建单那一刻就定下来，
+          // 之后不再变 —— 人工核对的号必须是稳定的
+          credentialNo: generateCredentialNo(dto.date),
         });
         const reservationId = Number(resIns.identifiers[0].id);
 
@@ -405,7 +378,7 @@ export class OrderService {
       ...o,
       itemCount: items.filter((i) => i.orderId === o.id).length,
       ticketName: ticketNameOf(o.id),
-      reservation: withCredentialNo(reservations.find((r) => r.orderId === o.id) ?? null),
+      reservation: reservations.find((r) => r.orderId === o.id) ?? null,
       // 申请退款后订单状态**不变**（仍是 20/30），只多一条待审的退款单 ——
       // 没有这个字段，客户端就无从知道「审核中 / 已拒绝」，只会看到「待入园」。
       refundStatus: refunds.find((r) => r.orderId === o.id)?.status ?? null,
@@ -435,7 +408,7 @@ export class OrderService {
 
     return {
       ...order,
-      reservation: withCredentialNo(reservation),
+      reservation,
       timeSlot: slot,
       refundStatus: refund?.status ?? null,
       refund: refund

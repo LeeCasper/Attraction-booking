@@ -167,12 +167,19 @@ async function main() {
     JSON.stringify(detail1.data?.timeSlot),
   );
 
-  // 凭证号（展示用，派生自预约，库里没有这一列）：`V` + 预约日 + 预约 id 补 6 位。
-  // 断言格式而不是断言某个具体值 —— 它的作用是「同一张票在详情/列表上印的是同一个号」。
+  // 凭证号（展示用）：`V` + 预约日 + `-` + 8 位随机字符（字母表去掉 I/L/O/U 与 0/1）。
+  // 断言**格式**（而不是某个具体值）+ 断言**不含顺序 id** —— 后者正是它存在的理由：
+  // 用预约 id 拼的号，别人拿自己的 ±1 就能念出隔壁的号，而客服与闸机口都是按号核对的。
+  const credNo1 = String(detail1.data?.reservation?.credentialNo ?? '');
   check(
-    '详情返回凭证号（V+预约日+预约 id）',
-    /^V\d{8}-\d{6}$/.test(detail1.data?.reservation?.credentialNo ?? ''),
-    String(detail1.data?.reservation?.credentialNo),
+    '详情返回凭证号（V + 预约日 + 8 位随机字符）',
+    /^V\d{8}-[2-9A-HJKMNP-TV-Z]{8}$/.test(credNo1),
+    credNo1,
+  );
+  check(
+    '凭证号里不含顺序 id（不可猜）',
+    credNo1 !== '' && !credNo1.endsWith(String(detail1.data?.reservation?.id).padStart(8, '0').slice(-6)),
+    `credNo=${credNo1} rid=${detail1.data?.reservation?.id}`,
   );
 
   // ---- 4. 支付（幂等）----
