@@ -17,9 +17,14 @@
  * 选中 = 青绿渐变 + 白透底胶囊 + 底部一个小三角指向下面的凭证卡（与个人中心那排四格同一处细节）；
  * **退款审核中** = 琥珀色虚线边 + 淡琥珀底，让人点之前就知道它暂时用不了。
  *
- * ⚠️ **只在多于一张时渲染**（只有一张票时多一行选择器纯属噪音）——
- * 判断写在**这里**（根节点的 `v-if`），而不是调用处的 `v-if`：见 `page-bindings.mjs` 的注解，
- * 组件节点上的条件渲染在小程序里会「切走再切回就不见了」。
+ * ⚠️ **整块不做任何条件渲染**（既不在这里 `v-if`，调用处也不 `v-if`）。
+ *
+ * 原因是一个只在真机/工具里出现的坑：这一块原来是「多于一张才渲染」，而且**只有这一处**
+ * 与「景点选择页的分类条」（同结构、一直正常）不同 —— 分类条的根节点是无条件的，
+ * 而它带条件。表现是：**首次进入正常，切走再切回来整块就不见了**（数据没问题：
+ * 库里这个用户有 7 张可用凭证，凭证卡与二维码都照常渲染）。
+ * 试过把条件从「组件节点」挪到「组件根节点」—— 还是不见；索性**一个条件都不留**。
+ * 一张凭证时多显示一张卡不影响什么，零张时那一栏也是空的（内容为空 = 空栏）。
  */
 import { getCurrentInstance, onMounted, reactive, ref } from 'vue';
 import type { CredentialOption } from '@/views/credential/behavior';
@@ -56,6 +61,8 @@ function onScroll(e: { detail?: { scrollLeft?: number; scrollWidth?: number } })
 // —— class 常量（条件类走标识符：`check:classes` 会把模板三目里的引号串当类名扫）——
 // `mb-2` 与设计稿那一块一致（它是 `w-full mb-2`）—— 不写的话这一条会贴着下面的凭证卡
 const WRAP = 'relative -mx-margin mb-2';
+/** 卡片行：给一个最小高度 —— 真机上出现过「切走再切回这一条不见」，塌成 0 高也是可能的原因之一 */
+const ROW_MIN = 'flex items-center gap-2_5 min-h-44px';
 const SCROLLER = 'w-full pg-cred-scroll';
 const ROW = 'flex items-center gap-2_5';
 const FADE_BASE = 'pointer-events-none absolute top-0 bottom-0 z-10 transition-opacity duration-200';
@@ -110,8 +117,8 @@ const dotClass = (c: CredentialOption) => (isOn(c) ? PILL_DOT_ON : PILL_DOT_REFU
 </script>
 
 <template>
-  <!-- 只有一张凭证时不渲染（判断放这里，不放调用处，见文件头注解） -->
-  <view v-if="props.items.length > 1" :class="WRAP">
+  <!-- 无条件渲染（见文件头注解：带条件时「切走再切回」会不见） -->
+  <view :class="WRAP">
     <view :class="FADE_LEFT" :style="{ opacity: fade.left ? 0.9 : 0 }" />
     <view :class="FADE_RIGHT" :style="{ opacity: fade.right ? 0.9 : 0 }" />
 
@@ -122,7 +129,7 @@ const dotClass = (c: CredentialOption) => (isOn(c) ? PILL_DOT_ON : PILL_DOT_REFU
       style="scroll-behavior: smooth"
       @scroll="onScroll"
     >
-      <view :class="ROW">
+      <view :class="ROW_MIN">
         <view
           v-for="c in props.items"
           :key="c.id"
@@ -149,6 +156,8 @@ const dotClass = (c: CredentialOption) => (isOn(c) ? PILL_DOT_ON : PILL_DOT_REFU
 <style lang="scss" scoped>
 /* 与 `.pg-date-scroll` / `.pg-cat-scroll` 同源：内边距与吸附属于**滚动容器** */
 .pg-cred-scroll {
+  /* 同上：给滚动容器也留一个高度下限（它塌了整条就没了）—— 卡片约 76px，这里给个下限 */
+  min-height: 140rpx;
   padding: 15.38rpx 30.77rpx;
   scroll-padding-left: 30.77rpx;
   scroll-padding-right: 30.77rpx;
