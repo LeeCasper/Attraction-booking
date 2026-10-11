@@ -346,6 +346,12 @@ function render(node, page, ctx) {
   if (tag === 'img') {
     const src = localizeImageUrl(node.attrs.src, page, '<img>');
     if (!src) return '';
+    // `image` 绑定：把 src 换成表达式 —— 设计稿里写死的位图要能跟着数据走
+    // （购票页头卡那张缩略图 = 当前景点后台上传的封面）。表达式取值为空时回落到设计稿那张图，
+    // 与背景图那条绑定的语义完全一致（见下面 background-image 的处理）。
+    if (binding?.image) {
+      return `<image class="${mapClasses(classStr)}" :src="${binding.image} || '${src}'" mode="aspectFill" />`;
+    }
     return `<image class="${mapClasses(classStr)}" src="${src}" mode="aspectFill" />`;
   }
 

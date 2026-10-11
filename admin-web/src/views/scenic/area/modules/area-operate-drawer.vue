@@ -233,7 +233,10 @@ watch(visible, () => {
           </ElUpload>
           <ElButton v-if="model.coverUrl" link type="danger" @click="model.coverUrl = ''">清除</ElButton>
         </div>
-        <div class="mt-4px text-12px text-gray-400">建议 16:9；5MB 内，支持 jpeg / png / webp</div>
+        <div class="mt-4px text-12px text-gray-400">
+          上传后，小程序里的首页轮播、景点列表卡、购票页头卡缩略图都用这张图；不传则用内置占位图
+        </div>
+        <div class="mt-2px text-12px text-gray-400">建议 16:9；5MB 内，支持 jpeg / png / webp</div>
       </ElFormItem>
       <ElFormItem label="地址">
         <ElInput v-model="model.address" placeholder="请输入景区详细地址" />

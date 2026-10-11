@@ -218,7 +218,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
   dates, date, onPickDate,
   slots, slot, onPickSlot,
   visitors, pickedIds, selectionLabel, onToggleVisitor, onAddVisitor,
-  pageTitle, ticketName, ticketAudience, ticketPrice, unitLabel,
+  pageTitle, areaCover, ticketName, ticketAudience, ticketPrice, unitLabel,
   ticketTypeId, ticketOptions, onPickTicketType,
   totalAmount, headcount, canSubmit, onSubmit, load,
 } = useBookingPage();
@@ -239,6 +239,12 @@ onLoad(() => { void load(); });`,
       <text class="block rounded-xl bg-surface-container-low text-cinnabar-red text-13px px-3 py-2">{{ error }}</text>
     </view>`,
     bindings: {
+      // 头卡那张缩略图：设计稿是一张**写死的位图**（`banner-booking.jpg`），后台上传景点封面
+      // 完全改不动它。现在绑成**当前景点自己的封面**（`scenic_area.cover_url`，后台景区抽屉里传），
+      // 没传就回落到设计稿那张图（`image` 绑定的既有语义）。
+      // ⚠️ 这一条走的是**设计稿里的真 `<img>` 节点**，与首页 banner 那条（背景图容器）不同 ——
+      // 生成器原本只给 background-image 插进去的 `<image>` 支持 `image` 绑定，本轮补齐到 `<img>`。
+      'w-full h-full object-cover': { image: 'areaCover' },
       // 头卡标题：设计稿写死「枫林谷国家森林公园 · 景区门票」（按单景区画的），
       // 多景区下必须跟着**当前景点**走，否则切到嵖岈山还写着枫林谷
       'font-headline-md text-[16px] text-ink-charcoal-text font-bold truncate': { text: 'pageTitle' },

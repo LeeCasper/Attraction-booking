@@ -1,5 +1,5 @@
 import { computed, getCurrentInstance, onMounted, reactive, ref, watch } from 'vue';
-import { areaApi, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
+import { areaApi, mediaUrl, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
 import { errorText } from '@/api/request';
 import { currentAreaId } from '@/store/shell';
 import { dayOffsetStr, fen2yuan, hhmm, shortDate, weekdayOf } from '@/utils/format';
@@ -117,6 +117,15 @@ export function useBookingPage() {
   const ticketOptions = ref<MiniTicket[]>([]);
   /** 当前景点名 —— 头卡标题「{景点} · 景区门票」用它，不再写死某个景点的名字 */
   const areaName = ref('');
+  /**
+   * 当前景点的封面 —— 头卡那张 64×64 缩略图用它。
+   *
+   * 以前这里在设计稿里是一张**写死的位图**（`/static/images/banner-booking.jpg`），
+   * 后台把景点封面换掉也不动。现在跟 `scenic_area.cover_url` 走（后台景区抽屉里可传），
+   * 值为空时视图侧回落到设计稿那张图（见 `page-bindings.mjs` 的 `image` 绑定）。
+   * ⚠️ 后台上传的封面存的是**相对路径**，必须经 `mediaUrl()` 拼成完整地址。
+   */
+  const areaCover = ref('');
   const dates = ref<DateOption[]>([]);
   const slots = ref<SlotOption[]>([]);
   const visitors = ref<VisitorCard[]>([]);
@@ -243,6 +252,7 @@ export function useBookingPage() {
       const area = picked ?? areas[0];
       if (!area) throw new Error('没有开放中的景点');
       areaName.value = area.name;
+      areaCover.value = mediaUrl(area.coverUrl);
 
       const today = dayOffsetStr(0);
       const tickets = await ticketApi.list(area.id, today);
@@ -419,6 +429,7 @@ export function useBookingPage() {
     pickedIds,
     selectionLabel,
     pageTitle,
+    areaCover,
     ticketName,
     ticketAudience,
     ticketPrice,
