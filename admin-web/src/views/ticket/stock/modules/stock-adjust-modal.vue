@@ -43,7 +43,7 @@ const model = ref(createDefaultModel());
 const rules: Record<'changeValue', App.Global.FormRule> = {
   changeValue: {
     required: true,
-    validator: (rule, value, callback) => {
+    validator: (_rule, value, callback) => {
       if (Number(value) === 0) {
         callback(new Error('请填写非 0 的变化量'));
         return;

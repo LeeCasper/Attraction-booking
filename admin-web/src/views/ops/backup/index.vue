@@ -186,15 +186,10 @@ async function handleDownload(row: Api.Ops.BackupRow) {
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
     <ElAlert type="info" :closable="false" show-icon>
       <template #title>备份说明</template>
-      <p>
-        备份使用
-        <b>mysqldump + gzip</b>
-        导出全库，保留最近
-        <b>30 天</b>
-        ，过期文件自动清理。恢复不提供界面操作 —— 覆盖生产库属高危操作，需人工按运维文档执行：
-        <code>gunzip -c &lt;备份文件&gt; | mysql -u&lt;user&gt; -p &lt;database&gt;</code>
-        。
-      </p>
+      <!-- 每段写成**一个完整的文本节点**，别在句子中间塞行内标签：prettier 会把超宽的行按节点拆开，而被拆到行首的中式标点渲染时前面会多一个空格（「30 天 ，过期…」） -->
+      <p>备份用 mysqldump + gzip 导出全库，保留最近 30 天，过期文件自动清理。</p>
+      <p>恢复不提供界面操作 —— 覆盖生产库属高危操作，需人工按运维文档执行：</p>
+      <code>gunzip -c &lt;备份文件&gt; | mysql -u&lt;user&gt; -p &lt;database&gt;</code>
     </ElAlert>
 
     <ElCard class="card-wrapper sm:flex-1-hidden">

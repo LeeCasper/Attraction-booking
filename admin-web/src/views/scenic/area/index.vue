@@ -45,6 +45,7 @@ const { columns, columnChecks, data, loading, getData, getDataByPage } = useUIPa
       formatter: row => (
         <div class="flex-center gap-8px">
           {hasAuth('scenic:update') ? (
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define -- handleEdit 来自下面的 useTableOperate，而它需要表格的 data/getData（两个 hook 互相依赖，这个顺序是唯一能跑的）；列里这行只在点击时读它，不是初始化期。
             <ElButton type="primary" plain size="small" onClick={() => handleEdit(row.id)}>
               编辑
             </ElButton>
