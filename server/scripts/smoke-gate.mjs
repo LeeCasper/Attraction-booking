@@ -97,7 +97,48 @@ async function main() {
   }
 
   const areas = await api('GET', '/api/admin/scenic/areas', { token: adminToken });
-  const areaId = areas.data?.[0]?.id;
+
+  // —— 被测景区由**闸机**决定，不用 `areas[0]` ——
+  //
+  // 闸机是种子里绑在某个景区上的，而核验接口按「这台闸机服不服务于这单的景区」判
+  // `GATE_NO_PERMISSION`。硬编码 `areas[0]` 的后果实测过：把运营景区换成另一家之后，
+  // 核验/开闸/核销/在园人数**整组断言一起红**，报的全是「该闸机不服务于本景区」——
+  // 看着像功能坏了，其实是「闸机绑的景区」和「areas[0]」不是同一家。
+  // 所以反过来推：找一台**所服务的景区仍然存在**的示例闸机，用它所在的景区当被测景区。
+  //
+  // ⚠️ 脚本用的是示例密钥 `dev-gate-secret-change-me`，所以只认种子里的 GATE001/002。
+  //    换成别的闸机要同步改 `GATE_SECRET`。
+  const gates = await api('GET', '/api/admin/gates', { token: adminToken });
+  const gateRows = gates.data ?? [];
+  const entryGate = gateRows.find((g) => g.gateNo === 'GATE001');
+  const exitGate = gateRows.find((g) => g.gateNo === 'GATE002');
+  const areaOf = (g) => (areas.data ?? []).find((a) => a.id === g?.scenicAreaId);
+
+  if (!entryGate || !areaOf(entryGate)) {
+    // 只有**一条**失败，而且写清怎么修 —— 以前这里会连坐 7 条，报的全是同一句「该闸机不服务于本景区」
+    check(
+      '示例闸机服务的景区仍然存在（否则 M3 链路无从执行）',
+      false,
+      `GATE001 现在绑在景区 id=${entryGate?.scenicAreaId ?? '(不存在)'}，而该景区已不在列表里；` +
+        `现有景区 id：${(areas.data ?? []).map((a) => a.id).join('/') || '(空)'}。` +
+        `核验/开闸/核销/在园人数这几组断言全部无从执行。` +
+        `修法：把闸机改绑到在营景区 —— 后台目前**没有新增/编辑闸机的入口**，只能改库：` +
+        `UPDATE gate_device SET scenic_area_id=<景区id> WHERE gate_no IN ('GATE001','GATE002')。`,
+    );
+    console.log(`\n=== 结果: ${pass} 通过 / ${fail} 失败（闸机没有服务于任何在营景区，提前中止）===\n`);
+    process.exit(1);
+  }
+
+  const areaId = entryGate.scenicAreaId;
+  if (!exitGate || exitGate.scenicAreaId !== areaId) {
+    check(
+      '出口闸机 GATE002 与入口在同一景区',
+      false,
+      `GATE002 绑的是景区 id=${exitGate?.scenicAreaId ?? '(不存在)'}，与入口的 ${areaId} 不一致；` +
+        `出园方向那几条断言会拿不到通行回执`,
+    );
+  }
+
   const types = await api('GET', `/api/admin/ticket-types?areaId=${areaId}`, { token: adminToken });
   const ticketTypeId = types.data?.[0]?.id;
 
@@ -151,10 +192,9 @@ async function main() {
     body: { ticketTypeId, startDate: today(), endDate: today(), total: 50 },
   });
 
-  const gates = await api('GET', '/api/admin/gates', { token: adminToken });
-  const entryGate = gates.data?.find((g) => g.gateNo === 'GATE001');
-  const exitGate = gates.data?.find((g) => g.gateNo === 'GATE002');
-  check('示例闸机已注册（入口+出口）', !!entryGate && !!exitGate, JSON.stringify(gates.data?.map((g) => g.gateNo)));
+  // 闸机与所属景区在开头就查过了（被测景区就是由它推出来的）
+  check('示例闸机已注册（入口+出口）', !!entryGate && !!exitGate, JSON.stringify(gateRows.map((g) => g.gateNo)));
+  check('入口闸机服务于本次被测景区', entryGate?.scenicAreaId === areaId, `GATE001 → 景区 ${entryGate?.scenicAreaId}，被测景区 ${areaId}`);
 
   // ---- 1. 闸机心跳与规则 ----
   console.log('[1] 闸机心跳与规则拉取');

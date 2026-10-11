@@ -112,10 +112,18 @@ async function main() {
       const one = await api('GET', `/api/admin/analysis/finance?${span}&areaId=${a.id}`, { token });
       sum += one.data?.grossAmount ?? 0;
     }
+    // ⚠️ 这条恒等式只有在「没有孤儿订单」时才成立：景区被**硬删**之后，它的历史订单
+    // 仍然带着那个已被删除的 `scenic_area_id`，于是「全部」算得到、而「逐景区求和」遍历的是
+    // **现存**景区列表、算不到 —— 差额恰好是那部分。实测过：删掉示例景区后差额 1136000 分。
+    // 这不算误报，它指向的是一件真事（删景区不校验有没有订单，历史单会被按景区看时"消失"、
+    // 但总额里还算着），所以这里**不改成 ≥**，而是把差额点名说清楚。
+    const orphan = (all.data?.grossAmount ?? 0) - sum;
     check(
       '运营分析：不传 areaId 的收入 = 各景区之和（不是默认 1 号景区）',
-      all.data?.grossAmount === sum,
-      `全部 ${all.data?.grossAmount} vs 逐景区 ${sum}（${list.length} 个景区）`,
+      orphan === 0,
+      orphan > 0
+        ? `全部 ${all.data?.grossAmount} vs 现存 ${list.length} 个景区之和 ${sum}；差额 ${orphan} 分挂在**已删除景区**的历史订单上（删景区时不校验订单，见 CLAUDE.md 已知偏差）`
+        : `全部 ${all.data?.grossAmount} 反而小于逐景区之和 ${sum}（${list.length} 个景区）—— 这才是真的回落/过滤错`,
     );
 
     // 导出同理：不传 areaId 应当能出 CSV（以前会静默导出 1 号景区）
