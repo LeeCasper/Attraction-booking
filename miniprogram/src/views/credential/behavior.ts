@@ -3,7 +3,7 @@ import { areaApi, orderApi, visitorApi, type OrderDetail, type OrderSummary } fr
 import { errorText } from '@/api/request';
 import { currentOrderId, setCurrentOrderId } from '@/store/order';
 import { platformSettings } from '@/store/settings';
-import { hhmm } from '@/utils/format';
+import { hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
  * 动态防伪电子凭证页。
@@ -192,6 +192,8 @@ export function useCredentialPage() {
       .map((o) => ({
         id: o.id,
         date: o.reservation?.date ?? '',
+        dateLabel: shortDate(o.reservation?.date ?? ''),
+        weekLabel: weekdayOf(o.reservation?.date ?? ''),
         ticketName: o.ticketName,
         remaining: Math.max(0, (o.reservation?.totalCount ?? o.itemCount) - (o.reservation?.verifyCount ?? 0)),
         refundPending: REFUND_PENDING_STATUS.includes(o.refundStatus ?? -1),
@@ -209,6 +211,55 @@ export function useCredentialPage() {
     if (id === activeId.value) return;
     setCurrentOrderId(id);
   }
+
+  // —— 凭证选择条的渐隐与卡片样式 ——
+  //
+  // ⚠️ 这一条**不走组件**（原来是 `CredentialPicker.vue`），直接写在页面模板里，
+  // 与购票页那条日期条同一个做法。原因见 `page-bindings.mjs` 的 `#credentialPicker` 注解：
+  // 组件形态下「切走再切回整块就不见了」，而页面模板里的普通 v-if 块（比如二维码那块）一直好好的。
+  //
+  // 左侧遮罩只在滚过之后出现；**右侧遮罩常显** —— 它从页面底色渐变到透明，
+  // 内容装得下时那片区域本来就是底色，看不出来（与分类条同一条口径）。
+  const credFadeLeft = ref(false);
+  const onCredScroll = (e: { detail?: { scrollLeft?: number } }) => {
+    credFadeLeft.value = (e.detail?.scrollLeft ?? 0) > 4;
+  };
+
+  const CRED_CARD_BASE =
+    'shrink-0 snap-start relative flex flex-col items-start gap-0_5 w-88px px-2 py-2 rounded-xl border shadow-xs transition-all select-none cursor-pointer';
+  const CRED_CARD_ON =
+    'border-primary bg-gradient-to-b from-primary to-deep-teal-800 text-on-primary shadow-0_2px_8px_rgba0104950_22';
+  const CRED_CARD_ON_REFUND =
+    'border-dashed border-white_20 bg-gradient-to-b from-primary to-deep-teal-800 text-on-primary shadow-0_2px_8px_rgba0104950_22';
+  const CRED_CARD_OFF = 'border-silk-border bg-paper-surface text-ink-charcoal-text';
+  const CRED_CARD_REFUND = 'border-dashed border-amber-gold_30 bg-amber-gold_15';
+  const CRED_PILL_ON =
+    'flex items-center gap-1 text-10px font-medium bg-white_20 px-2 py-0_5 rounded-full leading-none';
+  const CRED_PILL_LEFT =
+    'flex items-center gap-1 text-10px text-primary bg-mist-cyan-50 border border-primary_15 px-2 py-0_5 rounded-full font-medium leading-none';
+  const CRED_PILL_REFUND =
+    'flex items-center gap-1 text-10px text-tertiary-container bg-amber-gold_15 border border-amber-gold_30 px-2 py-0_5 rounded-full font-medium leading-none';
+  const CRED_DOT_ON = 'w-2_5 h-2_5 rounded-full bg-white animate-pulse';
+  const CRED_DOT_REFUND = 'w-2_5 h-2_5 rounded-full bg-amber-gold animate-pulse';
+
+  const credCardClass = (c: CredentialOption) => {
+    const on = c.id === activeId.value;
+    if (on) return `${CRED_CARD_BASE} ${c.refundPending ? CRED_CARD_ON_REFUND : CRED_CARD_ON}`;
+    return `${CRED_CARD_BASE} ${c.refundPending ? CRED_CARD_REFUND : CRED_CARD_OFF}`;
+  };
+  const credWeekClass = (c: CredentialOption) =>
+    c.id === activeId.value ? 'font-caption-sm text-10px opacity-90' : 'font-caption-sm text-10px text-ink-light-gray';
+  const credTicketClass = (c: CredentialOption) =>
+    c.id === activeId.value ? 'text-11px opacity-90 w-full truncate' : 'text-11px text-ink-light-gray w-full truncate';
+  const credPillClass = (c: CredentialOption) => {
+    const on = c.id === activeId.value;
+    if (c.refundPending) return on ? CRED_PILL_ON : CRED_PILL_REFUND;
+    return on ? CRED_PILL_ON : CRED_PILL_LEFT;
+  };
+  const credDotClass = (c: CredentialOption) =>
+    c.id === activeId.value ? CRED_DOT_ON : CRED_DOT_REFUND;
+  const credHoverClass = (c: CredentialOption) =>
+    c.id === activeId.value ? 'pg-hover' : 'active-scale-95 pg-hover';
 
   /** 按订单的 scenicAreaId 查景点名。查不到（景点已下架）就留空，别乱填一个 */
   async function loadAreaName(areaId: number): Promise<string> {
@@ -364,6 +415,14 @@ export function useCredentialPage() {
     credentials,
     activeId,
     onPickCredential,
+    credFadeLeft,
+    onCredScroll,
+    credCardClass,
+    credWeekClass,
+    credTicketClass,
+    credPillClass,
+    credDotClass,
+    credHoverClass,
     refundPending,
     refundHintText,
     refundButtonLabel,
@@ -399,6 +458,10 @@ export interface CredentialOption {
   id: number;
   /** `yyyy-MM-dd` */
   date: string;
+  /** `10-11`（模板里够不到 utils，格式化放在这里） */
+  dateLabel: string;
+  /** `周六` */
+  weekLabel: string;
   ticketName: string;
   /** 还没核销的人数（`totalCount - verifyCount`）—— 卡片上显示「余 N 人」 */
   remaining: number;

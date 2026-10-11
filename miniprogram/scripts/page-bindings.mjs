@@ -92,7 +92,6 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     imports: [
       "import { watch } from 'vue';",
       "import DynamicQr from '@/components/DynamicQr.vue';",
-      "import CredentialPicker from '@/components/CredentialPicker.vue';",
       "import PassPicker from '@/components/PassPicker.vue';",
       "import { useCredentialPage } from './behavior';",
     ],
@@ -100,7 +99,9 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
   qrToken, qrHint, countdownLabel, refreshAfterLabel, qrSpinning, refreshQr, watermarks, onExport, onOrders,
   passModes, passMode, onPickPassMode,
   periodLabel, areaName, holderLabel, statusLabel,
-  credentials, activeId, onPickCredential, refundPending, refundHintText, refundButtonLabel, credentialNo, load,
+  credentials, activeId, onPickCredential, credFadeLeft, onCredScroll,
+  credCardClass, credWeekClass, credTicketClass, credPillClass, credDotClass, credHoverClass,
+  refundPending, refundHintText, refundButtonLabel, credentialNo, load,
 } = useCredentialPage();
 // 首次可见时才拉数据
 watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
@@ -128,15 +129,42 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 二维码那个白框：退款中把描边与光环换成琥珀色（框本身就在提示「这里现在不是码」）
       'relative w-[218px] h-[218px] bg-white rounded-2xl border-2 border-primary/30 p-2.5 shadow-sm flex items-center justify-center ring-4 ring-mist-cyan-50':
         { class: { 'is-blocked': 'refundPending' } },
-      // 凭证选择条。⚠️ **这里和组件里都不要写 `v-if`** ——
-      // 它原来是「多于一张才渲染」，而那是它与「景点选择页的分类条」（同结构、一直正常）
-      // **唯一**的结构差异；表现是首次进入正常、切走再切回整块不见了（数据没问题）。
-      // 把条件从组件节点挪进组件根节点也没用，最后直接一个条件都不留，与分类条逐字一致。
-      // 一张凭证时多显示一张卡不影响什么，零张时那一栏也是空的。
+      // 凭证选择条：**直接写成页面模板里的标记，不走组件**。
+      //
+      // 为什么不用组件（原来是 `CredentialPicker.vue`）：这一块在真机/工具里
+      // **首次进入正常、切走再切回就不见了**（数据没问题 —— 库里该用户有 7 张可用凭证，
+      // 同一屏的凭证卡与二维码都照常渲染）。试过两轮「把条件渲染挪位置」都没用，
+      // 于是换成与「购票页日期条」同一个做法：版式写在页面模板里、状态放在 behavior 里。
+      // 页面模板里的普通块（比如二维码那块 `v-if="!refundPending"`）一直渲染得好好的，
+      // 这是本项目里**已被真机验证过**的写法。
+      //
+      // ⚠️ 这里**不要**给它加 `v-if`：`credentials` 为空时下面的 v-for 自然不渲染，
+      // 只剩一条空的渐变条（内容为空 = 看不出来）。
       '#credentialPicker': {
-        replace: '<CredentialPicker :items="credentials" :value="activeId" @change="onPickCredential" />',
+        replace:
+          '<view class="relative -mx-margin mb-2">' +
+          // 两端渐隐：左侧滚过才出现；右侧常显（从页面底色渐变到透明，装得下时看不出来）
+          '<view class="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-surface to-transparent z-10 transition-opacity duration-200" :style="{ opacity: credFadeLeft ? 0.9 : 0 }" />' +
+          '<view class="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent z-10 transition-opacity duration-200" style="opacity: 0.9" />' +
+          '<scroll-view class="w-full pg-cred-scroll" scroll-x="true" :show-scrollbar="false" style="scroll-behavior: smooth" @scroll="onCredScroll">' +
+          '<view class="flex items-center gap-2_5 min-h-44px">' +
+          '<view v-for="c in credentials" :key="c.id" :class="credCardClass(c)" :hover-class="credHoverClass(c)" @tap="onPickCredential(c.id)">' +
+          '<view class="flex items-center justify-between w-full">' +
+          '<text class="font-data-metric-md text-15px font-bold leading-none">{{ c.dateLabel }}</text>' +
+          '<text :class="credWeekClass(c)">{{ c.weekLabel }}</text>' +
+          '</view>' +
+          '<text :class="credTicketClass(c)">{{ c.ticketName || \'门票\' }}</text>' +
+          '<text :class="credPillClass(c)">' +
+          '<text v-if="c.refundPending" :class="credDotClass(c)" />' +
+          '<text>{{ c.refundPending ? \'退款中\' : `余 ${c.remaining} 人` }}</text>' +
+          '</text>' +
+          // 选中卡底部的小三角，指向下面那张凭证卡
+          '<view v-if="c.id === activeId" class="absolute -bottom-2 left-1_2 -translate-x-1_2 w-0 h-0 border-x-4 border-x-transparent border-t-6px border-t-primary_30" />' +
+          '</view>' +
+          '</view>' +
+          '</scroll-view>' +
+          '</view>',
       },
-      // 凭证号（服务端从预约派生）。拿不到整行不渲染，别留一个空的「凭证号」
       '#credentialNoRow': { class: { 'is-hidden': '!credentialNo' } },
       '#credentialNoText': { text: 'credentialNo' },
       // 去掉二维码正中的景区 logo。两个理由：
@@ -195,6 +223,15 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     // 点刷新时让 refresh 图标转一圈（设计稿的 active:rotate-180 只在按住时转 180°）
     // `is-dimmed`：退款审核中时把「退款中」那颗按钮压暗（点了会提示原因，见 behavior）
     style: `.pg-page .is-spinning { animation: pg-spin 600ms linear; }
+/* 凭证选择条（原组件里的那三条，随版式一起挪进页面）：内边距与吸附属于**滚动容器**，
+   放内容上会被吸附滚掉、第一张卡贴屏幕边；min-height 是防止真机 hide/show 后塌成 0 */
+.pg-page .pg-cred-scroll {
+  min-height: 140rpx;
+  padding: 15.38rpx 30.77rpx;
+  scroll-padding-left: 30.77rpx;
+  scroll-padding-right: 30.77rpx;
+  scroll-snap-type: x proximity;
+}
 .pg-page .is-dimmed { opacity: 0.55; }
 .pg-page .is-hidden { display: none; }
 /* 退款审核中：二维码那个白框整体换成琥珀（与框里那块说明同一个语义） */
