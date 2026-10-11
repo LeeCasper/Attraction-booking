@@ -7,6 +7,11 @@
 #   docker compose -f docker-compose.prod.yml run --rm tools npm run seed   # 首次初始化数据
 #   docker compose -f docker-compose.prod.yml run --rm tools npm run smoke  # 冒烟
 #
+# 三个宿主机目录（可用环境变量覆盖）：
+#   UPLOADS_DIR=/srv/attraction/uploads   上传的图（nginx 直接读它，必须与 vhost 的 alias 一致）
+#   CERTS_DIR=/srv/attraction/certs       微信支付商户证书
+#   API_PORT=3000                         发布到宿主机的端口（nginx 反代到这里）
+#
 # ⚠️ 为什么 nginx 不在这个文件里：这台机器上**宿主机 nginx 已经在跑**（ai.artaides.com
 #    的站点 + Let's Encrypt 证书），再起一个容器 nginx 会抢 80/443，把那个站点一起搞挂。
 #    所以入口交给宿主机 nginx（vhost 见 `deploy/nginx/res.artaides.com.conf`），
@@ -72,6 +77,10 @@ services:
     volumes:
       # 上传的图**必须落在宿主机目录**：一是重部署不丢，二是 nginx 要直接读它
       - ${UPLOADS_DIR:-/srv/attraction/uploads}:/app/uploads
+      # 微信支付商户证书（apiclient_key.pem）。现在 WXPAY_MOCK=true 用不到，
+      # 但目录先挂好：以后把证书丢进 /srv/attraction/certs 就能开真实支付，不用改这份编排。
+      # 只读挂载：应用只需要读它。
+      - ${CERTS_DIR:-/srv/attraction/certs}:/app/certs:ro
     depends_on:
       mysql:
         condition: service_healthy

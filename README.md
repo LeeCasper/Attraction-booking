@@ -16,8 +16,8 @@
 ├── admin-web/       # 后台管理（Vue3 + Element Plus）
 ├── miniprogram/     # 游客端小程序（uni-app + Vue3 + Vite + TS）
 ├── gate-simulator/  # 闸机模拟器（联调用）
-├── deploy/          # docker-compose、SQL 初始化、nginx 配置
-└── docs/            # 部署运维、操作手册、测试报告
+├── deploy/          # docker-compose（dev + prod）、SQL 初始化、nginx vhost
+└── docs/            # 部署流程（照着敲的 runbook）、部署运维、操作手册、测试报告
 ```
 
 各子工程的技术细节见各自的 README（`server/` 的约束写在根目录 `CLAUDE.md`）。
