@@ -44,6 +44,17 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 const hhmmss = (d = new Date()) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
 export function useCredentialPage() {
+  /**
+   * 凭证选择条的**重建键**。
+   *
+   * 这一条是外壳视图里的 `<scroll-view scroll-x>`，跨「隐藏 → 显示」会带着上一次的布局状态回来
+   * （真机表现是整条空白）。原先只用 `v-if="props.active"` 管住了「切 tab 回来」那一路，
+   * 但**从二级页（订单详情 / 支付页）返回**时 `active` 全程是 true、`v-if` 不触发 ——
+   * 所以再挂一个 `shellShowTick` 当 key（外壳 `onShow` 递增），它一变就重建。
+   * 分类条那条是同一个处理，见 `page-bindings.mjs` 的 `#categoryTabs`。
+   */
+  const tabsKey = computed(() => shellShowTick.value);
+
   const loading = ref(false);
   const error = ref('');
   const order = ref<OrderDetail | null>(null);
@@ -446,6 +457,7 @@ export function useCredentialPage() {
     onPickCredential,
     credFadeLeft,
     onCredScroll,
+    tabsKey,
     credCardClass,
     credWeekClass,
     credAreaClass,

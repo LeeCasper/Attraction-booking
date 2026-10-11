@@ -102,6 +102,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       "import { useCredentialPage } from './behavior';",
     ],
     setup: `const {
+  tabsKey,
   qrToken, qrHint, countdownLabel, refreshAfterLabel, qrSpinning, refreshQr, watermarks, onExport, onOrders,
   passModes, passMode, onPickPassMode,
   periodLabel, areaName, holderLabel, statusLabel,
@@ -150,7 +151,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 不带上一次的滚动位置/布局状态回来（对 `scroll-view` 跨显隐保状态那个老毛病是廉价保险）。
       '#credentialPicker': {
         replace:
-          '<view v-if="props.active" class="relative -mx-margin mb-2">' +
+          '<view v-if="props.active" :key="tabsKey" class="relative -mx-margin mb-2">' +
           // 两端渐隐：左侧滚过才出现；右侧常显（从页面底色渐变到透明，装得下时看不出来）
           '<view class="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-surface to-transparent z-10 transition-opacity duration-200" :style="{ opacity: credFadeLeft ? 0.9 : 0 }" />' +
           '<view class="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent z-10 transition-opacity duration-200" style="opacity: 0.9" />' +
@@ -424,7 +425,7 @@ onLoad(() => { void load(); });`,
     ],
     setup: `const {
   loading, error,
-  keyword, categories, category, filterVisible, filterOptions,
+  tabsKey, keyword, categories, category, filterVisible, filterOptions,
   filteredAreas, presenceLabel, contactLine, stockStatus, isActive,
   onPickCategory, openFilter, closeFilter, onPickArea, onBook, filterItemClass, load,
 } = useAreaPage();
@@ -453,8 +454,17 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 分类胶囊条：改成数据驱动的组件，点击真筛
       // 分类条：只列分类本身（`categories`）。数量是「筛选」弹层里才要的信息 ——
       // 弹层里一行一个分类、带个数字很好读；放到横滑卡片的第二行就显得啰嗦
+      //
+      // ⚠️ `v-if="props.active"` + `:key="tabsKey"` 不是可有可无的：这一条是外壳视图里的
+      // `<scroll-view scroll-x>`，真机上出现过**切走再切回来整条空白**（容器还在、芯片没了）。
+      // 两个入口都要重建，缺一个都不行：
+      //   · 切 tab 回来 —— `v-if="props.active"` 会在隐藏时销毁、回来时重建
+      //   · **从二级页（购票页等）返回** —— 这一路 `active` 全程是 true，`v-if` 不触发，
+      //     所以 key 挂在 `shellShowTick` 上（外壳 `onShow` 递增），它一变就重建
+      // 凭证页那条凭证切换条踩的是同一个坑（那边只有 `v-if="props.active"`，见 `#credentialPicker`）。
       '#categoryTabs': {
-        replace: '<CategoryTabs :items="categories" :value="category" @change="onPickCategory" />',
+        replace:
+          '<CategoryTabs v-if="props.active" :key="tabsKey" :items="categories" :value="category" @change="onPickCategory" />',
       },
       // 承载横幅：设计稿把呼吸点和文案写在同一个 span 里，没法只换文案 → 整块换组件
       'bg-surface-container-low rounded-xl p-3 flex items-start gap-2.5 shadow-sm': {

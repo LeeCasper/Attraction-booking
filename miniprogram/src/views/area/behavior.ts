@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { areaApi, type AreaOverview } from '@/api';
 import { errorText } from '@/api/request';
 import { platformSettings } from '@/store/settings';
-import { currentAreaId, setCurrentArea } from '@/store/shell';
+import { currentAreaId, setCurrentArea, shellShowTick } from '@/store/shell';
 import {
   CAPACITY_LABEL,
   CATEGORIES,
@@ -32,7 +32,23 @@ export interface FilterSheetOption extends CategoryOption {
   count: number;
 }
 
+/**
+ * 分类条的**重建键**。
+ *
+ * 这一条是外壳视图里的 `<scroll-view scroll-x>`，而小程序里 `scroll-view` 跨「隐藏 → 显示」
+ * 会带着上一次的布局状态回来（真机表现就是**整条空白**：容器还在、芯片没了 —— 用户报过两次，
+ * 上一次是凭证页那条凭证切换条，修法一样）。所以每次「这一格重新可见」时把它**重建**一次：
+ * 新建的 `scroll-view` 是在**可见状态**下算出尺寸的，不带隐藏期间的 0 宽布局回来。
+ *
+ * 两个来源都要盯（视图里 `props.active` 只管得住第一个）：
+ *   - 切 tab 回来 → `v-if="props.active"` 直接重建
+ *   - **从二级页返回** → `active` 全程是 true，只能靠 `shellShowTick`（外壳 `onShow` 递增）
+ * 同一个「切走再切回来」在凭证页那条上也踩过，见 `page-bindings.mjs` 的注解。
+ */
 export function useAreaPage() {
+  /** 分类条的重建键 —— 见文件里 `useAreaPage` 上方那段说明 */
+  const tabsKey = computed(() => shellShowTick.value);
+
   const loading = ref(false);
   const error = ref('');
   const areas = ref<AreaOverview[]>([]);
@@ -152,6 +168,7 @@ export function useAreaPage() {
     error,
     keyword,
     /** 分类条只列分类本身；「筛选」弹层用的是带数量的 `filterOptions` */
+    tabsKey,
     categories: CATEGORIES,
     category,
     filterVisible,
