@@ -403,12 +403,14 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     imports: [
       "import { watch } from 'vue';",
       "import PassFilter from '@/components/PassFilter.vue';",
+      "import RecentOrderCard from '@/components/RecentOrderCard.vue';",
       "import ProfileVisitors from '@/components/ProfileVisitors.vue';",
       "import AppToast from '@/components/AppToast.vue';",
       "import { useProfilePage } from './behavior';",
     ],
     setup: `const {
-  passTabs, passTab, onPickPassTab, areaName, appVersionLabel, visitors, stats, loading, error,
+  passTabs, passTab, onPickPassTab, recentOrder, onRecentPrimary, onRecentSecondary,
+  appVersionLabel, visitors, stats, loading, error,
   toastVisible, toastText, onRefreshOfflineToken, onManageVisitors, onAllOrders, load,
 } = useProfilePage();
 // 首次可见时才拉数据
@@ -422,8 +424,14 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       'grid grid-cols-2 gap-2.5': {
         replace: '<ProfileVisitors :visitors="visitors" />',
       },
-      // 行程卡上的景点名：设计稿写死「枫林谷森林公园」，多景区下应跟随当前景点
-      'font-headline-md text-sm font-bold text-ink-charcoal-text': { text: 'areaName' },
+      // 「最近一单」卡片：**跟着上面选中的那一格走**（本轮改的）。
+      // 以前这张卡是写死的 mock 行程 —— 四格点哪个都一样，因为四格都只是跳到订单列表。
+      // 现在点某一格 → 这张卡切到那一态最近的一单；「全部预约单」才是进列表的入口。
+      // id 是本轮补的（卡片那几个类没有更特异的，见 README 的「设计稿里补过的 id」）。
+      '#recentPassCard': {
+        replace:
+          '<RecentOrderCard :view="recentOrder" @primary="onRecentPrimary" @secondary="onRecentSecondary" />',
+      },
       // 页脚版本行：设计稿写死「枫林谷智慧文旅 V1.2.0」，改为平台名称 + 版本号。
       // 这一行**没有任何 class**（`<span class="">`），class 定位不了 ——
       // 所以在 design/reference/profile.html 里给它补了 `id="app-version"`，
