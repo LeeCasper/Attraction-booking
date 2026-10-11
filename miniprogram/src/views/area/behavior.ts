@@ -3,6 +3,13 @@ import { areaApi, type AreaOverview } from '@/api';
 import { errorText } from '@/api/request';
 import { platformSettings } from '@/store/settings';
 import { currentAreaId, setCurrentArea } from '@/store/shell';
+import {
+  CAPACITY_LABEL,
+  CATEGORIES,
+  areaStockStatus,
+  capacityTone,
+  type CategoryOption,
+} from '@/utils/area';
 
 /**
  * 景区选择页（设计稿叫「景点选择与预约」）。
@@ -20,30 +27,10 @@ import { currentAreaId, setCurrentArea } from '@/store/shell';
  *     必然重叠。改为文档流里的标题栏 + 状态栏占位 + 胶囊内边距，与其余二级页一致
  */
 
-export interface CategoryOption {
-  id: string;
-  label: string;
-}
-
-/**
- * 分类口径必须与后端 `scenic_area.category` 的枚举一致
- * （`main` / `nature` / `culture` / `cable` / `night`），`all` 是前端的概念。
- */
-export const CATEGORIES: CategoryOption[] = [
-  { id: 'all', label: '全部景点' },
-  { id: 'main', label: '主景区' },
-  { id: 'nature', label: '自然风光' },
-  { id: 'culture', label: '历史人文' },
-  { id: 'cable', label: '索道缆车' },
-  { id: 'night', label: '夜游演艺' },
-];
 
 export interface FilterSheetOption extends CategoryOption {
   count: number;
 }
-
-/** 余票低于这个数算「紧张」（口径与购票页的 `TIGHT_THRESHOLD` 保持一致） */
-const TIGHT_THRESHOLD = 50;
 
 export function useAreaPage() {
   const loading = ref(false);
@@ -89,8 +76,7 @@ export function useAreaPage() {
     const s = summary.value;
     if (!s || s.maxCapacity <= 0) return '承载数据待接入';
     const pct = Math.round(s.capacityRate * 100);
-    const tone = s.capacityRate < 0.5 ? '舒适' : s.capacityRate < 0.8 ? '较忙' : '拥挤';
-    return `当前承载${tone} (${pct}%)`;
+    return `当前承载${CAPACITY_LABEL[capacityTone(s.capacityRate)]} (${pct}%)`;
   });
 
   /** 页脚客服热线。平台信息里没配电话就整行不显示 —— 不留一个「客服热线：」的空壳 */
@@ -99,13 +85,11 @@ export function useAreaPage() {
     return phone ? `客服热线：${phone}` : '';
   });
 
-  /** 卡片的余票状态（真实余票推导，取代设计稿写死的「热度 98%」之类） */
-  const stockStatus = (a: AreaOverview): 'none' | 'full' | 'tight' | 'ok' => {
-    if (!a.hasSlots || a.minPrice === null) return 'none';
-    if (a.remaining <= 0) return 'full';
-    if (a.remaining < TIGHT_THRESHOLD) return 'tight';
-    return 'ok';
-  };
+  /**
+   * 卡片的余票状态（真实余票推导，取代设计稿写死的「热度 98%」之类）。
+   * 判定口径在 `@/utils/area` —— 首页的「推荐景点」卡片用同一个函数。
+   */
+  const stockStatus = areaStockStatus;
 
   /**
    * 当前选中的是不是它。
@@ -143,6 +127,12 @@ export function useAreaPage() {
   function pick(a: AreaOverview, goBooking: boolean) {
     setCurrentArea(a.id);
     if (goBooking) {
+      // 没有可售票种的景点（只配了「按张卖」的票种）不进购票页 —— 进去也买不了，
+      // 页面上只会是一堆「—」。卡片上本来就把价格位换成了「暂无可售票种」，这里再说明一次
+      if (stockStatus(a) === 'none') {
+        uni.showToast({ title: `${a.name}暂无可在线预约的票种`, icon: 'none', duration: 2500 });
+        return;
+      }
       uni.navigateTo({ url: '/pages/booking/index' });
       return;
     }

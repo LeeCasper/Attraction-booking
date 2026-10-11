@@ -1,14 +1,17 @@
 import { computed, getCurrentInstance, onMounted, reactive, ref, watch } from 'vue';
 import { areaApi, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
 import { errorText } from '@/api/request';
-import { currentAreaId, selectedTicketTypeId } from '@/store/shell';
+import { currentAreaId } from '@/store/shell';
 import { dayOffsetStr, fen2yuan, hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
  * 分时预约购票页：数据来自后端，交互状态本地维护。
  *
  * 与设计稿的对应关系（生成器按 id/class 把组件注进设计稿版式）：
- *   日期条 / 时段格 / 出行游客登记 / 底部待付条 —— 四个都是手写组件，见 page-bindings.mjs
+ *   票种列表 / 日期条 / 时段格 / 出行游客登记 / 底部待付条 —— 都是手写组件，见 page-bindings.mjs
+ *
+ * 「选择票种」那一节**是后加的**（设计稿把票种写死在顶卡上，按单景区单票种画的）：
+ * 后台一个景点可以配多个票种，而从「景点选择」页进来的用户原先没有任何换票种的入口。
  *
  * 几处**后端没有对应字段、只能前端定口径**的地方，都在下面标了「口径」：
  *   - 日期的「充足/紧张/约满」：后端只给余量数字，没有状态字段 → 按阈值分档
@@ -110,6 +113,8 @@ export function useBookingPage() {
   const ticketTypeId = ref<number | null>(null);
   /** 选中的票种本体 —— 顶部那张「票种头卡」要显示它的名称/副标题/价格 */
   const ticket = ref<MiniTicket | null>(null);
+  /** 「选择票种」那一节的可选项：本景点**按人计价**的票种（按张卖的进不了购票流程） */
+  const ticketOptions = ref<MiniTicket[]>([]);
   /** 当前景点名 —— 头卡标题「{景点} · 景区门票」用它，不再写死某个景点的名字 */
   const areaName = ref('');
   const dates = ref<DateOption[]>([]);
@@ -160,24 +165,76 @@ export function useBookingPage() {
   }
 
   /**
-   * 上一次加载用的票种。用来判断「选中的票种变了没有」——
-   * 变了就必须重新取价与余票，不能因为「已经加载过」就跳过。
+   * 重算整条日期条的「充足 / 紧张 / 约满」。
+   *
+   * **换票种之后必须重算**：余票是按「票种 + 日期」查的，新票种在这 8 天里的余量
+   * 与旧票种毫无关系（成人票约满的日子，优待票可能还有）。日期条只显示档位、
+   * 不显示具体张数，所以这里只重取分档、不动别处。
    */
-  let loadedTicketTypeId: number | null = null;
+  async function refreshDateTones() {
+    const days = dates.value.map((d) => d.value);
+    const lists = await Promise.all(days.map((d) => loadStocks(d)));
+    dates.value = dates.value.map((d, i) => ({
+      ...d,
+      tone: dateToneOf(lists[i]!.reduce((sum, s) => sum + s.available, 0)),
+    }));
+  }
+
+  /**
+   * 换票种。
+   *
+   * 三件事，顺序不能反：
+   *   ① 先改 `ticketTypeId`/`unitPrice` —— 余票缓存的 key 与「底部待付金额」都由它派生
+   *   ② 再刷**当前日期**的时段（立刻能看到新票种还剩多少），然后重算整条日期条的分档
+   *   ③ 当前日期在新票种下可能已经约满 —— 那就落到最近一个没约满的日子并说明，
+   *      否则用户会停在一个「所有时段都点不动」的日期上，看起来像页面坏了
+   *
+   * 出行人不用动（人级状态，与票种无关）；余票缓存也**不清** —— key 带票种，
+   * 换回原来那种票时还能命中。
+   */
+  async function onPickTicketType(id: number) {
+    if (id === ticketTypeId.value) return;
+    const chosen = ticketOptions.value.find((t) => t.id === id);
+    if (!chosen) return;
+
+    ticketTypeId.value = chosen.id;
+    ticket.value = chosen;
+    unitPrice.value = chosen.price;
+
+    try {
+      applySlots(await loadStocks(date.value));
+      await refreshDateTones();
+      // ⚠️ 先把原选项整个记下来：`pickDate()` 会把 `date` 改掉，回头再拼文案会变成
+      // 「10-12 已约满，已切到 10-12」这种自相矛盾的提示。
+      // 文案用的是日期条上的 `label`（`10-12`）而不是 `value`（`2026-10-12`）—— 与卡片一致
+      const from = dates.value.find((d) => d.value === date.value);
+      if (from?.tone === 'full') {
+        const next = dates.value.find((d) => d.tone !== 'full');
+        if (next) {
+          await pickDate(next.value);
+          uni.showToast({
+            title: `${from.label} 该票种已约满，已切到 ${next.label}`,
+            icon: 'none',
+            duration: 2500,
+          });
+        }
+      }
+    } catch (err) {
+      uni.showToast({ title: errorText(err), icon: 'none', duration: 2500 });
+    }
+  }
+
   /**
    * 「在哪个景点加载过」。`undefined` = 从没加载过。
-   * 原来只有 `loadedTicketTypeId`（只比票种），切景点后票种 id 一旦撞上就不重取。
+   *
+   * ⚠️ 以前还记着一个 `loadedTicketTypeId`（首页点某张票卡会改票种）。首页那一节
+   * 已经改成「推荐景点」、不再售票种，**票种改在本页选**，所以只剩这一个判断。
    */
   let loadedForArea: number | null | undefined;
 
-  /** 首次可见时加载；`force` 用于重试 */
+  /** 进入页面时加载；`force` 用于重试 */
   async function load(force = false) {
-    // 首页点了另一张票卡时 selectedTicketTypeId 会变，这时必须重取 ——
-    // 价格、余票、下单用的 ticketTypeId 全都是按票种走的。
-    // ⚠️ 「在哪个景点」也要一起比：只比票种的话，切景点后万一票种 id 撞上就**不会重取**
-    const wanted = selectedTicketTypeId.value;
-    const sameArea = loadedForArea !== undefined && loadedForArea === currentAreaId.value;
-    if (!force && sameArea && loadedTicketTypeId === wanted) return;
+    if (!force && loadedForArea !== undefined && loadedForArea === currentAreaId.value) return;
     loading.value = true;
     error.value = '';
     try {
@@ -189,15 +246,17 @@ export function useBookingPage() {
 
       const today = dayOffsetStr(0);
       const tickets = await ticketApi.list(area.id, today);
-      // 只取**按人计价**的票种：按张的（如家庭年卡）后端只有「单价 × 人数」这一种计价，
-      // 放进购票流程会把金额算错（¥388 × 人数）。首页那边也会拦住不让进来，
+      // 只列**按人计价**的票种：按张的（如家庭年卡）后端只有「单价 × 人数」这一种计价，
+      // 放进购票流程会把金额算错（¥388 × 人数）。首页/景点选择页都会拦住不让进来，
       // 这里是兜底 —— 万一运营把某个票种改成了按张，也不能算出错的金额。
       const sellable = tickets.filter((t) => t.saleUnit === 'person');
-      const chosen = (wanted ? sellable.find((t) => t.id === wanted) : undefined) ?? sellable[0] ?? tickets[0];
-      if (!chosen) throw new Error('该景区暂无可售票种');
+      ticketOptions.value = sellable;
+      const chosen = sellable[0];
+      // 一个可售票种都没有：如实说，别拿一个按张卖的票种硬顶（那会算错金额）
+      if (!chosen) throw new Error('该景区暂无可在线预约的票种');
 
-      // 换票种 → 旧余票全部作废（缓存 key 带票种，不清也不会串，但没必要留着占内存）
-      if (ticketTypeId.value !== null && ticketTypeId.value !== chosen.id) stockByDate.clear();
+      // 换景点 → 旧余票全部作废（缓存 key 带景点吗？不带 —— 换景点时票种 id 也可能撞上）
+      stockByDate.clear();
       ticketTypeId.value = chosen.id;
       ticket.value = chosen;
       unitPrice.value = chosen.price;
@@ -205,19 +264,20 @@ export function useBookingPage() {
       // 日期条：今天起 N 天，逐日取余票汇总来分档
       const days = Array.from({ length: DATE_COUNT }, (_, i) => dayOffsetStr(i));
       const dayStocks = await Promise.all(days.map((d) => loadStocks(d)));
-      dates.value = days.map((d, i) => {
-        const total = dayStocks[i].reduce((sum, s) => sum + s.available, 0);
-        return { value: d, week: weekdayOf(d), label: shortDate(d), tone: dateToneOf(total) };
-      });
+      dates.value = days.map((d, i) => ({
+        value: d,
+        week: weekdayOf(d),
+        label: shortDate(d),
+        tone: dateToneOf(dayStocks[i]!.reduce((sum, s) => sum + s.available, 0)),
+      }));
 
       // 出行人
       await refreshVisitors();
 
       date.value = dates.value[0]!.value;
       applySlots(dayStocks[0]!);
-      // 全部成功后才记「已加载的景点 + 票种」——中途失败时保持原值，下次可见会自动重试
+      // 全部成功后才记「已加载的景点」——中途失败时保持原值，下次进入会自动重试
       loadedForArea = currentAreaId.value;
-      loadedTicketTypeId = chosen.id;
     } catch (err) {
       error.value = errorText(err);
     } finally {
@@ -228,8 +288,8 @@ export function useBookingPage() {
   /**
    * 切景点 → 作废并重取。
    *
-   * `setCurrentArea` 已经清了 `selectedTicketTypeId`，但**余票缓存必须在这里清**：
-   * `stockByDate` 的 key 是「票种 + 日期」，跨景点必须整体作废。
+   * 余票缓存**必须在这里清**：它的 key 是「票种 + 日期」，换景点后这两个东西全变了
+   * （`ticketOptions` 会整份换掉），留着只会是一堆用不上的数据。
    * 另外选择景点是二级页，push 期间本视图的 `active` 没变化，
    * 所以外壳那个 `watch(props.active)` 不会触发 —— 不主动监听就会「选完返回，购票页还是旧景点」。
    */
@@ -363,6 +423,9 @@ export function useBookingPage() {
     ticketAudience,
     ticketPrice,
     unitLabel,
+    ticketTypeId,
+    ticketOptions,
+    onPickTicketType,
     onToggleVisitor,
     onAddVisitor,
     unitPrice,

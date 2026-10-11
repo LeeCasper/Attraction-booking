@@ -45,7 +45,11 @@ import { PAGE_BINDINGS } from './page-bindings.mjs';
  * `drop` 是**额外**要丢掉的 `<main>` class（在外壳那套 `VIEW_DROP` 之上）。
  */
 const PAGES = [
-  { file: 'home.html', name: 'home', img: { 'aida-public': '/static/images/banner-home.jpg' } },
+  // 首页 banner 那张设计稿位图**已经不渲染了** —— 整块被 replace 成轮播组件
+  // （封面来自各景点自己的 `cover_url`，见 components/BannerCarousel.vue），
+  // 所以那张 jpg 连同映射一并去掉。若哪天 home.html 又出现位图，生成器会**报错并退出**
+  // （`localizeImageUrl` 找不到映射就非 0 退出），而不是静默引用一个不存在的文件。
+  { file: 'home.html', name: 'home', img: {} },
   // 购票页（游览日期 / 入园时段 / 票种）是**二级页**：用户在「景点选择」里选好景点才进来。
   // 它不是 tab，所以顶栏与底部待付条都得自己负责 —— 保留 `min-h-screen` 与 `pb-28`
   // （后者给固定的 BookingBar 让位），去掉给外壳顶栏让位的 `pt-16`，改用自绘标题栏。

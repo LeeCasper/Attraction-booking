@@ -39,12 +39,13 @@ export const PAGE_BINDINGS = {
   home: {
     imports: [
       "import { watch } from 'vue';",
-      "import TicketCard from '@/components/TicketCard.vue';",
+      "import BannerCarousel from '@/components/BannerCarousel.vue';",
+      "import AreaRecommendCard from '@/components/AreaRecommendCard.vue';",
       "import { useHomePage } from './behavior';",
     ],
     setup: `const {
-  announcement, presenceLabel, tickets, areaName, areaCover,
-  onPickTicket, onSwitchArea, onQuickBooking, onQuickPass, onNotice, load,
+  announcement, slides, recommended, stockStatus,
+  onPickSlide, onPickArea, onQuickBooking, onQuickPass, onNotice, load,
 } = useHomePage();
 // 首页是启动时的默认 tab，immediate 让它一挂载就拉数据
 watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
@@ -57,32 +58,32 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 公告条右侧的「须知」：后端没有独立的须知接口，如实提示而不是假装能跳
       'font-caption-sm text-[11px] font-semibold text-tertiary-container hover:text-amber-gold transition-colors flex-shrink-0 flex items-center gap-0.5':
         { attrs: { '@tap': 'onNotice' } },
-      // banner 上的景点名：绑成**当前景点**，点它进「选择景点」页。
-      // 设计稿是按单景区画的、标题写死「枫林谷森林公园」，多景区下必须跟着当前景点走
-      'font-headline-xl text-[24px] font-bold text-white tracking-wider drop-shadow-md': {
-        text: 'areaName',
-        attrs: { '@tap': 'onSwitchArea' },
-      },
-      // banner 封面图：那张 <image> 是生成器硬编码插进去的，用 `image` 绑定换 src
-      'w-full h-full bg-cover bg-center': { image: 'areaCover' },
-      // 在园率：来自 /areas/:id/presence，口径与后台看板一致
-      'text-[11px] font-label-badge text-bamboo-light-100': { text: 'presenceLabel' },
+      // banner：**整个换成轮播组件**（`#homeBanner` 是本轮补的 id，见 README）。
+      // 设计稿是按**单景区**画的 —— 一张封面 + 写死「枫林谷森林公园」+ 写死的「在园率 38%」；
+      // 多景区下这一块改成自动轮播的景点图，每屏的景点名/在园率/指示点都是那一屏自己的数据。
+      // 因此下面原先那三条绑定（景点名 / 封面图 / 在园率）全部并进组件里，不再单独绑。
+      '#homeBanner': { replace: '<BannerCarousel :slides="slides" @pick="onPickSlide" />' },
       // 两张快捷卡（U-002）：一键进入预约页 / 出示入园码。
       // 设计稿这两张卡没有 id，按各自独有的 class 定位
       'relative rounded-2xl bg-gradient-to-br from-surface-container-low to-surface-container border border-primary/25 p-3.5 flex flex-col justify-between shadow-[0_4px_16px_rgba(0,104,95,0.08)] cursor-pointer active:scale-[0.98] transition-all group overflow-hidden':
         { attrs: { '@tap': 'onQuickBooking' } },
       'relative rounded-2xl bg-surface-container-lowest border border-outline-variant/60 p-3.5 flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.04)] cursor-pointer active:scale-[0.98] transition-all group overflow-hidden hover:border-primary/40':
         { attrs: { '@tap': 'onQuickPass' } },
-      // 三张票卡（U-012）。**三张卡的 class 逐字完全相同**，唯一不同的角标也不可靠
-      // （卡一与卡三的 primary 角标类一模一样），所以只能按文档顺序取。
+      // 「推荐景点」的卡片列表（本轮从「门票选购」改过来的：这一节以前卖**当前景点**的票，
+      // 于是用户在「景点选择」页点一下别的景点，首页整块跟着变 —— 见 behavior 的注解）。
+      //
+      // 设计稿这里画的是三张票卡，**三张卡的 class 逐字完全相同**（卡一与卡三连角标类都一样），
+      // 只能按文档顺序定位：第 1 张整块 replace 成 v-for 列表，另两张 remove。
       // ⚠️ :nth 会放弃「恰好命中 1 个」的保护（只要求 >= N），且序号是全页命中顺序。
-      // 整卡 replace 成组件，而不是逐个绑文本：同一段版式绑三遍，改一次得改三处。
       'p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col gap-3 hover:border-primary/40 transition-all :nth(1)':
-        { replace: '<TicketCard v-if="tickets[0]" :ticket="tickets[0]" @pick="onPickTicket" />' },
+        {
+          replace:
+            '<AreaRecommendCard v-for="(a, i) in recommended" :key="a.id" :area="a" :index="i" :status="stockStatus(a)" @pick="onPickArea" />',
+        },
       'p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col gap-3 hover:border-primary/40 transition-all :nth(2)':
-        { replace: '<TicketCard v-if="tickets[1]" :ticket="tickets[1]" @pick="onPickTicket" />' },
+        { remove: true },
       'p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col gap-3 hover:border-primary/40 transition-all :nth(3)':
-        { replace: '<TicketCard v-if="tickets[2]" :ticket="tickets[2]" @pick="onPickTicket" />' },
+        { remove: true },
     },
     style: `.pg-page .is-hidden { display: none; }`,
   },
@@ -165,6 +166,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       "import SlotGrid from '@/components/SlotGrid.vue';",
       "import VisitorPicker from '@/components/VisitorPicker.vue';",
       "import BookingBar from '@/components/BookingBar.vue';",
+      "import TicketPicker from '@/components/TicketPicker.vue';",
       "import { useBookingPage } from './behavior';",
     ],
     setup: `const {
@@ -174,6 +176,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
   slots, slot, onPickSlot,
   visitors, pickedIds, selectionLabel, onToggleVisitor, onAddVisitor,
   pageTitle, ticketName, ticketAudience, ticketPrice, unitLabel,
+  ticketTypeId, ticketOptions, onPickTicketType,
   totalAmount, headcount, canSubmit, onSubmit, load,
 } = useBookingPage();
 // 二级页（选完景点才进来），收不到外壳的 props.active —— 用页面生命周期触发首次加载。
@@ -185,6 +188,12 @@ onLoad(() => { void load(); });`,
     <view class="flex items-center gap-2 px-4 py-3" :style="{ paddingRight: capsuleInset + 'px' }">
       <view class="msi icon-arrow_back text-20px text-ink-charcoal-text p-1" hover-class="pg-hover" @tap="goBack" />
       <text class="font-headline-md text-17px font-bold text-ink-charcoal-text">预约购票</text>
+    </view>
+    <!-- 加载失败要把话说出来：这一页的版式是设计稿的固定几节，出错时它们只会显示「—」，
+         看着像页面坏了。最常见的一句是「该景区暂无可在线预约的票种」（该景点只配了按张卖的票种）。
+         样式与「景点选择」页的错误条同一套。 -->
+    <view v-if="error" class="px-4 mt-space-sm">
+      <text class="block rounded-xl bg-surface-container-low text-cinnabar-red text-13px px-3 py-2">{{ error }}</text>
     </view>`,
     bindings: {
       // 头卡标题：设计稿写死「枫林谷国家森林公园 · 景区门票」（按单景区画的），
@@ -229,6 +238,13 @@ onLoad(() => { void load(); });`,
       '#dateScrollLeftFade': { class: { 'is-on': 'dateFade.left', 'is-off': '!dateFade.left' } },
       '#dateScrollRightFade': { class: { 'is-on': 'dateFade.right', 'is-off': '!dateFade.right' } },
       '#slotGrid': { replace: '<SlotGrid :slots="slots" :value="slot" @change="onPickSlot" />' },
+      // 「选择票种」（**设计稿没有这一节**：它把票种写死成顶卡上的「成人全票 ¥120」，
+      // 是按单景区单票种画的）。后台一个景点可以配多个票种，而从「景点选择」页进来的用户
+      // 原先没有任何换票种的入口 —— 默认永远是列表里的第一个（成人票）。
+      // 版式沿用同一页「入园时段」那一节的选中样式，见 components/TicketPicker.vue。
+      '#ticketPicker': {
+        replace: '<TicketPicker :tickets="ticketOptions" :value="ticketTypeId" @change="onPickTicketType" />',
+      },
 
       // 下面三处设计稿**没有 id**，按 class 定位
       // 「已选 N 人 / 限购 M 人」：它全部 4 个类都被「新增出行人」按钮包含，只能全等匹配

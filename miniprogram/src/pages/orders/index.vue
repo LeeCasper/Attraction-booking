@@ -126,7 +126,7 @@ function whenLabel(o: OrderSummary): string {
  *
  * `check:classes` 会把 `:class` 表达式里带引号的字符串当类名扫，
  * 所以条件类必须走「常量 + 标识符」，不能在模板里写 `cond ? 'a' : 'b'`
- * （见 `TicketCard.vue` 的注解，那是同一个坑）。
+ * （这条踩过：`check:classes` 会把三目里的 `'primary'` 报成「没有出处的 class」）。
  * 常量必须声明在 `<script setup>` 里 —— 另起一个 `<script>` 块的话模板拿不到。
  */
 const ACTIVE_CHIP =

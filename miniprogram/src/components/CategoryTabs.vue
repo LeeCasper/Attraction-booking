@@ -6,9 +6,9 @@
  * 选项由数据驱动、点击**真的**筛列表（分类来自 `scenic_area.category`）。
  *
  * 根节点自带设计稿那个横向滚动容器的类 —— 组件会多一层节点，
- * 容器类不落在根上横向滚动就散了（同 `TicketCard.vue` 的注解）。
+ * 容器类不落在根上横向滚动就散了（同 `DateCards.vue` / `SlotGrid.vue` 的注解）。
  */
-import type { CategoryOption } from '@/views/area/behavior';
+import type { CategoryOption } from '@/utils/area';
 
 const props = defineProps<{ items: CategoryOption[]; value: string }>();
 const emit = defineEmits<{ change: [id: string] }>();

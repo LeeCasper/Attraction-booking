@@ -15,12 +15,12 @@
  *   三个 tag = 分时预约（有启用时段）/ 实名制（票种 needRealname）/ 随时退（退改规则允许）
  *   余票行 = 今日真实剩余；右侧闸机名无字段，去掉
  *   起价   = 在线可售（按人计价）票种里的最低价；没有可售票种就如实说
- * 这与 `TicketCard.vue` 把首页票卡的营销角标换成 `needRealname`/`refundRule` 推导值是同一套做法。
+ * 这与首页「推荐景点」的 `AreaRecommendCard.vue` 是同一套做法（两处共用 `@/utils/area` 的口径）。
  */
 import { computed } from 'vue';
-import { mediaUrl, type AreaOverview } from '@/api';
+import { type AreaOverview } from '@/api';
 import { fen2yuan } from '@/utils/format';
-import { CATEGORIES } from '@/views/area/behavior';
+import { CATEGORIES, areaCoverOf } from '@/utils/area';
 
 const props = defineProps<{
   area: AreaOverview;
@@ -35,26 +35,11 @@ const props = defineProps<{
 const emit = defineEmits<{ pick: [area: AreaOverview]; book: [area: AreaOverview] }>();
 
 /**
- * 封面兜底图。
- *
- * 后端有 `cover_url` 这个字段，但**后台还没有上传入口**，现在每个景点都是 null。
- * 兜底图用的是设计稿里那 4 张示意图（已下载到 `static/images/area-cover-*.jpg`），
- * 按序号轮换 —— 全部用同一张会让列表看起来像卡住了；用首页那张 banner 更糟，
- * 那图里烤着「景区预约首页」的字。
- *
- * ⚠️ 这只是占位。后台能传封面之后，`coverUrl` 一旦有值就取代它。
+ * 封面：后台上传的用上传的，没有再按序号轮换设计稿那 4 张示意图。
+ * 口径在 `@/utils/area` 的 `areaCoverOf()` —— 首页轮播与推荐景点用的是同一个
+ * （后台上传的封面是相对路径 `/uploads/x.jpg`，里面会拼成完整地址）。
  */
-const FALLBACK_COVERS = [
-  '/static/images/area-cover-1.jpg',
-  '/static/images/area-cover-2.jpg',
-  '/static/images/area-cover-3.jpg',
-  '/static/images/area-cover-4.jpg',
-];
-const cover = computed(
-  () =>
-    // 后台上传的封面是相对路径（/uploads/x.jpg），要拼成完整地址 <image> 才加载得动
-    mediaUrl(props.area.coverUrl) || FALLBACK_COVERS[props.index % FALLBACK_COVERS.length],
-);
+const cover = computed(() => areaCoverOf(props.area, props.index));
 
 const categoryLabel = computed(
   () => CATEGORIES.find((c) => c.id === props.area.category)?.label ?? '',
