@@ -12,9 +12,13 @@ import { platformSettings } from '@/store/settings';
  *
  * 若要看与设计稿完全一致的 H5 预览效果，把 mockCapsule 打开即可画回假胶囊。
  *
- * **Logo**：后台「系统管理 → 参数配置 → platform → Logo 地址」可传（`logoUrl`）。
+ * **Logo**：后台「系统管理 → 参数配置 → platform → 平台 Logo」可传（`logoUrl`）。
  * 传了就显示这张图，没传仍是设计稿那个青绿渐变方块 + 树图标（纯 CSS，无图片资源）——
  * 运营不改的话界面与以前逐像素一致。
+ *
+ * ⚠️ 显示图片时**必须去掉那个渐变底/圆角/阴影**（`.pg-header__logo--plain`）：
+ * 上传的 logo 通常是**透明背景的 PNG**，套在青绿方块上会多出一圈外框，
+ * 看起来像图片没抠干净。
  */
 const props = withDefaults(defineProps<{ mockCapsule?: boolean }>(), { mockCapsule: false });
 
@@ -74,7 +78,9 @@ const headerStyle = computed(() => {
     <view class="pg-header" :style="headerStyle">
       <view class="pg-header__bar">
         <view class="pg-header__brand">
-          <view class="pg-header__logo">
+          <!-- 有图时走 `--plain`：**去掉渐变底、圆角与阴影** —— 上传的 logo 多半是
+               透明背景的 PNG，套在设计稿那个青绿方块上会多出一圈"外框" -->
+          <view class="pg-header__logo" :class="{ 'pg-header__logo--plain': showLogo }">
             <!--
               后台上传了 logo 就用它；没传（或图加载失败）保持设计稿的渐变方块 + 树图标。
               `@error` 那条不是多余的：后台那一栏是**可手填的**，填错了路径（本机就出现过
@@ -165,10 +171,16 @@ const headerStyle = computed(() => {
   box-shadow: 0 px2rpx(1) px2rpx(2) rgba(0, 0, 0, 0.05);
 }
 
+/* 显示上传的 logo 时：只留尺寸，底色/圆角/阴影全去掉（透明 PNG 直接坐在顶栏上） */
+.pg-header__logo--plain {
+  background-image: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .pg-header__logo-img {
   width: 100%;
   height: 100%;
-  border-radius: inherit;
 }
 
 .pg-header__names {

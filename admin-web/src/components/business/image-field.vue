@@ -40,18 +40,24 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 const uploading = ref(false);
 
 /**
- * 预览加载失败（路径是手填的，填错/文件被删都可能）。
- *
- * 不兜底的话那个 `<img>` 会显示浏览器的「裂图」标记 —— 而这一栏的真实状态是
- * 「这个值指向的图不存在」，如实写出来比一个裂图清楚。
- */
-const previewFailed = ref(false);
-
-/**
  * 预览地址：库里存的是相对路径（`/uploads/xxx.jpg`），这里拼上管理端的服务端前缀 ——
  * 小程序那边拼的是它自己的前缀，所以**不能存完整 URL**。
  */
 const preview = computed(() => (props.modelValue ? `${import.meta.env.VITE_SERVICE_BASE_URL}${props.modelValue}` : ''));
+
+/**
+ * **哪张图**加载失败了（记 URL，不是一个布尔量）。
+ *
+ * 布尔量会「粘住」：图只要在某一瞬间没加载出来（刚上传完、文件还没落稳，或网络抖一下），
+ * 标记就一直是 true —— 之后值没变就再也不会重置，用户看到的是**永远的**「图片无法加载」
+ * （实测踩过：上传是成功的、文件直接访问也是 200，弹窗里却一直显示加载失败）。
+ * 记 URL 天然解决两件事：值一变标记自动失效；同一个值只判定一次。
+ *
+ * 另外这也是「路径是手填的」的兜底：填错或文件被删时，与其显示浏览器的裂图标记，
+ * 不如如实写一句「图片无法加载」。
+ */
+const failedSrc = ref('');
+const previewFailed = computed(() => preview.value !== '' && failedSrc.value === preview.value);
 
 /** 交给 ElUpload 自己发请求：走同一个 request 实例，鉴权/代理/拆包都现成 */
 async function handleUpload(options: { file: File }) {
@@ -93,7 +99,7 @@ function beforeUpload(file: File) {
           :src="preview"
           class="h-full w-full object-cover"
           :alt="`${props.label}预览`"
-          @error="previewFailed = true"
+          @error="failedSrc = preview"
         />
         <span v-else class="text-12px text-gray-400">{{ previewFailed ? '图片无法加载' : '未设置' }}</span>
       </div>
