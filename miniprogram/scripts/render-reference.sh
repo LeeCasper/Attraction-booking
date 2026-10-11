@@ -26,9 +26,9 @@ PROXY="${HTTP_PROXY:-http://127.0.0.1:7897}"
 mkdir -p "$OUT"
 
 # 每页在 390pt 下的实际内容高度（比设计稿标注的略高，留点余量免得截断）
-declare -A HEIGHT=( [home]=1300 [booking]=1120 [credential]=1020 [profile]=1650 [areas]=2100 [pay]=1700 )
+declare -A HEIGHT=( [home]=1300 [booking]=1120 [credential]=1020 [profile]=1650 [areas]=2100 [pay]=1700 [map]=1000 )
 
-for page in home booking credential profile areas pay; do
+for page in home booking credential profile areas pay map; do
   out="$OUT/ref-$page.png"
   google-chrome \
     --headless=new --disable-gpu --no-sandbox --hide-scrollbars \

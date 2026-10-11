@@ -72,8 +72,16 @@ const specColor = (s) => {
   return spec ? colorOf(spec.name, spec.alpha) : null;
 };
 
+/**
+ * 设计类名 → 安全类名。
+ *
+ * 要清掉的字符就是**类名里不合法**的那些：`[ ] ( ) # % , * > + ~` 直接删，
+ * `.` `/` `:` 换成一个能读的替身。漏一个的后果分两种：`+`/`>`/`~` 会让选择器变成
+ * **另一个选择器**（`+` 是兄弟组合符，`top-calc3rem+env…` 会被当成「.top-calc3rem 后面的 …」，
+ * Sass 还会因此报错整表编译失败），而 `[`/`(` 之类只是静默失效 —— 都得删干净。
+ */
 const sanitize = (cls) =>
-  cls.replace(/\./g, '_').replace(/[[\]()#%,]/g, '').replace(/\//g, '_').replace(/:/g, '-');
+  cls.replace(/\./g, '_').replace(/[[\]()#%,*+>~]/g, '').replace(/\//g, '_').replace(/:/g, '-');
 
 // ---------------------------------------------------------------- 映射表
 const SHADOWS = {
@@ -94,6 +102,9 @@ const SHADOWS = {
   'shadow-[0_-4px_16px_rgba(0,106,97,0.08)]': '0 -4px 16px rgba(0,106,97,.08)',
   'shadow-[0_1px_4px_rgba(0,0,0,0.06)]': '0 1px 4px rgba(0,0,0,.06)',
   'shadow-[0_1px_8px_rgba(0,0,0,0.04)]': '0 1px 8px rgba(0,0,0,.04)',
+  // 「青绿简约版」（景区地图等）：胶囊控件那一圈的细投影、卡片那档更柔的投影
+  'shadow-[0_1px_3px_rgba(0,0,0,0.03)]': '0 1px 3px rgba(0,0,0,.03)',
+  'shadow-[0_2px_12px_rgba(28,40,38,0.03)]': '0 2px 12px rgba(28,40,38,.03)',
   /** 裸 `shadow`（Tailwind 的第一档）= shadow-sm */
   'shadow': '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)',
   'shadow-2xs': '0 1px rgba(0,0,0,.05)',
@@ -109,7 +120,12 @@ const GRAD_DIR = {
   'bg-gradient-to-br': 'to bottom right', 'bg-gradient-to-b': 'to bottom', 'bg-gradient-to-bl': 'to bottom left',
   'bg-gradient-to-l': 'to left', 'bg-gradient-to-tl': 'to top left',
 };
-const RADIUS = { '': r(4), sm: r(2), md: r(6), lg: r(8), xl: r(12), '2xl': r(16), '3xl': r(24), full: '9999px' };
+const RADIUS = {
+  '': r(4), sm: r(2), md: r(6), lg: r(8), xl: r(12), '2xl': r(16), '3xl': r(24), full: '9999px',
+  // 「青绿简约版」在 tailwind.config 里自定义的两档：card 16px / pill 全圆。
+  // `card` 与 `2xl` 同值但**各留一份** —— 它们来自两套设计系统，将来某一套改了不该连带另一套。
+  card: r(16), pill: '9999px',
+};
 const WEIGHT = { light: 300, normal: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 };
 const SPACE_NAMED = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, '2xl': 48, margin: 16, gutter: 16 };
 const SIDE_PROPS = {
@@ -173,12 +189,27 @@ for (const [name, spec] of Object.entries(TYPO)) {
  * **显式列出**是有意义的 —— 下面的守卫靠它区分「有意丢弃」与「没写规则」，
  * 后者会静默地让元素少一条样式（见文件末尾的 unmapped 检查）。
  */
-const INTENTIONAL_DROP = /^(hover:|group-hover:|selection:|focus:|focus-within:|placeholder:|group$|material-symbols-outlined$|cursor-|select-|antialiased$)/;
+// `filter-tab` 是设计稿那段内联 JS 的钩子（用来点选胶囊），**没有任何样式** ——
+// 我们的筛选条是手写组件 + 自己的状态，用不上这个类名（见 page-bindings 的 map 节）。
+// `p*-[calc(...)]`：设计稿用它给**固定页头**让位（景区地图那页是
+// `pt-[calc(3rem+env(safe-area-inset-top,0px))]`）。本工程的二级页标题栏一律画在**文档流**里
+// （见 page-bindings 的 before 片段：状态栏占位块 + 标题行），再留这份 padding 就是双份留白；
+// 何况 `env(safe-area-inset-top)` 在小程序 WXSS 里也没有。页面上另外由 PAGES 的 `drop` 去掉它
+// （与 booking/pay 的 `pt-16`/`pt-14` 同一个处理）。
+const INTENTIONAL_DROP = /^(hover:|group-hover:|selection:|focus:|focus-within:|placeholder:|group$|material-symbols-outlined$|cursor-|select-|antialiased$|filter-tab$|(?:p|pt|pb|pl|pr)-\[calc\()/;
 
-/** 任意值里的 px：≤1.5px 保持 px（细线），其余转 rpx */
+/**
+ * 任意值里的 px：≤1.5px 保持 px（细线），其余转 rpx。
+ *
+ * 顺带把 `calc()` 里的运算符两侧补上空格 —— **Sass 要求 `+`/`-` 两边有空白**，
+ * 而设计稿写的是 `calc(3rem+env(safe-area-inset-top,0px))`：不补空格这里会直接编译失败，
+ * 表现是**整张样式表出不来**（H5 白屏 + vite 报 `"+" and "-" must be surrounded by whitespace`）。
+ * ⚠️ 只处理**紧挨着数值**的 `-`：`safe-area-inset-top` 这种标识符里的连字符不能被误伤。
+ */
 const pxValue = (inner) => {
-  const m = inner.match(/^([\d.]+)px$/);
-  if (!m) return inner;
+  const s = inner.replace(/\+/g, ' + ').replace(/(?<=[\d)%])-(?=[\d.(])/g, ' - ');
+  const m = s.match(/^([\d.]+)px$/);
+  if (!m) return s;
   return Number(m[1]) <= 1.5 ? `${m[1]}px` : r(Number(m[1]));
 };
 
@@ -297,7 +328,7 @@ function translate(input) {
   // 单边圆角有 8 种写法：四角 tl/tr/br/bl，以及整条边 t/r/b/l（订单支付页的
   // 「竹青竖装饰条」是 rounded-r-full、明细抽屉是 rounded-t-2xl）。
   // 整条边的写法**要展开成两条声明**，所以这里 return 的是数组而不是单条。
-  if ((m = base.match(/^rounded(-(?:tl|tr|br|bl|t|r|b|l)-[a-z0-9]+|-none|-2xl|-3xl|-full|-sm|-md|-lg|-xl)?$/))) {
+  if ((m = base.match(/^rounded(-(?:tl|tr|br|bl|t|r|b|l)-[a-z0-9]+|-none|-2xl|-3xl|-full|-sm|-md|-lg|-xl|-card|-pill)?$/))) {
     const suffix = m[1] || '';
     const side = suffix.match(/^-(tl|tr|br|bl|t|r|b|l)-(.+)$/);
     if (side) {
@@ -409,6 +440,11 @@ function translate(input) {
     'font-data-metric-md': '$font-body', 'font-data-metric-lg': '$font-body',
     'font-display-kpi-screen': '$font-body', 'font-label-badge': '$font-body',
     'font-mono': '$font-body', 'font-serif': '$font-serif',
+    // 「青绿简约版」屏幕（景区地图等）用的是另一套族名：
+    // `serif-cn`/`sans-cn` 就是我们的那两套（Noto Serif SC / Plus Jakarta Sans，同值）；
+    // `font-num` 是 **Space Grotesk** —— 已退役的第三个族（约束 18），照样指向正文族。
+    // 用户对这个页面的要求里专门有一条「统一整体字体」，这三个类名就是入口。
+    'font-serif-cn': '$font-serif', 'font-sans-cn': '$font-body', 'font-num': '$font-body',
   };
   if (FONT_TOKENS[base]) return [`font-family: ${FONT_TOKENS[base]};`];
   if (base === 'leading-none') return ['line-height: 1;'];
@@ -635,7 +671,7 @@ writeFileSync(MAP_OUT, JSON.stringify(classmap, null, 2));
 
 console.log(`✓ 生成 ${normalRules.length} 条规则 + ${activeRules.length} 条按下态 + ${gridRules.length} 条栅格`);
 console.log(`  映射表 ${Object.keys(classmap).length} 条 → design/classmap.json`);
-console.log(`  有意丢弃 ${dropped.length} 个（hover/group-hover/selection/focus/placeholder/光标/文本选择/图标字体类）`);
+console.log(`  有意丢弃 ${dropped.length} 个（hover/group-hover/selection/focus/placeholder/光标/文本选择/图标字体类/JS 钩子/给固定页头让位的 calc 内边距）`);
 
 // 漏网类必须**炸出来**：它们会进 classmap（所以 check:classes 放行）却没有规则，
 // 表现是元素静默少一条样式 —— 比报错难查得多。

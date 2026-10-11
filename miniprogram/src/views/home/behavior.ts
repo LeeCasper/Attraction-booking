@@ -234,6 +234,16 @@ export function useHomePage() {
   /** 公告条右侧的「须知」——后端没有单独的须知页，先如实说明 */
   const onNotice = () => uni.showToast({ title: '入园须知待接入', icon: 'none' });
 
+  /**
+   * 便民服务「景区地图」→ 景区地图与景点（二级页 `pages/map/`）。
+   *
+   * 这一格在设计稿里**连 `@tap` 都没有**（四宫格整块是静态的，见 README 的「仍是静态」清单）。
+   * 本轮把这一格接上；同排另外三格（开放时段 / 交通路线 / 在线客服）仍没有落点，
+   * 所以这里只绑第 1 格（`:nth(1)`）—— 别顺手把它们也绑上一个「敬请期待」的 toast，
+   * 那等于把「还没做」说成了一件功能。
+   */
+  const onOpenMap = () => uni.navigateTo({ url: '/pages/map/index' });
+
   return {
     loading,
     error,
@@ -245,6 +255,7 @@ export function useHomePage() {
     onPickArea,
     onQuickBooking,
     onQuickPass,
+    onOpenMap,
     onNotice,
     load,
   };

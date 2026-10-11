@@ -42,7 +42,9 @@ import { PAGE_BINDINGS } from './page-bindings.mjs';
  *   - 进 `pages.json` 的真实路由，自带标题栏，**没有** `props.active`
  *   - 保留 `min-h-screen` / `pb-*`（高度与底部留白得自己管）
  *   - 模板前后可由 `PAGE_BINDINGS[name].before/after` 插入手写片段（标题栏等）
- * `drop` 是**额外**要丢掉的 `<main>` class（在外壳那套 `VIEW_DROP` 之上）。
+ * `drop` 是**额外**要丢掉的 `<main>` class（在外壳那套 `VIEW_DROP` 之上）—— 名字用设计稿里的原名。
+ * `bg` 是页面底色（默认 `$c-surface`）：设计稿把底色写在 `<body>` 上，而生成器只取 `<main>`，
+ * 所以底色得由这里补 —— 青绿简约版那几页的底色是 `$c-paper-base`（中性灰白），不是淡青的 surface。
  */
 const PAGES = [
   // 首页 banner 那张设计稿位图**已经不渲染了** —— 整块被 replace 成轮播组件
@@ -71,6 +73,21 @@ const PAGES = [
   // 所以 `pt-14` 要**保留**（那正是给 56px 固定标题栏让位的），由 page-bindings 的 before 供上标题栏。
   // 外壳在这一格不渲染 PageHeader（见 pages/main/index.vue），否则两条横条会叠起来。
   { file: 'areas.html', name: 'area', img: {} },
+  // 「景区地图与景点」：首页「便民服务 → 景区地图」进来的**二级页**（设计稿是「青绿简约版」那一套）。
+  // 它自带固定页头（生成器只取 `<main>` 的子节点，拿不到），标题栏由 page-bindings 的 before 自绘，
+  // 于是给固定页头让位的 `pt-[calc(3rem+env(safe-area-inset-top,0px))]` 要 `drop`
+  // —— 与 booking/pay 的 `pt-16`/`pt-14` 同一个处理（那个类在 gen-utilities 里也已明确丢弃）。
+  // `img: {}`：稿子里那 4 张点位图不走生成器的本地化 —— 整块列表被 replace 成 `PoiCard` 组件，
+  // 图在组件里是 `/static/images/poi-N.jpg`（我们自己的静态资源）。
+  {
+    file: 'map.html',
+    name: 'map',
+    img: {},
+    standalone: true,
+    drop: ['pt-[calc(3rem+env(safe-area-inset-top,0px))]'],
+    // 稿子的底色写在 `<body class="bg-paper-base">` 上，而生成器只取 `<main>` —— 从 `bg` 补。
+    bg: '$c-paper-base',
+  },
 ];
 
 /**
@@ -562,10 +579,14 @@ for (const page of PAGES) {
   // min-h-screen 与 pb-24/pb-28 是「整页」时代的职责，现在归外壳与底栏，见 VIEW_DROP。
   // standalone 页自己撑满屏，**不受 VIEW_DROP 影响**，只丢 `page.drop` 里点名的（如 `pt-14`）。
   const pageDrop = new Set(page.drop ?? []);
-  const mainClasses = mapClasses(source.attrs?.class ?? '')
+  // ⚠️ 先按**设计稿的原始类名**过滤，再 `mapClasses` —— 两处的顺序反了会怎样：
+  // `pt-[calc(3rem+env(safe-area-inset-top,0px))]` 消毒后是 `pt-calc3rem+envsafe-area-inset-top0px`，
+  // 于是 `drop: ['pt-[calc(…)]']` **永远匹配不上**（那串消毒名里还带着一个 `+`，
+  // 在 WXSS 里是个组合选择器，落进产物就是一条废规则）。设计稿里点名要丢的类，名字就用稿子里的。
+  const keptMain = (source.attrs?.class ?? '')
     .split(/\s+/)
-    .filter((c) => c && !(page.standalone ? pageDrop.has(c) : VIEW_DROP.has(c)))
-    .join(' ');
+    .filter((c) => c && !(page.standalone ? pageDrop.has(c) : VIEW_DROP.has(c)));
+  const mainClasses = mapClasses(keptMain.join(' '));
 
   const spec = PAGE_BINDINGS[page.name] ?? {};
 
@@ -593,7 +614,7 @@ for (const page of PAGES) {
   // 数据加载必须挂在小程序页生命周期（onLoad/onShow）上，见 spec.setup。
   const propsLine = standalone ? '' : 'const props = defineProps<{ active: boolean }>();\n';
   const styleComment = standalone
-    ? `// mainClasses 来自设计稿 <main> 的 class（已按 page.drop 去掉给固定顶栏让位的 pt-14）。\n// 标题栏由 page-bindings 的 before 片段自绘，没有外壳底栏。`
+    ? `// mainClasses 来自设计稿 <main> 的 class（已按 page.drop 去掉给固定页头让位的那些类）。\n// 标题栏由 page-bindings 的 before 片段自绘，没有外壳底栏。`
     : `// mainClasses 来自设计稿 <main> 的 class（pt-16 等），由生成器带上。\n// 顶栏与底栏不在这里 —— 它们由外壳 src/pages/main/index.vue 只渲染一次。`;
 
   const vue = `<template>
@@ -612,7 +633,7 @@ ${propsLine}${spec.setup ?? ''}
 <style lang="scss" scoped>
 ${styleComment}
 .pg-page {
-  background-color: $c-surface;
+  background-color: ${page.bg ?? '$c-surface'};
 }
 ${spec.style ?? ''}
 </style>

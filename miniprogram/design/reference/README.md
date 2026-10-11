@@ -1,7 +1,16 @@
 # 设计稿原始素材
 
-Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Bamboo Stone」）导出的 6 份页面 HTML，
-以及从项目设计系统导出的 token。
+Stitch 项目 *Scenic Spot Reservation UI System* 导出的 7 份页面 HTML，以及从项目设计系统导出的 token。
+
+⚠️ **这套稿子里其实有两套设计系统**：前 6 份是「青绿典雅版」（设计系统 **Cyan Ink & Bamboo Stone**，
+token 落在 `src/styles/tokens.scss` 的上半部分）；`map.html`（Stitch 屏
+`987a340983404a88920be442d9e67991`「景区地图与景点 (青绿简约版)」）用的是**另一套命名**
+（`bamboo-teal` / `paper-pure` / `ink-subtle` / `font-serif-cn` / `font-num` / `rounded-card` …），
+值也不全一样 —— 它自带的 `tailwind.config` 写在 HTML 头部，那份就是权威取值。
+**两套并存**（底下那 10 个 `$c-bamboo-* / $c-ink-* / $c-amber-* / $c-paper-pure` 就是给它加的），
+没有合成别名：详见 `tokens.scss` 里那段注解与 CLAUDE.md 的相应条目。
+它的三个族名在 `gen-utilities.mjs` 的 `FONT_TOKENS` 里**都指向我们的两套字体**
+（`font-num` 是已退役的 Space Grotesk ⇒ 正文族），这是「统一整体字体」那条要求的落点。
 
 这些是 `scripts/gen-classes.mjs`（类名清单）、`scripts/gen-utilities.mjs`（工具类样式）
 与 `scripts/gen-pages.mjs`（页面模板）的输入，**不要手改**。
@@ -15,6 +24,7 @@ Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Ba
 | `profile.html` | 个人中心 | `src/views/profile/index.vue` |
 | `areas.html` | 景点选择与预约 | `src/views/area/index.vue`（**外壳的第 2 格**，见下） |
 | `pay.html` | 订单支付 | `src/pages/pay/index.vue`（**独立页面**，见下） |
+| `map.html` | 景区地图与景点 | `src/pages/map/index.vue`（**独立页面**，见下） |
 
 前 4 份是「单页外壳」里的视图（`gen-pages` 会拿掉 `min-h-screen`/`pb-24`，因为高度与底部留白
 由外壳与底栏负责）；`booking.html` 与 `pay.html` 在 `PAGES` 里标了 `standalone: true`
@@ -42,12 +52,12 @@ Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Ba
 Stitch 的导出是自包含页面：**Tailwind CDN + 内联 `tailwind.config`（含全套设计 token）+ Google Fonts**，
 版式全部写在 Tailwind 工具类里。每页 168–248 个标签。
 
-- `classes.json` 是这 6 份 HTML 里所有 class 的去重清单（**567 个**），由 `npm run gen:classes` 从
+- `classes.json` 是这 7 份 HTML 里所有 class 的去重清单（**615 个**），由 `npm run gen:classes` 从
   HTML 重新提取。⚠️ 在这之前它是个**手工维护的静态文件**（没有生成器，加一页设计稿就得手补类名，
   漏一个的后果是静默少一条样式）—— 现在是派生产物，别再手改
 - `classmap.json` 是「设计类名 → 安全类名」的映射表（WXSS 选择器不能可靠地处理 `[ ] . / #`）
 - `latin-chars.txt` 是设计稿用到的全部非中日韩字符（77 个），用于给 Google Fonts 做子集
-- `icons.txt` / `icons-svg/` 是 52 个 Material Symbols 图标名与 SVG 缓存
+- `icons.txt` / `icons-svg/` 是 72 个 Material Symbols 图标名与 SVG 缓存
 - `fonts-cache/` 是 3 个拉丁子集 woff2 缓存（有缓存时 `gen:fonts` 仍然要联网，只是不下载字体文件）
 
 ## 重新拉取设计稿
@@ -96,7 +106,7 @@ npm run gen:classes && npm run gen:utilities && npm run gen:icons && npm run gen
 
 ## 参考截图
 
-`shots/ref-*.png` 是这 4 份 HTML 在 390pt 宽下的渲染结果，用于与实现做像素比对。
+`shots/ref-*.png` 是这些 HTML 在 390pt 宽下的渲染结果（含本轮的 `ref-map.png`），用于与实现做像素比对。
 **渲染时必须让 Chrome 走代理**（`--proxy-server=http://127.0.0.1:7897`），否则 Tailwind CDN 与
 Google Fonts 加载失败，图标会退化成连字文本（`arrow_forward` 会渲染成一行文字），
 行高被撑大、截图失真 —— 用这种截图做比对会得出完全错误的结论。

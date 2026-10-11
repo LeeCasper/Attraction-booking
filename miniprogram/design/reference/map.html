@@ -1,0 +1,224 @@
+<!DOCTYPE html><html lang="zh-CN" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_stack" name="shell-type">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{width:100vw;margin:0;padding:0;min-height:100vh;}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}.no-scrollbar::-webkit-scrollbar{display:none;}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "bamboo-teal": "#0d9488", "bamboo-deep": "#0f766e", "bamboo-light": "#f0fdfa", "bamboo-subtle": "#ccfbee", "silk-border": "#e2e8e4", "ink-charcoal": "#1c2826", "ink-subtle": "#627370", "ink-light": "#8a9a97", "paper-base": "#f7f8f6", "paper-pure": "#ffffff", "amber-warm": "#d97706", "amber-soft": "#fef3c7" }, "borderRadius": { "card": "16px", "pill": "9999px" }, "fontFamily": { "serif-cn": ["Noto Serif SC", "STSong", "SimSun", "serif"], "sans-cn": ["Plus Jakarta Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "sans-serif"], "num": ["Space Grotesk", "sans-serif"] } } } };</script></head>
+<body class="bg-paper-base font-sans-cn text-ink-charcoal flex flex-col min-h-screen selection:bg-bamboo-subtle antialiased">
+<!-- 微信小程序标准顶栏规范 -->
+<header class="fixed top-0 inset-x-0 z-50 bg-paper-base/95 backdrop-blur-md border-b border-silk-border/60 pt-safe">
+<div class="h-12 px-4 flex items-center justify-between relative">
+<!-- 返回按钮 -->
+<button aria-label="返回" class="w-9 h-9 -ml-1 flex items-center justify-center text-ink-charcoal active:opacity-60 transition-opacity" onclick="history.back()">
+<span class="material-symbols-outlined text-[21px]">arrow_back_ios_new</span>
+</button>
+<!-- 居中标题 -->
+<div class="absolute inset-x-0 mx-auto flex items-center justify-center pointer-events-none">
+<h1 class="font-serif-cn font-semibold text-[17px] text-ink-charcoal tracking-wider">景区地图与景点</h1>
+</div>
+<!-- 微信官方标准胶囊控件（仅包含“…”与“◎”，无冗余按钮） -->
+<div class="flex items-center">
+<div class="flex items-center h-8 px-2 bg-paper-pure/90 rounded-full border border-silk-border shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+<button aria-label="小程序操作" class="w-7 h-7 flex items-center justify-center text-ink-charcoal active:opacity-50 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+<div class="w-[1px] h-3.5 bg-silk-border mx-0.5"></div>
+<button aria-label="关闭小程序" class="w-7 h-7 flex items-center justify-center text-ink-charcoal active:opacity-50 transition-opacity">
+<span class="material-symbols-outlined text-[15px]">radio_button_checked</span>
+</button>
+</div>
+</div>
+</div>
+</header>
+<!-- 主页面内容区域 -->
+<main class="flex flex-col relative w-full pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-safe flex-1 max-w-[430px] mx-auto">
+<!-- 顶部分类筛选胶囊栏 (简约轻盈、横向滑动) -->
+<div class="sticky top-[calc(3rem+env(safe-area-inset-top,0px))] z-40 bg-paper-base/95 backdrop-blur-md pt-2 pb-3 px-4 border-b border-silk-border/40">
+<div class="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5">
+<button class="filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-bamboo-teal text-white shadow-xs shrink-0 transition-all">全部景点</button>
+<button class="filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-paper-pure text-ink-subtle border border-silk-border hover:border-bamboo-teal/40 shrink-0 transition-all">核心栈道</button>
+<button class="filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-paper-pure text-ink-subtle border border-silk-border hover:border-bamboo-teal/40 shrink-0 transition-all">清凉亲水</button>
+<button class="filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-paper-pure text-ink-subtle border border-silk-border hover:border-bamboo-teal/40 shrink-0 transition-all">索道缆车</button>
+<button class="filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-paper-pure text-ink-subtle border border-silk-border hover:border-bamboo-teal/40 shrink-0 transition-all">夜游演艺</button>
+</div>
+</div>
+<!-- 景点列表容器 (典雅留白与清透卡片) -->
+<div class="px-4 py-3.5 space-y-4">
+<!-- 卡片 1: 云巅高空栈道 -->
+<div class="w-full bg-paper-pure rounded-card border border-silk-border p-3.5 shadow-[0_2px_12px_rgba(28,40,38,0.03)] hover:border-bamboo-teal/40 transition-all">
+<div class="flex gap-3.5 items-start">
+<!-- 缩略图 -->
+<div class="relative w-[98px] h-[98px] rounded-xl overflow-hidden shrink-0 bg-paper-base">
+<img class="w-full h-full object-cover" data-alt="Scenic cliffside high wooden boardwalk suspended along sheer emerald rock faces, clear mountain mist swirling below, green lush pine forests, tranquil blue-green color palette inspired by classical Chinese scroll art" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCuLCWcTO2RB4X6uGP1pwvVjb6i1xMjMA3uFhhenS3wXRsb4NCkv4Sxl21AVULfB2tzmpakgDlaKkCXuV5ZPrD3kM2VUeacjtoBuz87kPfUGRKTzkPUpl8nGlUgzsWdtUSq3NoMstzMxyVPzhVVh6NZaHq7YTOMu88tsib1wqSB1A3XZWduVt43hsT3eY41LWJYz0iE0oaUn8DQKbRvSqgD7XJo18PHiTpxEF5QmzuUWp0A05DE8Lrhgw">
+<span class="absolute top-1.5 left-1.5 bg-ink-charcoal/75 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium tracking-tight">5A核心</span>
+</div>
+<!-- 核心内容 -->
+<div class="flex-1 min-w-0 flex flex-col justify-between h-[98px] py-0.5">
+<div>
+<div class="flex items-center justify-between gap-1.5">
+<h2 class="font-serif-cn font-bold text-[16px] text-ink-charcoal truncate">云巅高空栈道</h2>
+<span class="text-[11px] font-medium text-bamboo-deep bg-bamboo-light px-2 py-0.5 rounded-full shrink-0">客流 42% · 舒适</span>
+</div>
+<p class="text-[12px] text-ink-subtle mt-1 truncate">全长2.8km · 绝壁云海亲水环线</p>
+</div>
+<!-- 指标与通行 -->
+<div class="space-y-1">
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">hourglass_top</span>
+<span class="">索道排队约 <strong class="font-num text-ink-charcoal font-semibold">8</strong> 分钟</span>
+</div>
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5 truncate">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">sensor_door</span>
+<span class="truncate">北门01-08号翼闸 (0.3s极速过闸)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 底部精致扁平操作条 -->
+<div class="mt-3 pt-2.5 border-t border-silk-border/60 flex items-center justify-between">
+<button class="inline-flex items-center text-[12px] text-ink-subtle hover:text-bamboo-deep active:opacity-70 transition-colors">
+<span class="material-symbols-outlined text-[15px] mr-1 text-bamboo-teal">map</span>
+<span class="">手绘标点</span>
+</button>
+<button class="inline-flex items-center px-3.5 py-1.5 rounded-pill bg-bamboo-teal text-white text-[12px] font-medium active:scale-95 transition-transform shadow-xs"><span class="material-symbols-outlined text-[13px] mr-1">explore</span><span class="">查看导览</span></button>
+</div>
+</div>
+<!-- 卡片 2: 青翠峡谷·飞瀑叠翠 -->
+<div class="w-full bg-paper-pure rounded-card border border-silk-border p-3.5 shadow-[0_2px_12px_rgba(28,40,38,0.03)] hover:border-bamboo-teal/40 transition-all">
+<div class="flex gap-3.5 items-start">
+<!-- 缩略图 -->
+<div class="relative w-[98px] h-[98px] rounded-xl overflow-hidden shrink-0 bg-paper-base">
+<img class="w-full h-full object-cover" data-alt="A tranquil multi-tiered waterfall cascading down mossy granite rocks into an emerald green pool, serene forest canyon, sunlight piercing through bamboo leaves, Chinese song dynasty cyan landscape aesthetics" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHHFqM7DS461fG9OTOXETX7I6UAZUwylvzmWnivDAiwKDK3pZVbW48_3LlEY__R9q45aca19J4wQ8LnQ1tLCEsMG0irzcLvO_i7IpB7t8jRDxZUF87j8vpHs7EANDRuskIZGWl79PMfOtIjk8N0k0YPlE9rbM_8Pf-s0WAWW6uiUSBakt9IUEv74wmRBcj7MjlE4SdF2CuiwV8FwYPG4EOAo9AcJKtiZbFXmZ1uxELSDPcNfeKoJVRpA">
+<span class="absolute top-1.5 left-1.5 bg-ink-charcoal/75 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium tracking-tight">清凉亲水</span>
+</div>
+<!-- 核心内容 -->
+<div class="flex-1 min-w-0 flex flex-col justify-between h-[98px] py-0.5">
+<div>
+<div class="flex items-center justify-between gap-1.5">
+<h2 class="font-serif-cn font-bold text-[16px] text-ink-charcoal truncate">青翠峡谷·飞瀑叠翠</h2>
+<span class="text-[11px] font-medium text-bamboo-deep bg-bamboo-light px-2 py-0.5 rounded-full shrink-0">客流 28% · 畅通</span>
+</div>
+<p class="text-[12px] text-ink-subtle mt-1 truncate">负氧离子清心区 · 溪流奇石浅滩</p>
+</div>
+<!-- 指标与通行 -->
+<div class="space-y-1">
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">directions_walk</span>
+<span class="">核心观瀑点步行约 <strong class="font-num text-ink-charcoal font-semibold">15</strong> 分钟</span>
+</div>
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5 truncate">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">meeting_room</span>
+<span class="truncate">西峡谷闸机群直接刷码入园</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 底部精致扁平操作条 -->
+<div class="mt-3 pt-2.5 border-t border-silk-border/60 flex items-center justify-between">
+<button class="inline-flex items-center text-[12px] text-ink-subtle hover:text-bamboo-deep active:opacity-70 transition-colors">
+<span class="material-symbols-outlined text-[15px] mr-1 text-bamboo-teal">map</span>
+<span class="">手绘标点</span>
+</button>
+<button class="inline-flex items-center px-3.5 py-1.5 rounded-pill bg-bamboo-teal text-white text-[12px] font-medium active:scale-95 transition-transform shadow-xs">
+<span class="material-symbols-outlined text-[13px] mr-1">explore</span>
+<span class="">查看导览</span>
+</button>
+</div>
+</div>
+<!-- 卡片 3: 云顶天池与全景双程索道 -->
+<div class="w-full bg-paper-pure rounded-card border border-silk-border p-3.5 shadow-[0_2px_12px_rgba(28,40,38,0.03)] hover:border-bamboo-teal/40 transition-all">
+<div class="flex gap-3.5 items-start">
+<!-- 缩略图 -->
+<div class="relative w-[98px] h-[98px] rounded-xl overflow-hidden shrink-0 bg-paper-base">
+<img class="w-full h-full object-cover" data-alt="A serene alpine crater lake surrounded by jagged emerald peaks and ocean of clouds at altitude 1420 meters, modern scenic cable car gondola floating softly over misty valleys" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUuHgL0glLW17UOurFXWzZyRR3lyj0ERlahw31b59znE9ipa9NrkSL7hahML8WKUVaiylNADyKvRzmpXocl4_JapMfdi4tm_21bQFo0pxSC9_zEZHc-APcpu9tspMyY0J2yn1V_pDQK_KzgFitQ0Z7Z6DbSX8xEYTA36xZ7CIiORib2_ST-SH6fzkaBGLiv6VFCXl9rp6tfngntXu8XyLnx0rzDGBYZhCe9ST3IJo11ojOfXEdqLFR2g">
+<span class="absolute top-1.5 left-1.5 bg-amber-warm/85 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium tracking-tight">索道联运</span>
+</div>
+<!-- 核心内容 -->
+<div class="flex-1 min-w-0 flex flex-col justify-between h-[98px] py-0.5">
+<div>
+<div class="flex items-center justify-between gap-1.5">
+<h2 class="font-serif-cn font-bold text-[16px] text-ink-charcoal truncate">云顶天池·全景双程索道</h2>
+<span class="text-[11px] font-medium text-amber-warm bg-amber-soft px-2 py-0.5 rounded-full shrink-0">限流管控中</span>
+</div>
+<p class="text-[12px] text-ink-subtle mt-1 truncate">海拔1420m · 360°云海观景台</p>
+</div>
+<!-- 指标与通行 -->
+<div class="space-y-1">
+<div class="flex items-center text-[11px] text-amber-warm gap-1.5">
+<span class="material-symbols-outlined text-[13px]">confirmation_number</span>
+<span class="">今日索道余票 <strong class="font-num font-semibold">45</strong> 张</span>
+</div>
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5 truncate">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">airline_stops</span>
+<span class="truncate">就近索道下站闸机联动核验</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 底部精致扁平操作条 -->
+<div class="mt-3 pt-2.5 border-t border-silk-border/60 flex items-center justify-between">
+<button class="inline-flex items-center text-[12px] text-ink-subtle hover:text-bamboo-deep active:opacity-70 transition-colors">
+<span class="material-symbols-outlined text-[15px] mr-1 text-bamboo-teal">map</span>
+<span class="">手绘标点</span>
+</button>
+<button class="inline-flex items-center px-3.5 py-1.5 rounded-pill bg-bamboo-teal text-white text-[12px] font-medium active:scale-95 transition-transform shadow-xs"><span class="material-symbols-outlined text-[13px] mr-1">explore</span><span class="">查看导览</span></button>
+</div>
+</div>
+<!-- 卡片 4: 枫林夜游·森林光影秀 -->
+<div class="w-full bg-paper-pure rounded-card border border-silk-border p-3.5 shadow-[0_2px_12px_rgba(28,40,38,0.03)] hover:border-bamboo-teal/40 transition-all">
+<div class="flex gap-3.5 items-start">
+<!-- 缩略图 -->
+<div class="relative w-[98px] h-[98px] rounded-xl overflow-hidden shrink-0 bg-paper-base">
+<img class="w-full h-full object-cover" data-alt="Magical night woodland illuminated by warm floating water lanterns and holographic emerald light projections on mist, ancient pavilions glowing under starry sky" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5HPxMvTGr4i3drw5h9BrjhAYdY4hcSqUrrKzfsn1rZ6cS--Mth2RsHP8rgZm0oZS7FKNfmmgAQyJLW08YMVKVBMC0myngDNAt7JswDGdlv36b3VNB7nG-ySSo2peYwCsIR6NbHmJnwWI9UP5huEa4lvD_btlOd2jWkwp8r6U1OskN_qLJ68d8jQ95wvGNTZoEaBwqFWVzGnFd8oks7mlT-scbY2-Tikh-xCugFTL_t7aExb1zWW-ohw">
+<span class="absolute top-1.5 left-1.5 bg-ink-charcoal/80 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium tracking-tight">夜游限定</span>
+</div>
+<!-- 核心内容 -->
+<div class="flex-1 min-w-0 flex flex-col justify-between h-[98px] py-0.5">
+<div>
+<div class="flex items-center justify-between gap-1.5">
+<h2 class="font-serif-cn font-bold text-[16px] text-ink-charcoal truncate">枫林夜游·森林光影秀</h2>
+<span class="text-[11px] font-medium text-bamboo-deep bg-bamboo-light px-2 py-0.5 rounded-full shrink-0">18:30开放</span>
+</div>
+<p class="text-[12px] text-ink-subtle mt-1 truncate">非遗水灯 · 沉浸式全息夜光步道</p>
+</div>
+<!-- 指标与通行 -->
+<div class="space-y-1">
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">schedule</span>
+<span class="">入园时间 <strong class="font-num text-ink-charcoal">18:30 - 21:30</strong></span>
+</div>
+<div class="flex items-center text-[11px] text-ink-subtle gap-1.5 truncate">
+<span class="material-symbols-outlined text-[13px] text-bamboo-teal">nightlight</span>
+<span class="truncate">南门夜游专道闸机检验通关</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 底部精致扁平操作条 -->
+<div class="mt-3 pt-2.5 border-t border-silk-border/60 flex items-center justify-between">
+<button class="inline-flex items-center text-[12px] text-ink-subtle hover:text-bamboo-deep active:opacity-70 transition-colors">
+<span class="material-symbols-outlined text-[15px] mr-1 text-bamboo-teal">map</span>
+<span class="">手绘标点</span>
+</button>
+<button class="inline-flex items-center px-3.5 py-1.5 rounded-pill bg-bamboo-teal text-white text-[12px] font-medium active:scale-95 transition-transform shadow-xs"><span class="material-symbols-outlined text-[13px] mr-1">explore</span><span class="">查看导览</span></button>
+</div>
+</div>
+</div>
+<!-- 底部留白与意境装饰微文案 -->
+<div class="py-6 flex flex-col items-center justify-center text-ink-light space-y-1">
+<div class="w-8 h-[1px] bg-silk-border"></div>
+<span class="text-[11px] tracking-widest font-serif-cn mt-1">青山青水 · 诗意随行</span>
+</div>
+</main>
+<script>
+  // 顶部筛选胶囊交互
+  const tabs = document.querySelectorAll('.filter-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => {
+        t.className = 'filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-paper-pure text-ink-subtle border border-silk-border hover:border-bamboo-teal/40 shrink-0 transition-all';
+      });
+      tab.className = 'filter-tab px-3.5 py-1.5 rounded-pill text-[13px] font-medium bg-bamboo-teal text-white shadow-xs shrink-0 transition-all';
+    });
+  });
+</script>
+
+
+</body></html>

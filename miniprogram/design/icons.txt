@@ -63,3 +63,10 @@ wb_sunny
 wifi
 wifi_tethering_off
 workspace_premium
+radio_button_checked
+sensor_door
+map
+directions_walk
+meeting_room
+airline_stops
+nightlight

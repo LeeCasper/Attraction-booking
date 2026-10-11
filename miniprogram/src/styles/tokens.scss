@@ -105,6 +105,24 @@ $c-ink-charcoal-text: #1c2826;
 $c-ink-dark-gray: #374151;
 $c-ink-light-gray: #6b7280;
 
+// — 「青绿简约版」那一套命名（景区地图等新屏幕用它，取自该屏幕自带的 tailwind.config）—
+// 与上面的典雅版**并存**，不是别名：值真的不一样 —— `bamboo-teal`(#0d9488) ≠ `primary`(#00685f)、
+// `paper-base`(#f7f8f6，中性灰白) ≠ `surface`(#effcf9，淡青)、`ink-subtle`(#627370) ≠
+// `ink-light-gray`(#6b7280)、`ink-light`(#8a9a97) ≠ `outline-variant`(#bcc9c6)。
+// ⚠️ 其中四个与典雅版**同值**（`bamboo-subtle`=`bamboo-light-100`、`amber-warm`=`amber-gold`、
+// `paper-pure`=`paper-surface`、`ink-charcoal`=`ink-charcoal-text`）—— 照样各留一份，
+// 因为「值相同」是两套设计系统同源的结果、不是约定；合成别名反而会在将来某一套改色时静默分叉。
+$c-bamboo-teal: #0d9488;
+$c-bamboo-deep: #0f766e;
+$c-bamboo-light: #f0fdfa;
+$c-bamboo-subtle: #ccfbee;
+$c-paper-pure: #ffffff;
+$c-ink-charcoal: #1c2826;
+$c-ink-subtle: #627370;
+$c-ink-light: #8a9a97;
+$c-amber-warm: #d97706;
+$c-amber-soft: #fef3c7;
+
 // — 大屏 / 深色指挥台（本期小程序不用，保留以对齐设计系统全量）—
 $c-screen-xuanqing-bg: #08121e;
 $c-screen-panel-bg: rgba(13, 29, 49, 0.78);

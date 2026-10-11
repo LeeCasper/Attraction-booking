@@ -45,7 +45,7 @@ export const PAGE_BINDINGS = {
     ],
     setup: `const {
   announcement, slides, recommended, stockStatus,
-  onPickSlide, onPickArea, onQuickBooking, onQuickPass, onNotice, load,
+  onPickSlide, onPickArea, onQuickBooking, onQuickPass, onOpenMap, onNotice, load,
 } = useHomePage();
 // 首页是启动时的默认 tab，immediate 让它一挂载就拉数据
 watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
@@ -84,6 +84,12 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
         { remove: true },
       'p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col gap-3 hover:border-primary/40 transition-all :nth(3)':
         { remove: true },
+      // 「便民服务」四宫格的第 1 格「景区地图」→ 本轮新做的 `pages/map/`。
+      // 四格的 class **逐字相同**（只差图标与文字），只能按文档顺序取第 1 个。
+      // ⚠️ 另外三格（开放时段 / 交通路线 / 在线客服）**故意不绑** —— 它们还没有落点，
+      //    绑一个「敬请期待」的 toast 等于把「还没做」说成了一件功能。
+      'flex flex-col items-center gap-1.5 py-1.5 rounded-xl cursor-pointer hover:bg-surface-container-low transition-colors group :nth(1)':
+        { attrs: { '@tap': 'onOpenMap' } },
     },
     style: `.pg-page .is-hidden { display: none; }`,
   },
@@ -811,5 +817,91 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     // 已删；倒是这个「覆盖类一删掉就少一处特例」本身是那次统一做对了的证据。
     style: `.pg-page .is-open { display: block; opacity: 1; }
 .pg-page .is-flip { transform: rotate(180deg); }`,
+  },
+
+  /**
+   * 景区地图与景点 —— 首页「便民服务 → 景区地图」进来的二级页
+   * （设计稿 `map.html`，Stitch 屏 `987a340983404a88920be442d9e67991`「青绿简约版」）。
+   *
+   * 与其余二级页同一套路：设计稿的固定页头拿不到（生成器只取 `<main>` 的子节点），
+   * 标题栏由下面的 `before` 自绘，`PAGES` 里 `drop` 掉给页头让位的 calc 内边距。
+   *
+   * ⚠️ **这一页的内容全部是静态的**（后端没有点位模型），筛选是纯前端过滤 ——
+   * 口径与理由写在 `pages/map/behavior.ts` 的文件头，别把「客流 42%」当成实时数据。
+   */
+  map: {
+    imports: [
+      "import { useMapPage } from './behavior';",
+      "import PoiCard from '@/components/PoiCard.vue';",
+    ],
+    setup: `const {
+  statusBarHeight, capsuleInset, headerHeight, chipsTop, goBack,
+  categories, category, onPickCategory, chipClass,
+  shownPois, onGuide, onPin,
+} = useMapPage();`,
+    // 标题栏：状态栏占位块 + 48px 一行（返回键 + 居中标题），与设计稿的 `h-12` 一致。
+    // ⚠️ 画在**文档流**里而不是 `fixed`：二级页是真实页面、不套 scroll-view，
+    //    这样下面那条 `sticky` 的筛选条才有得可依（design 稿是 fixed 页头，见文件头说明）。
+    before: `<!-- 标题栏：**固定条**（自带状态栏内边距）+ 一个等高的占位块 ——
+      与外壳的 PageHeader 同一个结构。设计稿这一条就是 fixed（下面那条筛选胶囊是 sticky，
+      吸在它下沿）；若把标题栏画在文档流里，滚下去以后吸顶的胶囊上方会空出一条。
+      ⚠️ 固定定位在**二级页**没问题（不是 scroll-view 里的视图，见 CLAUDE.md 第 14 条）。 -->
+    <view class="pg-map-header" :style="{ paddingTop: statusBarHeight + 'px' }">
+      <view class="flex items-center px-4 relative h-12" :style="{ paddingRight: capsuleInset + 'px' }">
+        <view class="msi icon-arrow_back_ios_new text-18px text-ink-charcoal p-1 -ml-1" hover-class="pg-hover" @tap="goBack" />
+        <view class="absolute inset-x-0 flex items-center justify-center pointer-events-none">
+          <text class="font-serif-cn font-semibold text-17px text-ink-charcoal tracking-wider">景区地图与景点</text>
+        </view>
+      </view>
+    </view>
+    <view :style="{ height: headerHeight + 'px' }" />`,
+    bindings: {
+      // —— 顶部筛选胶囊 ——
+      // 设计稿是普通 `<div class="… overflow-x-auto">`，而**小程序里普通 view 的 overflow-x
+      // 不能可靠滚动**（最后一个胶囊会被切掉且滑不动），所以换成 `<scroll-view scroll-x>`
+      // —— 与购票页日期条、凭证切换条同一个理由。
+      // 吸顶的偏移量由 behavior 的 `chipsTop` 给：设计稿那句 `top-[calc(3rem+env(safe-area-inset-top))]`
+      // 在本工程里已被有意丢弃（小程序 WXSS 没有 `env(safe-area-inset-top)`）。
+      'flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5': {
+        replace:
+          '<scroll-view class="w-full" scroll-x="true" :show-scrollbar="false">' +
+          '<view class="flex items-center gap-2 py-0_5">' +
+          '<view v-for="c in categories" :key="c.id" :class="chipClass(c.id)" hover-class="pg-hover" @tap="onPickCategory(c.id)">' +
+          '<text>{{ c.label }}</text>' +
+          '</view>' +
+          '</view>' +
+          '</scroll-view>',
+      },
+      // 筛选条吸顶的 `top`（覆盖设计稿那个已被丢弃的 calc 类）——
+      // 静态 `style` 与 `:style` 在 Vue 里会合并，绑定侧优先。
+      'sticky top-[calc(3rem+env(safe-area-inset-top,0px))] z-40 bg-paper-base/95 backdrop-blur-md pt-2 pb-3 px-4 border-b border-silk-border/40': {
+        attrs: { ':style': '{ top: chipsTop }' },
+      },
+      // —— 点位列表 ——
+      // 设计稿的 4 张卡整块换成组件：卡片版式是照稿子逐字搬进 `PoiCard.vue` 的，
+      // 而列表要跟着上面的筛选动，静态模板做不到（也顺带把那 4 张远程位图挪进包里）。
+      // 点位列表（外面那层容器的内边距/间距必须一起搬过来，见下面的注解）
+      'px-4 py-3.5 space-y-4': {
+        // ⚠️ 外面这层 `<view class="px-4 py-3_5 space-y-4">` 不能省：`replace` 会把**元素自己**
+        // 连同它的 class 一起换掉，而左右内边距（px-4）、上下留白（py-3.5）与卡片间距（space-y-4）
+        // 全写在这个容器上 —— 直接换成 v-for 的话卡片会**贴到屏幕两侧**（实测就是这么发现的）。
+        replace:
+          '<view class="px-4 py-3_5 space-y-4">' +
+          '<PoiCard v-for="p in shownPois" :key="p.id" :poi="p" @guide="onGuide(p)" @pin="onPin" />' +
+          '</view>',
+      },
+    },
+    // 固定标题栏的样式（设计稿页头：半透明底 + 模糊 + 一条细下边框）。
+    // `rgba($c-..., 0.95)` 而不是写死 hex —— 底色跟着 token 走。
+    style: `.pg-page .pg-map-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background-color: rgba($c-paper-base, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba($c-silk-border, 0.6);
+}`,
   },
 };

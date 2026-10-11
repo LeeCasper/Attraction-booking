@@ -41,6 +41,13 @@
         "navigationStyle": "custom",
         "navigationBarTitleText": "订单支付"
       }
+    },
+    {
+      "path": "pages/map/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "景区地图与景点"
+      }
     }
   ],
   "globalStyle": {

@@ -43,7 +43,7 @@ onLoad(() => { void load(); });
 
 <!-- 由 scripts/gen-pages.mjs 从 design/reference/booking.html 生成，手工改动会被覆盖 -->
 <style lang="scss" scoped>
-// mainClasses 来自设计稿 <main> 的 class（已按 page.drop 去掉给固定顶栏让位的 pt-14）。
+// mainClasses 来自设计稿 <main> 的 class（已按 page.drop 去掉给固定页头让位的那些类）。
 // 标题栏由 page-bindings 的 before 片段自绘，没有外壳底栏。
 .pg-page {
   background-color: $c-surface;
