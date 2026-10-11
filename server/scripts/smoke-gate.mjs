@@ -313,6 +313,91 @@ async function main() {
   check('凭证返回剩余可入园人数', cred.data?.remainingCount === 2, `remaining=${cred.data?.remainingCount}`);
   let credentialToken = cred.data?.token;
 
+  // ---- 通行规则（A-044）：时段 / 票种 ----
+  // 同样借**这张还没用过的凭证**验 —— 被规则挡下不消耗名额，之后照常走完核销流程。
+  {
+    const slots = (await api('GET', `/api/admin/time-slots?areaId=${areaId}`, { token: adminToken })).data ?? [];
+    const types = (await api('GET', `/api/admin/ticket-types?areaId=${areaId}`, { token: adminToken })).data ?? [];
+    const otherSlot = slots.find((s) => s.id !== slotId);
+    const otherType = types.find((t) => t.id !== ticketTypeId);
+    const orderDetail = await api('GET', `/api/mini/orders/${orderId}`, { token });
+    const reservationId = orderDetail.data?.reservation?.id;
+
+    // ① 时段：把规则配成「另一个时段」，这张预约就应当被拒
+    await api('PUT', `/api/admin/gates/${entryGate.id}`, {
+      token: adminToken,
+      body: { allowedSlotIds: [otherSlot?.id ?? slotId] },
+    });
+    if (otherSlot) {
+      const blockedSlot = await gateApi('POST', '/api/gate/verify', { credential: credentialToken, direction: 1 });
+      check(
+        '通行规则：预约时段不在允许列表里 → 拒（提示走其他通道）',
+        blockedSlot.data?.ok === false && /不放行此时段/.test(blockedSlot.data?.message ?? ''),
+        JSON.stringify(blockedSlot.data),
+      );
+    } else {
+      check('通行规则：预约时段不在允许列表里 → 拒', false, '本景区只有一个时段，造不出「另一个时段」');
+    }
+
+    // ② 票种：规则配成「另一个票种」
+    await api('PUT', `/api/admin/gates/${entryGate.id}`, {
+      token: adminToken,
+      body: { allowedSlotIds: [], allowedTicketTypeIds: [otherType?.id ?? -1] },
+    });
+    if (otherType) {
+      const blockedType = await gateApi('POST', '/api/gate/verify', { credential: credentialToken, direction: 1 });
+      check(
+        '通行规则：订单票种不在允许列表里 → 拒（提示走其他通道）',
+        blockedType.data?.ok === false && /不放行此票种/.test(blockedType.data?.message ?? ''),
+        JSON.stringify(blockedType.data),
+      );
+    } else {
+      check('通行规则：订单票种不在允许列表里 → 拒', false, '本景区只有一个票种，造不出「另一个票种」');
+    }
+
+    // ③ 规则要下发给闸机（真机离线时按同一套拦）
+    await api('PUT', `/api/admin/gates/${entryGate.id}`, {
+      token: adminToken,
+      body: { allowedSlotIds: [slotId], allowedTicketTypeIds: [ticketTypeId] },
+    });
+    const allowed = await gateApi('GET', '/api/gate/rules');
+    check(
+      '通行规则随 /gate/rules 下发',
+      (allowed.data?.passageRules?.slotIds ?? []).includes(slotId) &&
+        (allowed.data?.passageRules?.ticketTypeIds ?? []).includes(ticketTypeId),
+      JSON.stringify(allowed.data?.passageRules),
+    );
+    check(
+      '离线白名单按规则过滤后仍含本单（时段+票种都放行）',
+      (allowed.data?.reservationIds ?? []).includes(reservationId),
+      `白名单 ${allowed.data?.reservationIds?.length ?? 0} 条，本单 reservationId=${reservationId}`,
+    );
+
+    // ④ 反向：规则只放行**另一个**时段 → 离线白名单里就该没有本单（断网时也不会把它放进来）
+    if (otherSlot) {
+      await api('PUT', `/api/admin/gates/${entryGate.id}`, {
+        token: adminToken,
+        body: { allowedSlotIds: [otherSlot.id], allowedTicketTypeIds: [] },
+      });
+      const filtered = await gateApi('GET', '/api/gate/rules');
+      check(
+        '离线白名单按规则把本单过滤掉',
+        !(filtered.data?.reservationIds ?? []).includes(reservationId),
+        `白名单 ${filtered.data?.reservationIds?.length ?? 0} 条，本单 reservationId=${reservationId}`,
+      );
+    }
+
+    // 恢复「不限」，别把规则留在闸机上（后面还要走完整的核销流程）
+    const cleared = await api('PUT', `/api/admin/gates/${entryGate.id}`, {
+      token: adminToken,
+      body: { allowedSlotIds: [], allowedTicketTypeIds: [] },
+    });
+    check('清空规则 = 恢复「不限」', cleared.status === 200, `${cleared.status} ${cleared.json?.msg}`);
+    const after = await api('GET', '/api/admin/gates', { token: adminToken });
+    const g = (after.data ?? []).find((x) => x.id === entryGate.id);
+    check('清空后回读是 null（不是空数组）', g?.allowedSlotIds === null && g?.allowedTicketTypeIds === null, JSON.stringify({ s: g?.allowedSlotIds, t: g?.allowedTicketTypeIds }));
+  }
+
   // 闸机被禁用 ⇒ 核验一律拒。
   // 借**这张还没用过的凭证**验：被拒**不会消耗名额**（这正是「拒绝」的含义），之后照常走完核销。
   // 用完立刻恢复，别把这台闸机留在禁用态（后面还有出入园的断言要靠它）。

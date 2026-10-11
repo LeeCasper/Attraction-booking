@@ -1,12 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { GateCommand, GateDevice, GateLog, OfflineSyncRecord } from '../../database/entities/gate.entity';
 import { Alarm, PassageRecord } from '../../database/entities/verify.entity';
 import { Reservation } from '../../database/entities/order.entity';
 import { Blacklist } from '../../database/entities/user.entity';
 import { ScenicArea } from '../../database/entities/scenic.entity';
+import { TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import { CredentialService } from '../verify/credential.service';
 import { VerifyService } from '../verify/verify.service';
 import { randomBytes } from 'crypto';
@@ -26,6 +27,12 @@ export interface GateDeviceInput {
   /** 只在编辑时出现：1 启用 / 3 禁用。2 离线 / 4 故障 是心跳巡检的运行时状态，不接受直接写 */
   status?: number;
   secretKey?: string;
+  /**
+   * 通行规则（A-044）：只放行这些时段 / 这些票种。
+   * **空数组 = 不限**（与「没配」同义），存进库里是 `null`。
+   */
+  allowedSlotIds?: number[];
+  allowedTicketTypeIds?: number[];
 }
 
 @Injectable()
@@ -41,6 +48,9 @@ export class GateService {
     @InjectRepository(Reservation) private readonly resRepo: Repository<Reservation>,
     @InjectRepository(Blacklist) private readonly blacklistRepo: Repository<Blacklist>,
     @InjectRepository(ScenicArea) private readonly areaRepo: Repository<ScenicArea>,
+    // 通行规则（A-044）要校验时段/票种属于本景区
+    @InjectRepository(TimeSlot) private readonly slotRepo: Repository<TimeSlot>,
+    @InjectRepository(TicketType) private readonly typeRepo: Repository<TicketType>,
     private readonly credential: CredentialService,
     private readonly verifyService: VerifyService,
   ) {}
@@ -56,6 +66,34 @@ export class GateService {
     const area = await this.areaRepo.findOne({ where: { id: scenicAreaId } });
     if (!area) throw new BadRequestException(`景区不存在（id=${scenicAreaId}）`);
     return area;
+  }
+
+  /**
+   * 把通行规则里的 id 归一化：**去重 + 必须是本景区的时段/票种**。
+   *
+   * 不校验的话，跨景区的 id 会稳稳存进去、然后在核验时**静默地把所有人都拦下** ——
+   * 现场看着就是「这台闸机坏了」。空数组统一存 `null`（= 不限），
+   * 这样界面上把多选清空就是「恢复不限」，而不是「什么都不让过」。
+   */
+  private async normalizeRuleIds(
+    ids: number[] | undefined,
+    areaId: number,
+    kind: 'slot' | 'type',
+  ): Promise<number[] | null | undefined> {
+    if (ids === undefined) return undefined;
+
+    const clean = [...new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    if (clean.length === 0) return null;
+
+    const repo = kind === 'slot' ? this.slotRepo : this.typeRepo;
+    const label = kind === 'slot' ? '时段' : '票种';
+    const rows = await repo.find({ where: { id: In(clean), scenicAreaId: areaId } });
+    const found = new Set(rows.map((r) => Number(r.id)));
+    const missing = clean.filter((id) => !found.has(id));
+    if (missing.length > 0) {
+      throw new BadRequestException(`${label}不属于本景区（id=${missing.join('、')}）—— 跨景区的通行规则只会把所有人都拦下`);
+    }
+    return clean;
   }
 
   /**
@@ -95,6 +133,9 @@ export class GateService {
         status: 2,
         protocol: 'http',
         secretKey,
+        allowedSlotIds: (await this.normalizeRuleIds(dto.allowedSlotIds, dto.scenicAreaId, 'slot')) ?? null,
+        allowedTicketTypeIds:
+          (await this.normalizeRuleIds(dto.allowedTicketTypeIds, dto.scenicAreaId, 'type')) ?? null,
       }),
     );
 
@@ -112,15 +153,34 @@ export class GateService {
     if (!gate) throw new NotFoundException('闸机不存在');
 
     const patch: QueryDeepPartialEntity<GateDevice> = {};
-    if (dto.scenicAreaId !== undefined && dto.scenicAreaId !== gate.scenicAreaId) {
-      await this.assertAreaExists(dto.scenicAreaId);
+    const changingArea = dto.scenicAreaId !== undefined && dto.scenicAreaId !== gate.scenicAreaId;
+    if (changingArea) {
+      await this.assertAreaExists(dto.scenicAreaId!);
       patch.scenicAreaId = dto.scenicAreaId;
+
+      // ⚠️ 换景区之后，原有的通行规则（时段/票种）**几乎必然不属于新景区** ——
+      // 直接留着就是「静默把所有人都拦下」，现场只会看到「这台闸机坏了」。
+      // 所以要么这次一并给新规则，要么显式清空（传空数组），否则拒掉。
+      const hasRules = (gate.allowedSlotIds?.length ?? 0) > 0 || (gate.allowedTicketTypeIds?.length ?? 0) > 0;
+      const redefines = dto.allowedSlotIds !== undefined || dto.allowedTicketTypeIds !== undefined;
+      if (hasRules && !redefines) {
+        throw new BadRequestException(
+          '换绑景区时原通行规则里的时段/票种都不属于新景区了 —— 请连同通行规则一起提交（清空传空数组即恢复「不限」）',
+        );
+      }
     }
     if (dto.name !== undefined) patch.name = dto.name.trim() || gate.gateNo;
     if (dto.location !== undefined) patch.location = dto.location.trim() || null;
     if (dto.ip !== undefined) patch.ip = dto.ip.trim() || null;
     if (dto.direction !== undefined) patch.direction = dto.direction;
     if (dto.secretKey?.trim()) patch.secretKey = dto.secretKey.trim();
+
+    // 通行规则按**改完之后**的景区校验（两者可以在同一次请求里一起改）
+    const ruleAreaId = dto.scenicAreaId ?? gate.scenicAreaId;
+    const slotIds = await this.normalizeRuleIds(dto.allowedSlotIds, ruleAreaId, 'slot');
+    if (slotIds !== undefined) patch.allowedSlotIds = slotIds;
+    const typeIds = await this.normalizeRuleIds(dto.allowedTicketTypeIds, ruleAreaId, 'type');
+    if (typeIds !== undefined) patch.allowedTicketTypeIds = typeIds;
 
     if (dto.status !== undefined) {
       if (dto.status === 3) {
@@ -215,12 +275,16 @@ export class GateService {
     if (!gate) throw new NotFoundException('闸机不存在');
 
     const today = businessToday();
-    const reservations: { id: number }[] = await this.resRepo.manager.query(
-      `SELECT r.id FROM reservation r
-         JOIN orders o ON o.id = r.order_id
-        WHERE r.scenic_area_id = ? AND r.date = ? AND o.status IN (?, ?)`,
-      [gate.scenicAreaId, today, 20, 30],
-    );
+    const reservations: { id: number; time_slot_id: number; order_id: number }[] =
+      await this.resRepo.manager.query(
+        `SELECT r.id, r.time_slot_id, r.order_id FROM reservation r
+           JOIN orders o ON o.id = r.order_id
+          WHERE r.scenic_area_id = ? AND r.date = ? AND o.status IN (?, ?)`,
+        [gate.scenicAreaId, today, 20, 30],
+      );
+
+    // 离线白名单也要按**本机的通行规则**过滤：不然闸机断网时会把不该走这条通道的人放进去
+    const reservationIds = await this.filterByPassageRules(gate, reservations);
 
     const blacklistRows: { value_hash: string }[] = await this.blacklistRepo.manager.query(
       `SELECT value_hash FROM blacklist
@@ -228,7 +292,7 @@ export class GateService {
     );
 
     await this.gateRepo.update(gateId, {
-      allowedSlots: { date: today, reservationIds: reservations.map((r) => r.id) },
+      allowedSlots: { date: today, reservationIds },
     });
 
     return {
@@ -239,10 +303,47 @@ export class GateService {
         secret: process.env.CRED_SECRET ?? 'dev-cred-secret',
       },
       date: today,
-      reservationIds: reservations.map((r) => r.id),
+      reservationIds,
+      // 通行规则（A-044）：真机离线时也要按同一套规则拦，所以一并下发
+      passageRules: {
+        slotIds: (gate.allowedSlotIds ?? []).map(Number),
+        ticketTypeIds: (gate.allowedTicketTypeIds ?? []).map(Number),
+      },
       blacklistHashes: blacklistRows.map((b) => b.value_hash),
       heartbeatInterval: 30,
     };
+  }
+
+  /**
+   * 按通行规则过滤当天的预约白名单（离线核验用）。
+   *
+   * 没配规则时原样返回（绝大多数闸机如此）—— 别为默认路径多查一次库。
+   * 票种维度要回查 `order_item`（预约表上没有票种），所以放在需要时才查。
+   */
+  private async filterByPassageRules(
+    gate: GateDevice,
+    rows: { id: number; time_slot_id: number; order_id: number }[],
+  ): Promise<number[]> {
+    const slotIds = (gate.allowedSlotIds ?? []).map(Number);
+    const typeIds = (gate.allowedTicketTypeIds ?? []).map(Number);
+    if (slotIds.length === 0 && typeIds.length === 0) return rows.map((r) => r.id);
+
+    const bySlot =
+      slotIds.length === 0 ? rows : rows.filter((r) => slotIds.includes(Number(r.time_slot_id)));
+    if (typeIds.length === 0) return bySlot.map((r) => r.id);
+
+    const orderIds = [...new Set(bySlot.map((r) => Number(r.order_id)))];
+    if (orderIds.length === 0) return [];
+    // 原生 SQL 不会展开数组，占位符得自己拼（都是数字，没有注入面）
+    const placeholders = orderIds.map(() => '?').join(',');
+    const items: { order_id: number; ticket_type_id: number }[] = await this.resRepo.manager.query(
+      `SELECT DISTINCT order_id, ticket_type_id FROM order_item WHERE order_id IN (${placeholders})`,
+      orderIds,
+    );
+    const okOrders = new Set(
+      items.filter((i) => typeIds.includes(Number(i.ticket_type_id))).map((i) => Number(i.order_id)),
+    );
+    return bySlot.filter((r) => okOrders.has(Number(r.order_id))).map((r) => r.id);
   }
 
   // ==================== 通行与告警 ====================

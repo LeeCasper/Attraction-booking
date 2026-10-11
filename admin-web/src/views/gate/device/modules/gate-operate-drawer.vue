@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { fetchCreateGate, fetchUpdateGate } from '@/service/api';
+import { fetchCreateGate, fetchGetTicketTypes, fetchGetTimeSlots, fetchUpdateGate } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
 
 /**
@@ -54,6 +54,9 @@ interface Model {
   /** 1 启用 / 3 禁用（仅编辑时提交） */
   status: number;
   secretKey: string;
+  /** 通行规则（A-044）：空数组 = 不限 */
+  allowedSlotIds: number[];
+  allowedTicketTypeIds: number[];
 }
 
 function createDefaultModel(): Model {
@@ -65,7 +68,10 @@ function createDefaultModel(): Model {
     location: '',
     ip: '',
     status: 1,
-    secretKey: ''
+    secretKey: '',
+    // 空 = 不限。**别用 undefined**：多选组件要的是数组，且后端把空数组当作「清空规则」
+    allowedSlotIds: [],
+    allowedTicketTypeIds: []
   };
 }
 
@@ -77,16 +83,60 @@ const rules: Record<'scenicAreaId' | 'gateNo', App.Global.FormRule[]> = {
   gateNo: [defaultRequiredRule, { min: 2, max: 32, message: '长度 2~32 个字符', trigger: ['input', 'blur'] }]
 };
 
+/** 通行规则的候选项 —— 跟着表单里选的**景区**走（跨景区的时段/票种后端会 400） */
+const slotOptions = ref<Api.Ticket.TimeSlot[]>([]);
+const typeOptions = ref<Api.Ticket.TicketType[]>([]);
+const rulesLoading = ref(false);
+
+async function loadRuleOptions(areaId: number | null) {
+  slotOptions.value = [];
+  typeOptions.value = [];
+
+  if (!areaId) return;
+
+  rulesLoading.value = true;
+
+  try {
+    const [slots, types] = await Promise.all([
+      fetchGetTimeSlots(areaId),
+      // 已下架的票种不列出来（下架票种不会再卖，配进规则只会让人困惑）
+      fetchGetTicketTypes({ areaId, all: false })
+    ]);
+
+    if (slots.data) slotOptions.value = slots.data;
+    if (types.data) typeOptions.value = types.data;
+  } finally {
+    rulesLoading.value = false;
+  }
+}
+
+/**
+ * 换景区 ⇒ 原来选的时段/票种全都作废（它们属于旧景区，留着后端会 400，
+ * 也等于把所有人都拦下）。所以清空重选，并立刻按新景区加载候选项。
+ */
+watch(
+  () => model.value.scenicAreaId,
+  (areaId, oldAreaId) => {
+    if (areaId === oldAreaId) return;
+
+    model.value.allowedSlotIds = [];
+    model.value.allowedTicketTypeIds = [];
+    loadRuleOptions(areaId);
+  }
+);
+
 function handleInitModel() {
   model.value = createDefaultModel();
 
   if (props.operateType !== 'edit' || !props.rowData) {
     // 新增：默认绑到当前筛选的景区（大多数情况就是它）
     if (props.areas.length > 0) model.value.scenicAreaId = props.areas[0].id;
+    loadRuleOptions(model.value.scenicAreaId);
     return;
   }
 
-  const { scenicAreaId, gateNo, name, direction, location, ip, status } = props.rowData;
+  const { scenicAreaId, gateNo, name, direction, location, ip, status, allowedSlotIds, allowedTicketTypeIds } =
+    props.rowData;
 
   Object.assign(model.value, {
     scenicAreaId,
@@ -97,8 +147,12 @@ function handleInitModel() {
     ip: ip ?? '',
     // 离线(2)/故障(4) 是运行时状态，表单里归到「启用」——后端会按最近心跳决定落 1 还是 2
     status: status === 3 ? 3 : 1,
-    secretKey: ''
+    secretKey: '',
+    allowedSlotIds: allowedSlotIds ?? [],
+    allowedTicketTypeIds: allowedTicketTypeIds ?? []
   });
+
+  loadRuleOptions(scenicAreaId);
 }
 
 function closeDrawer() {
@@ -120,7 +174,10 @@ async function handleSubmit() {
         direction: model.value.direction,
         location: model.value.location,
         ip: model.value.ip,
-        status: model.value.status
+        status: model.value.status,
+        // 显式传（空数组 = 恢复「不限」）—— 不传就是"不改动"，那是另一种语义
+        allowedSlotIds: model.value.allowedSlotIds,
+        allowedTicketTypeIds: model.value.allowedTicketTypeIds
       };
 
       if (model.value.secretKey) payload.secretKey = model.value.secretKey;
@@ -137,7 +194,9 @@ async function handleSubmit() {
         name: model.value.name || undefined,
         direction: model.value.direction,
         location: model.value.location,
-        ip: model.value.ip
+        ip: model.value.ip,
+        allowedSlotIds: model.value.allowedSlotIds,
+        allowedTicketTypeIds: model.value.allowedTicketTypeIds
       };
 
       if (model.value.secretKey) payload.secretKey = model.value.secretKey;
@@ -217,6 +276,40 @@ watch(visible, () => {
           <ElRadio :value="3">禁用</ElRadio>
         </ElRadioGroup>
         <div class="mt-1 text-12px text-gray-400">在线 / 离线 / 故障由心跳自动维护，这里只管「让不让它用」</div>
+      </ElFormItem>
+
+      <ElFormItem label="通行规则：允许的时段">
+        <ElSelect
+          v-model="model.allowedSlotIds"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          :loading="rulesLoading"
+          placeholder="不选 = 全部时段都放行"
+          class="w-full"
+        >
+          <ElOption v-for="item in slotOptions" :key="item.id" :label="item.name" :value="item.id" />
+        </ElSelect>
+        <div class="mt-1 text-12px text-gray-400">
+          PRD A-044：配了之后，本闸机只放行这些时段（游客的预约时段不在其中会被拒，提示走其他通道）
+        </div>
+      </ElFormItem>
+
+      <ElFormItem label="通行规则：允许的票种">
+        <ElSelect
+          v-model="model.allowedTicketTypeIds"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          :loading="rulesLoading"
+          placeholder="不选 = 全部票种都放行"
+          class="w-full"
+        >
+          <ElOption v-for="item in typeOptions" :key="item.id" :label="item.name" :value="item.id" />
+        </ElSelect>
+        <div class="mt-1 text-12px text-gray-400">两个维度都留空 = 不限（与本闸机「没配规则」等价）</div>
       </ElFormItem>
 
       <ElFormItem :label="isEdit ? '重置签名密钥' : '签名密钥'">

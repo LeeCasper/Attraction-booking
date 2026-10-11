@@ -8,7 +8,7 @@ import { OrderItem, Orders, Reservation } from '../../database/entities/order.en
 import { Blacklist, Visitor } from '../../database/entities/user.entity';
 import { Alarm, PassageRecord, Verification } from '../../database/entities/verify.entity';
 import { GateDevice } from '../../database/entities/gate.entity';
-import { TimeSlot } from '../../database/entities/ticket.entity';
+import { TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -21,6 +21,7 @@ import { AuthModule } from '../auth/auth.module';
       Blacklist,
       GateDevice,
       TimeSlot,
+      TicketType,
       Verification,
       PassageRecord,
       Alarm,

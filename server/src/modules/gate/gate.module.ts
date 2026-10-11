@@ -8,6 +8,7 @@ import { Alarm, PassageRecord } from '../../database/entities/verify.entity';
 import { Reservation } from '../../database/entities/order.entity';
 import { Blacklist } from '../../database/entities/user.entity';
 import { ScenicArea } from '../../database/entities/scenic.entity';
+import { TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import { VerifyModule } from '../verify/verify.module';
 import { AuthModule } from '../auth/auth.module';
 
@@ -24,6 +25,9 @@ import { AuthModule } from '../auth/auth.module';
       Blacklist,
       // 新增/编辑闸机要校验「所属景区存在」（闸机绑错景区就核不了单）
       ScenicArea,
+      // 通行规则（A-044）要校验时段/票种属于本景区
+      TimeSlot,
+      TicketType,
     ]),
     VerifyModule,
     AuthModule,

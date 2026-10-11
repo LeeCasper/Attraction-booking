@@ -1,7 +1,14 @@
 <script setup lang="tsx">
 import { onMounted, ref } from 'vue';
 import { gateDirectionRecord } from '@/constants/business';
-import { fetchDeleteGate, fetchGateCommand, fetchGetGates, fetchGetScenicAreas } from '@/service/api';
+import {
+  fetchDeleteGate,
+  fetchGateCommand,
+  fetchGetGates,
+  fetchGetScenicAreas,
+  fetchGetTicketTypes,
+  fetchGetTimeSlots
+} from '@/service/api';
 import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
 import { backendArrayTransform } from '@/utils/backend';
@@ -12,6 +19,22 @@ const { hasAuth } = useAuth();
 
 const areas = ref<Api.Scenic.Area[]>([]);
 const searchParams = ref<{ areaId: number | null }>({ areaId: null });
+
+/** 通行规则（A-044）里存的是 id，列表要显示名字 —— 按当前景区加载一次映射 */
+const slotNameById = ref<Record<number, string>>({});
+const typeNameById = ref<Record<number, string>>({});
+
+async function loadRuleNames(areaId: number | null) {
+  slotNameById.value = {};
+  typeNameById.value = {};
+
+  if (!areaId) return;
+
+  const [slots, types] = await Promise.all([fetchGetTimeSlots(areaId), fetchGetTicketTypes({ areaId, all: true })]);
+
+  if (slots.data) slotNameById.value = Object.fromEntries(slots.data.map(x => [x.id, x.name]));
+  if (types.data) typeNameById.value = Object.fromEntries(types.data.map(x => [x.id, x.name]));
+}
 
 /** 远程控制类型 → 中文名称与二次确认文案 */
 const commandMap: Record<Api.Gate.CommandType, { label: string; tip: string }> = {
@@ -102,6 +125,34 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
       label: '方向',
       width: 90,
       formatter: row => <span>{gateDirectionRecord[row.direction] ?? '-'}</span>
+    },
+    {
+      prop: 'rules',
+      label: '通行规则',
+      minWidth: 170,
+      formatter: row => {
+        const slotIds = row.allowedSlotIds ?? [];
+        const typeIds = row.allowedTicketTypeIds ?? [];
+
+        if (slotIds.length === 0 && typeIds.length === 0) {
+          return <ElTag type="info">不限</ElTag>;
+        }
+
+        const detail = [
+          slotIds.length ? `时段：${slotIds.map(id => slotNameById.value[id] ?? `#${id}`).join('、')}` : '',
+          typeIds.length ? `票种：${typeIds.map(id => typeNameById.value[id] ?? `#${id}`).join('、')}` : ''
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+        return (
+          <ElTooltip content={detail} placement="top" raw-content={false}>
+            <ElTag type="warning">
+              限 {slotIds.length || '全部'} 时段 · {typeIds.length || '全部'} 票种
+            </ElTag>
+          </ElTooltip>
+        );
+      }
     },
     {
       prop: 'online',
@@ -204,6 +255,7 @@ function rowClassName({ row }: { row: Api.Gate.Device }) {
 }
 
 function handleAreaChange() {
+  loadRuleNames(searchParams.value.areaId);
   getData();
 }
 
@@ -217,6 +269,7 @@ onMounted(async () => {
   if (areaList.length > 0) {
     // 一期单景区：默认选中第一个；多景区时用户在下拉中切换
     searchParams.value.areaId = areaList[0].id;
+    loadRuleNames(searchParams.value.areaId);
     getData();
   }
 });

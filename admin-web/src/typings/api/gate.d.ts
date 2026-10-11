@@ -24,6 +24,12 @@ declare namespace Api {
       /** 由服务端按心跳时间计算 */
       online: boolean;
       heartbeatAgoSeconds: number | null;
+      /**
+       * 通行规则（A-044）：只放行这些时段 / 这些票种。
+       * `null` 或空数组 = 不限（「没配」与「清空」同义）。
+       */
+      allowedSlotIds: number[] | null;
+      allowedTicketTypeIds: number[] | null;
     }
 
     /** 新增闸机的入参 */
@@ -38,6 +44,11 @@ declare namespace Api {
       direction?: number;
       /** 留空由服务端生成（长度 ≥ 8 才给填） */
       secretKey?: string;
+
+      /** 通行规则：只放行这些时段（空数组 = 不限） */
+      allowedSlotIds?: number[];
+      /** 通行规则：只放行这些票种（空数组 = 不限） */
+      allowedTicketTypeIds?: number[];
     }
 
     /** 编辑闸机的入参（只改传了的字段） */
@@ -52,6 +63,11 @@ declare namespace Api {
       status?: number;
       /** 留空则不改动密钥 */
       secretKey?: string;
+
+      /** 通行规则：只放行这些时段（空数组 = 不限） */
+      allowedSlotIds?: number[];
+      /** 通行规则：只放行这些票种（空数组 = 不限） */
+      allowedTicketTypeIds?: number[];
     }
 
     /** 新增闸机的返回：密钥**只在这里给一次**，列表接口不下发 */

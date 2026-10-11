@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { CredentialService } from './credential.service';
 import { PresenceService } from './presence.service';
@@ -8,7 +8,7 @@ import { OrderItem, Orders, Reservation } from '../../database/entities/order.en
 import { Blacklist, Visitor } from '../../database/entities/user.entity';
 import { Alarm, PassageRecord, Verification } from '../../database/entities/verify.entity';
 import { GateCommand, GateDevice } from '../../database/entities/gate.entity';
-import { TimeSlot } from '../../database/entities/ticket.entity';
+import { TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import {
   OrderItemStatus,
   OrderStatus,
@@ -84,6 +84,8 @@ export class VerifyService {
     @InjectRepository(Blacklist) private readonly blacklistRepo: Repository<Blacklist>,
     @InjectRepository(GateDevice) private readonly gateRepo: Repository<GateDevice>,
     @InjectRepository(TimeSlot) private readonly slotRepo: Repository<TimeSlot>,
+    // 通行规则（A-044）拒绝时要报票种名，现场才看得懂
+    @InjectRepository(TicketType) private readonly typeRepo: Repository<TicketType>,
     private readonly credential: CredentialService,
     private readonly presence: PresenceService,
     private readonly dataSource: DataSource,
@@ -209,6 +211,12 @@ export class VerifyService {
       const gateCheck = await this.checkGate(ctx.gateId, reservation.scenicAreaId, ctx.direction);
       if (gateCheck !== true) {
         return this.reject(VerifyCode.GATE_NO_PERMISSION, gateCheck, ctx, reservation.id);
+      }
+
+      // 通行规则（A-044：时段 / 票种）—— 没配就是「全放行」
+      const ruleCheck = await this.checkGatePassageRules(ctx.gateId, reservation);
+      if (ruleCheck !== true) {
+        return this.reject(VerifyCode.GATE_NO_PERMISSION, ruleCheck, ctx, reservation.id);
       }
     }
 
@@ -527,6 +535,48 @@ export class VerifyService {
     if (gate.direction !== 3 && gate.direction !== dir) {
       return dir === 1 ? '该闸机为出园通道' : '该闸机为入园通道';
     }
+    return true;
+  }
+
+  /**
+   * 通行规则（PRD A-044）：这台闸机**只**放行哪些时段 / 哪些票种。
+   *
+   * 两个维度各自独立，**空数组 = 不限**（与「没配」同义，见 `GateDevice.allowedSlotIds`）——
+   * 这条口径很重要：界面上把多选清空，语义必须是「恢复不限」而不是「什么都不让过」。
+   *
+   * 票种维度看的是**这一单的明细**：一张订单只有一个票种（下单时单选 `ticketTypeId`），
+   * 所以「明细里有任意一个被允许的票种」就是精确的。真要出现混合票种的单，这里会偏宽，
+   * 但那需要先改下单逻辑。
+   *
+   * 拒绝理由带上**时段名**（现场要能一眼看出是哪条规则挡的），所以这里多查一次时段。
+   */
+  private async checkGatePassageRules(
+    gateId: number,
+    reservation: Reservation,
+  ): Promise<true | string> {
+    const gate = await this.gateRepo.findOne({ where: { id: gateId } });
+    if (!gate) return '闸机不存在';
+
+    const allowedSlots = gate.allowedSlotIds ?? [];
+    if (allowedSlots.length > 0 && !allowedSlots.map(Number).includes(Number(reservation.timeSlotId))) {
+      const slot = await this.slotRepo.findOne({ where: { id: reservation.timeSlotId } });
+      return `该闸机不放行此时段（${slot?.name ?? `时段 ${reservation.timeSlotId}`}），请走其他通道`;
+    }
+
+    const allowedTypes = gate.allowedTicketTypeIds ?? [];
+    if (allowedTypes.length > 0) {
+      const items = await this.itemRepo.find({ where: { orderId: reservation.orderId } });
+      const ok = items.some((i) => allowedTypes.map(Number).includes(Number(i.ticketTypeId)));
+      if (!ok) {
+        const ids = [...new Set(items.map((i) => i.ticketTypeId))];
+        const types = ids.length
+          ? await this.typeRepo.find({ where: { id: In(ids) } })
+          : [];
+        const names = types.map((t) => t.name).join('、');
+        return `该闸机不放行此票种（${names || `票种 ${ids.join('、')}`}），请走其他通道`;
+      }
+    }
+
     return true;
   }
 }

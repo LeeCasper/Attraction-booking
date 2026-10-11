@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { GateService } from './gate.service';
 import { AuthService } from '../auth/auth.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -28,6 +28,14 @@ class CreateGateDto {
 
   /** 留空则服务端生成一个；**只在这次的返回里给一次** */
   @IsOptional() @IsString() @MinLength(8) @MaxLength(128) secretKey?: string;
+
+  /**
+   * 通行规则（A-044）：只放行这些时段 / 这些票种（id 必须属于本景区）。
+   * **空数组 = 不限**，与不传同义。
+   */
+  @IsOptional() @IsArray() @IsInt({ each: true }) allowedSlotIds?: number[];
+
+  @IsOptional() @IsArray() @IsInt({ each: true }) allowedTicketTypeIds?: number[];
 }
 
 class UpdateGateDto {
@@ -47,6 +55,14 @@ class UpdateGateDto {
 
   /** 留空则不改动密钥 */
   @IsOptional() @IsString() @MinLength(8) @MaxLength(128) secretKey?: string;
+
+  /**
+   * 通行规则（A-044）：只放行这些时段 / 这些票种（id 必须属于本景区）。
+   * **空数组 = 不限**，与不传同义。
+   */
+  @IsOptional() @IsArray() @IsInt({ each: true }) allowedSlotIds?: number[];
+
+  @IsOptional() @IsArray() @IsInt({ each: true }) allowedTicketTypeIds?: number[];
 }
 
 class HandleAlarmDto {

@@ -39,9 +39,22 @@ export class GateDevice {
   @Column({ name: 'secret_key', length: 128 })
   secretKey: string;
 
-  /** 通行规则缓存：允许时段/票种 */
+  /** 离线规则缓存：`{ date, reservationIds }`，由 `/api/gate/rules` 下发时写入 */
   @Column({ name: 'allowed_slots', type: 'json', nullable: true })
   allowedSlots: Record<string, unknown> | null;
+
+  /**
+   * 通行规则（PRD A-044）：这台闸机**只**放行哪些时段 / 哪些票种。
+   *
+   * `null` 或空数组 = 不限（默认）—— 「没配」和「配了但一个都没选」必须同义，
+   * 否则界面上清空选项会变成「什么都不让过」。
+   */
+  @Column({ name: 'allowed_slot_ids', type: 'json', nullable: true })
+  allowedSlotIds: number[] | null;
+
+  /** 同上，票种维度 */
+  @Column({ name: 'allowed_ticket_type_ids', type: 'json', nullable: true })
+  allowedTicketTypeIds: number[] | null;
 
   @Column({ name: 'firmware_version', type: 'varchar', length: 32, nullable: true })
   firmwareVersion: string | null;
