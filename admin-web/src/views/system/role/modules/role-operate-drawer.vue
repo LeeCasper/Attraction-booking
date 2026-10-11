@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { enableStatusOptions } from '@/constants/business';
 import { fetchCreateRole, fetchUpdateRole } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
-import { enableStatusOptions } from '@/constants/business';
 
 defineOptions({ name: 'RoleOperateDrawer' });
 

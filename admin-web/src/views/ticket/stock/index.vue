@@ -2,8 +2,8 @@
 import { onMounted, ref } from 'vue';
 import { fetchGetScenicAreas, fetchGetStocks, fetchGetTicketTypes } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
+import { backendArrayTransform } from '@/utils/backend';
 import { formatDate, formatHm } from '@/utils/business';
 import StockGenerateModal from './modules/stock-generate-modal.vue';
 import StockAdjustModal from './modules/stock-adjust-modal.vue';
@@ -196,7 +196,12 @@ onMounted(async () => {
         </ElFormItem>
         <ElFormItem label="票种">
           <ElSelect v-model="searchParams.ticketTypeId" placeholder="请选择票种" class="w-200px">
-            <ElOption v-for="ticketType in ticketTypes" :key="ticketType.id" :label="ticketType.name" :value="ticketType.id" />
+            <ElOption
+              v-for="ticketType in ticketTypes"
+              :key="ticketType.id"
+              :label="ticketType.name"
+              :value="ticketType.id"
+            />
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="日期范围">
@@ -234,7 +239,11 @@ onMounted(async () => {
       <ElTable v-loading="loading" border class="sm:h-full" :data="data" row-key="id">
         <ElTableColumn v-for="col in columns" :key="col.prop" v-bind="col" />
       </ElTable>
-      <StockGenerateModal v-model:visible="generateVisible" :ticket-type-id="searchParams.ticketTypeId" @submitted="getData" />
+      <StockGenerateModal
+        v-model:visible="generateVisible"
+        :ticket-type-id="searchParams.ticketTypeId"
+        @submitted="getData"
+      />
       <StockAdjustModal v-model:visible="adjustVisible" :row-data="adjustingStock" @submitted="getData" />
     </ElCard>
   </div>

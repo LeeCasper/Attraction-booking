@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { alarmLevelRecord, alarmLevelTagType, alarmTypeRecord } from '@/constants/business';
 import { fetchHandleAlarm } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
-import { alarmLevelRecord, alarmLevelTagType, alarmTypeRecord } from '@/constants/business';
 
 defineOptions({ name: 'AlarmHandleModal' });
 

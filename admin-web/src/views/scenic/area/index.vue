@@ -2,8 +2,8 @@
 import { onMounted } from 'vue';
 import { fetchDeleteScenicArea, fetchGetScenicAreas } from '@/service/api';
 import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
+import { backendArrayTransform } from '@/utils/backend';
 import AreaOperateDrawer from './modules/area-operate-drawer.vue';
 
 const { hasAuth } = useAuth();
@@ -50,10 +50,7 @@ const { columns, columnChecks, data, loading, getData, getDataByPage } = useUIPa
             </ElButton>
           ) : null}
           {hasAuth('scenic:delete') ? (
-            <ElPopconfirm
-              title="删除前请确认该景区下已无票种与订单"
-              onConfirm={() => handleDelete(row.id)}
-            >
+            <ElPopconfirm title="删除前请确认该景区下已无票种与订单" onConfirm={() => handleDelete(row.id)}>
               {{
                 reference: () => (
                   <ElButton type="danger" plain size="small">

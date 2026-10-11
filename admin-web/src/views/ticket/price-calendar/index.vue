@@ -8,9 +8,9 @@ import {
   fetchUpsertPrice
 } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
 import { useForm, useFormRules } from '@/hooks/common/form';
+import { backendArrayTransform } from '@/utils/backend';
 import { formatDate, formatPrice, yuanToCents } from '@/utils/business';
 
 const { hasAuth } = useAuth();

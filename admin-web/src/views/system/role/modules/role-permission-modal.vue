@@ -177,7 +177,8 @@ watch(visible, () => {
     </ElAlert>
     <div class="mb-12px flex items-center justify-between">
       <span class="text-sm text-gray-500">
-        角色：<span class="font-medium">{{ role?.name ?? '-' }}</span>
+        角色：
+        <span class="font-medium">{{ role?.name ?? '-' }}</span>
         <ElTag class="ml-8px" type="info" size="small">{{ role?.code ?? '-' }}</ElTag>
       </span>
       <ElSpace :size="8">

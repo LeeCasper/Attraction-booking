@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import type { InputInstance } from 'element-plus';
+import { verifyCodeRecord } from '@/constants/business';
 import { fetchVerify } from '@/service/api';
 import { useAuth } from '@/hooks/business/auth';
-import { verifyCodeRecord } from '@/constants/business';
 
 const { hasAuth } = useAuth();
 
@@ -157,9 +157,7 @@ onMounted(focusInput);
                   </template>
                 </ElInput>
                 <ElButton type="primary" size="large" :loading="loading" @click="handleVerify">核销</ElButton>
-                <ElText type="info">
-                  扫码枪扫描后自动回车触发核销；也可手动粘贴凭证后点击「核销」。
-                </ElText>
+                <ElText type="info">扫码枪扫描后自动回车触发核销；也可手动粘贴凭证后点击「核销」。</ElText>
               </div>
             </ElTabPane>
 
@@ -222,7 +220,7 @@ onMounted(focusInput);
       </ElCard>
 
       <ElCard v-else class="card-wrapper" :body-style="{ padding: '0' }">
-        <div :class="['verify-result', outcome.ok ? 'verify-result--ok' : 'verify-result--fail']">
+        <div class="verify-result" :class="[outcome.ok ? 'verify-result--ok' : 'verify-result--fail']">
           <div class="verify-result__head">
             <span class="verify-result__mark">{{ outcome.ok ? '✓' : '✕' }}</span>
             <div class="flex-col gap-4px">

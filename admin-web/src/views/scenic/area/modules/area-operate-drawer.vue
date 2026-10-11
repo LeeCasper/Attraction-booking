@@ -219,7 +219,7 @@ watch(visible, () => {
       </ElFormItem>
       <ElFormItem label="景区封面">
         <div class="w-full flex items-center gap-12px">
-          <div class="h-60px w-90px flex-center shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-50">
+          <div class="h-60px w-90px flex-center shrink-0 overflow-hidden border border-gray-200 rounded bg-gray-50">
             <img v-if="coverPreview" :src="coverPreview" class="h-full w-full object-cover" alt="封面预览" />
             <span v-else class="text-12px text-gray-400">未设置</span>
           </div>
@@ -233,7 +233,7 @@ watch(visible, () => {
           </ElUpload>
           <ElButton v-if="model.coverUrl" link type="danger" @click="model.coverUrl = ''">清除</ElButton>
         </div>
-        <div class="text-12px text-gray-400 mt-4px">建议 16:9；5MB 内，支持 jpeg / png / webp</div>
+        <div class="mt-4px text-12px text-gray-400">建议 16:9；5MB 内，支持 jpeg / png / webp</div>
       </ElFormItem>
       <ElFormItem label="地址">
         <ElInput v-model="model.address" placeholder="请输入景区详细地址" />
@@ -242,7 +242,12 @@ watch(visible, () => {
         <ElInput v-model="model.openTime" placeholder="如 08:00-17:00" />
       </ElFormItem>
       <ElFormItem label="景点分类">
-        <ElSelect v-model="model.category" class="w-full" clearable placeholder="不分类（只在小程序「全部景点」里出现）">
+        <ElSelect
+          v-model="model.category"
+          class="w-full"
+          clearable
+          placeholder="不分类（只在小程序「全部景点」里出现）"
+        >
           <ElOption v-for="opt in CATEGORY_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
         </ElSelect>
       </ElFormItem>

@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { onMounted, ref } from 'vue';
+import { gateDirectionRecord } from '@/constants/business';
 import { fetchGateCommand, fetchGetGates, fetchGetScenicAreas } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
-import { gateDirectionRecord } from '@/constants/business';
+import { backendArrayTransform } from '@/utils/backend';
 import GateLogDrawer from './modules/gate-log-drawer.vue';
 
 const { hasAuth } = useAuth();
@@ -106,9 +106,7 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
       prop: 'online',
       label: '在线状态',
       width: 100,
-      formatter: row => (
-        <ElTag type={row.online ? 'success' : 'danger'}>{row.online ? '在线' : '离线'}</ElTag>
-      )
+      formatter: row => <ElTag type={row.online ? 'success' : 'danger'}>{row.online ? '在线' : '离线'}</ElTag>
     },
     {
       prop: 'heartbeat',
@@ -130,9 +128,7 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
       formatter: row => (
         <div class="flex-center gap-8px">
           {hasAuth('gate:control') ? (
-            <ElDropdown
-              onCommand={(command: Api.Gate.CommandType) => handleCommand(row, command)}
-            >
+            <ElDropdown onCommand={(command: Api.Gate.CommandType) => handleCommand(row, command)}>
               {{
                 default: () => (
                   <ElButton type="primary" plain size="small">
@@ -195,12 +191,7 @@ onMounted(async () => {
     <ElCard class="card-wrapper" :body-style="{ paddingBottom: '0' }">
       <ElForm label-position="left" :label-width="80" inline>
         <ElFormItem label="景区">
-          <ElSelect
-            v-model="searchParams.areaId"
-            placeholder="请选择景区"
-            class="w-200px"
-            @change="handleAreaChange"
-          >
+          <ElSelect v-model="searchParams.areaId" placeholder="请选择景区" class="w-200px" @change="handleAreaChange">
             <ElOption v-for="item in areas" :key="item.id" :label="item.name" :value="item.id" />
           </ElSelect>
         </ElFormItem>
@@ -221,14 +212,7 @@ onMounted(async () => {
           </TableHeaderOperation>
         </div>
       </template>
-      <ElTable
-        v-loading="loading"
-        border
-        class="sm:h-full"
-        :data="data"
-        row-key="id"
-        :row-class-name="rowClassName"
-      >
+      <ElTable v-loading="loading" border class="sm:h-full" :data="data" row-key="id" :row-class-name="rowClassName">
         <ElTableColumn v-for="col in columns" :key="col.prop" v-bind="col" />
       </ElTable>
     </ElCard>

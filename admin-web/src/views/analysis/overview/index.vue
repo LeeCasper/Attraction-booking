@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { orderChannelRecord } from '@/constants/business';
 import {
   exportReport,
   fetchGetAnalysisOverview,
@@ -8,7 +9,6 @@ import {
   fetchGetTraffic
 } from '@/service/api';
 import { useAuth } from '@/hooks/business/auth';
-import { orderChannelRecord } from '@/constants/business';
 import { formatDate, formatPrice } from '@/utils/business';
 import TrendChart from './modules/trend-chart.vue';
 import TrafficChart from './modules/traffic-chart.vue';

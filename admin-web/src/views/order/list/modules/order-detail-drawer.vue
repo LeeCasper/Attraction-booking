@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { orderChannelRecord, orderStatusRecord, orderStatusTagType } from '@/constants/business';
 import { fetchGetOrderDetail } from '@/service/api';
 import { formatHm, formatPrice } from '@/utils/business';
-import { orderChannelRecord, orderStatusRecord, orderStatusTagType } from '@/constants/business';
 
 defineOptions({ name: 'OrderDetailDrawer' });
 
@@ -82,7 +82,9 @@ watch(visible, () => {
           <ElDescriptionsItem label="预约日期">{{ detail.reservation?.date || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="时段">
             <span v-if="detail.timeSlot">
-              {{ detail.timeSlot.name }}（{{ formatHm(detail.timeSlot.startTime) }}-{{ formatHm(detail.timeSlot.endTime) }}）
+              {{ detail.timeSlot.name }}（{{ formatHm(detail.timeSlot.startTime) }}-{{
+                formatHm(detail.timeSlot.endTime)
+              }}）
             </span>
             <span v-else>-</span>
           </ElDescriptionsItem>
@@ -95,9 +97,7 @@ watch(visible, () => {
         </ElDescriptions>
 
         <div>
-          <ElAlert type="info" :closable="false" show-icon class="mb-12px">
-            证件号已脱敏，明文不出库不出接口
-          </ElAlert>
+          <ElAlert type="info" :closable="false" show-icon class="mb-12px">证件号已脱敏，明文不出库不出接口</ElAlert>
           <ElTable :data="detail.items" border row-key="id">
             <ElTableColumn prop="visitorName" label="姓名" min-width="100" />
             <ElTableColumn prop="visitorIdCard" label="证件号（脱敏）" min-width="180" />

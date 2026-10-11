@@ -1,11 +1,11 @@
 <script setup lang="tsx">
 import { onMounted, ref } from 'vue';
+import { needRealnameRecord, ticketStatusRecord } from '@/constants/business';
 import { fetchDeleteTicketType, fetchGetScenicAreas, fetchGetTicketTypes } from '@/service/api';
 import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
+import { backendArrayTransform } from '@/utils/backend';
 import { formatPrice } from '@/utils/business';
-import { needRealnameRecord, ticketStatusRecord } from '@/constants/business';
 import TicketTypeOperateDrawer from './modules/ticket-type-operate-drawer.vue';
 import TicketTypeSearch from './modules/ticket-type-search.vue';
 
@@ -63,7 +63,10 @@ const { columns, columnChecks, data, loading, getData, getDataByPage } = useUIPa
             </ElButton>
           ) : null}
           {hasAuth('ticket:delete') && row.status === 1 ? (
-            <ElPopconfirm title="确认下架该票种？下架后小程序不再展示，历史订单不受影响" onConfirm={() => handleDelete(row.id)}>
+            <ElPopconfirm
+              title="确认下架该票种？下架后小程序不再展示，历史订单不受影响"
+              onConfirm={() => handleDelete(row.id)}
+            >
               {{
                 reference: () => (
                   <ElButton type="danger" plain size="small">
@@ -126,12 +129,7 @@ onMounted(async () => {
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <TicketTypeSearch
-      v-model:model="searchParams"
-      :areas="areas"
-      @reset="resetSearchParams"
-      @search="getDataByPage"
-    />
+    <TicketTypeSearch v-model:model="searchParams" :areas="areas" @reset="resetSearchParams" @search="getDataByPage" />
     <ElCard class="card-wrapper sm:flex-1-hidden">
       <template #header>
         <div class="flex items-center justify-between">

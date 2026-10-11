@@ -206,7 +206,7 @@ const local: App.I18n.Schema = {
     analysis_overview: 'Business Analysis',
     ops: 'Operations',
     ops_reconcile: 'Reconciliation',
-    ops_backup: 'Backups',
+    ops_backup: 'Backups'
   },
   page: {
     login: {

@@ -251,7 +251,11 @@ const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
   system_role: { title: '角色权限', icon: 'mdi:shield-account-outline', roles: ['super'] },
   'system_admin-user': { title: '管理员', icon: 'mdi:account-cog-outline', roles: ['super'] },
   // 与后端 log:read 权限对应的角色（运维/财务也需查日志）
-  'system_operation-log': { title: '操作日志', icon: 'mdi:file-document-outline', roles: ['super', 'admin', 'finance', 'ops'] },
+  'system_operation-log': {
+    title: '操作日志',
+    icon: 'mdi:file-document-outline',
+    roles: ['super', 'admin', 'finance', 'ops']
+  },
   // 与后端 `config:read` 的授权范围对齐（种子把 config:read 给了 admin / finance）——
   // 菜单以前写死 `['super']`，于是这两个角色调得动接口却看不到入口。
   // 写权限 `config:update` 仍只有超管，页面里用 hasAuth 把「编辑」按钮藏掉。

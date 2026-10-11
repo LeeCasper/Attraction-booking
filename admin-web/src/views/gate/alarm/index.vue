@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
+import { alarmLevelRecord, alarmLevelTagType, alarmTypeRecord } from '@/constants/business';
 import { fetchGetAlarms } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
-import { backendPageTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
-import { alarmLevelRecord, alarmLevelTagType, alarmTypeRecord } from '@/constants/business';
+import { backendPageTransform } from '@/utils/backend';
 import AlarmHandleModal from './modules/alarm-handle-modal.vue';
 
 const { hasAuth } = useAuth();
@@ -80,7 +80,12 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, pagination
       label: '内容',
       minWidth: 240,
       formatter: row => (
-        <ElTooltip content={row.content} placement="top" showAfter={300} disabled={!row.content || row.content.length <= 24}>
+        <ElTooltip
+          content={row.content}
+          placement="top"
+          showAfter={300}
+          disabled={!row.content || row.content.length <= 24}
+        >
           <span class="inline-block max-w-300px truncate align-middle">{row.content}</span>
         </ElTooltip>
       )
@@ -184,14 +189,7 @@ function resetSearch() {
           </TableHeaderOperation>
         </div>
       </template>
-      <ElTable
-        v-loading="loading"
-        border
-        class="sm:h-full"
-        :data="data"
-        row-key="id"
-        :row-class-name="rowClassName"
-      >
+      <ElTable v-loading="loading" border class="sm:h-full" :data="data" row-key="id" :row-class-name="rowClassName">
         <ElTableColumn v-for="col in columns" :key="col.prop" v-bind="col" />
       </ElTable>
       <ElPagination

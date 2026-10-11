@@ -12,9 +12,7 @@ export function fetchRunReconciliation(date: string, areaId?: number) {
 }
 
 /** 对账记录列表 */
-export function fetchGetReconciliations(
-  params: Api.Common.BackendPageParams & { status?: number | null }
-) {
+export function fetchGetReconciliations(params: Api.Common.BackendPageParams & { status?: number | null }) {
   return request<Api.Common.BackendPageRecord<Api.Ops.ReconciliationRow>>({
     url: '/admin/reconciliations',
     method: 'get',

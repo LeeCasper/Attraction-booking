@@ -28,9 +28,7 @@ export function fetchGetConversion(params: Api.Analysis.RangeParams) {
 }
 
 /** 客流分析（分时 / 日 / 月） */
-export function fetchGetTraffic(
-  params: Api.Analysis.RangeParams & { granularity?: 'hour' | 'day' | 'month' }
-) {
+export function fetchGetTraffic(params: Api.Analysis.RangeParams & { granularity?: 'hour' | 'day' | 'month' }) {
   return request<Api.Analysis.TrafficPoint[]>({
     url: '/admin/analysis/traffic',
     method: 'get',

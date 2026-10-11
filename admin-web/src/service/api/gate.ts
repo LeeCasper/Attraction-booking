@@ -42,9 +42,7 @@ export function fetchGetGateLogs(id: number, limit = 50) {
 // ============ 通行记录 ============
 
 /** 通行记录（入园/出园/拒绝/异常） */
-export function fetchGetPassages(
-  params: Api.Common.BackendPageParams & Api.Gate.PassageSearchParams
-) {
+export function fetchGetPassages(params: Api.Common.BackendPageParams & Api.Gate.PassageSearchParams) {
   return request<Api.Common.BackendPageRecord<Api.Gate.PassageRow>>({
     url: '/admin/passages',
     method: 'get',

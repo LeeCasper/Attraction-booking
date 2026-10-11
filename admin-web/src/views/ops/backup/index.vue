@@ -2,8 +2,8 @@
 import { ref } from 'vue';
 import { downloadBackup, fetchGetBackups, fetchRunBackup } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
-import { backendPageTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
+import { backendPageTransform } from '@/utils/backend';
 
 const { hasAuth } = useAuth();
 
@@ -187,9 +187,13 @@ async function handleDownload(row: Api.Ops.BackupRow) {
     <ElAlert type="info" :closable="false" show-icon>
       <template #title>备份说明</template>
       <p>
-        备份使用 <b>mysqldump + gzip</b> 导出全库，保留最近 <b>30 天</b>，过期文件自动清理。恢复不提供界面操作
-        —— 覆盖生产库属高危操作，需人工按运维文档执行：
-        <code>gunzip -c &lt;备份文件&gt; | mysql -u&lt;user&gt; -p &lt;database&gt;</code>。
+        备份使用
+        <b>mysqldump + gzip</b>
+        导出全库，保留最近
+        <b>30 天</b>
+        ，过期文件自动清理。恢复不提供界面操作 —— 覆盖生产库属高危操作，需人工按运维文档执行：
+        <code>gunzip -c &lt;备份文件&gt; | mysql -u&lt;user&gt; -p &lt;database&gt;</code>
+        。
       </p>
     </ElAlert>
 
@@ -199,12 +203,7 @@ async function handleDownload(row: Api.Ops.BackupRow) {
           <p>数据备份</p>
           <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @refresh="getData">
             <template #default>
-              <ElButton
-                v-if="hasAuth('config:update')"
-                type="primary"
-                :loading="running"
-                @click="handleRun"
-              >
+              <ElButton v-if="hasAuth('config:update')" type="primary" :loading="running" @click="handleRun">
                 <template #icon>
                   <icon-ic-round-cloud-upload class="text-icon" />
                 </template>

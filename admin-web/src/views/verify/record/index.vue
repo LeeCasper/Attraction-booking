@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
+import { verifyChannelRecord } from '@/constants/business';
 import { exportReport, fetchGetVerifications } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
 import { backendPageTransform } from '@/utils/backend';
 import { formatDate } from '@/utils/business';
-import { verifyChannelRecord } from '@/constants/business';
 
 interface SearchParams {
   page: number;
@@ -128,12 +128,7 @@ async function handleExport() {
       <ElForm :model="searchParams" label-position="left" :label-width="80" inline>
         <ElFormItem label="渠道">
           <ElSelect v-model="searchParams.channel" placeholder="全部渠道" clearable class="w-160px">
-            <ElOption
-              v-for="(label, value) in verifyChannelRecord"
-              :key="value"
-              :label="label"
-              :value="value"
-            />
+            <ElOption v-for="(label, value) in verifyChannelRecord" :key="value" :label="label" :value="value" />
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="核销日期">

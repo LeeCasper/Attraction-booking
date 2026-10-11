@@ -10,9 +10,7 @@ export function fetchVerify(data: Api.Verify.VerifyPayload) {
 }
 
 /** 核销记录 */
-export function fetchGetVerifications(
-  params: Api.Common.BackendPageParams & Api.Verify.VerificationSearchParams
-) {
+export function fetchGetVerifications(params: Api.Common.BackendPageParams & Api.Verify.VerificationSearchParams) {
   return request<Api.Common.BackendPageRecord<Api.Verify.VerificationRow>>({
     url: '/admin/verifications',
     method: 'get',

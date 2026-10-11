@@ -2,8 +2,8 @@
 import { onMounted, ref } from 'vue';
 import { fetchGetReconciliations, fetchGetScenicAreas, fetchRunReconciliation } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
-import { backendPageTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
+import { backendPageTransform } from '@/utils/backend';
 import { formatDate, formatPrice } from '@/utils/business';
 import DiffDetailModal from './modules/diff-detail-modal.vue';
 
@@ -127,9 +127,7 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, pagination
       label: '状态',
       width: 100,
       formatter: row => (
-        <ElTag type={reconcileStatusTagType[row.status] ?? 'info'}>
-          {reconcileStatusRecord[row.status] ?? '-'}
-        </ElTag>
+        <ElTag type={reconcileStatusTagType[row.status] ?? 'info'}>{reconcileStatusRecord[row.status] ?? '-'}</ElTag>
       )
     },
     {
@@ -227,9 +225,11 @@ onMounted(async () => {
     <ElAlert type="info" :closable="false" show-icon>
       <template #title>对账口径</template>
       <p>
-        本页对订单（orders）↔ 支付流水（payment）↔ 退款（refund）三方进行核对，用于度量验收标准「订单、核销、通行、财务数据一致率
-        ≥ 99.9%」；与微信账单（tradebook）的比对待配置商户证书后启用。对账任务每天
-        <b>08:00</b> 自动执行前一日数据，也可在此手动重跑指定日期。
+        本页对订单（orders）↔ 支付流水（payment）↔
+        退款（refund）三方进行核对，用于度量验收标准「订单、核销、通行、财务数据一致率 ≥
+        99.9%」；与微信账单（tradebook）的比对待配置商户证书后启用。对账任务每天
+        <b>08:00</b>
+        自动执行前一日数据，也可在此手动重跑指定日期。
       </p>
     </ElAlert>
 

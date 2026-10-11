@@ -206,7 +206,7 @@ const local: App.I18n.Schema = {
     analysis_overview: '经营分析',
     ops: '运维管理',
     ops_reconcile: '三方对账',
-    ops_backup: '数据备份',
+    ops_backup: '数据备份'
   },
   page: {
     login: {

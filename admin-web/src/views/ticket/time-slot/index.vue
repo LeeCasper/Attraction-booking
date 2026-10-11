@@ -1,11 +1,11 @@
 <script setup lang="tsx">
 import { onMounted, ref } from 'vue';
+import { enableStatusRecord } from '@/constants/business';
 import { fetchDeleteTimeSlot, fetchGetScenicAreas, fetchGetTimeSlots } from '@/service/api';
 import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
+import { backendArrayTransform } from '@/utils/backend';
 import { formatHm } from '@/utils/business';
-import { enableStatusRecord } from '@/constants/business';
 import TimeSlotOperateModal from './modules/time-slot-operate-modal.vue';
 
 const { hasAuth } = useAuth();

@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
+import { orderChannelRecord, orderStatusRecord, orderStatusTagType } from '@/constants/business';
 import { exportReport, fetchGetOrders } from '@/service/api';
 import { useUIPaginatedTable } from '@/hooks/common/table';
 import { backendPageTransform } from '@/utils/backend';
 import { formatPrice } from '@/utils/business';
-import { orderChannelRecord, orderStatusRecord, orderStatusTagType } from '@/constants/business';
 import OrderDetailDrawer from './modules/order-detail-drawer.vue';
 
 const searchParams = ref<Api.Order.OrderSearchParams>({
@@ -48,7 +48,9 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, pagination
       prop: 'status',
       label: '状态',
       width: 100,
-      formatter: row => <ElTag type={orderStatusTagType[row.status] ?? 'info'}>{orderStatusRecord[row.status] ?? '-'}</ElTag>
+      formatter: row => (
+        <ElTag type={orderStatusTagType[row.status] ?? 'info'}>{orderStatusRecord[row.status] ?? '-'}</ElTag>
+      )
     },
     {
       prop: 'itemCount',

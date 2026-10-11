@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
+import { enableStatusRecord } from '@/constants/business';
 import { fetchDeleteRole, fetchGetRoles } from '@/service/api';
 import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
-import { enableStatusRecord } from '@/constants/business';
+import { backendArrayTransform } from '@/utils/backend';
 import RoleOperateDrawer from './modules/role-operate-drawer.vue';
 import RolePermissionModal from './modules/role-permission-modal.vue';
 
@@ -54,13 +54,7 @@ const { columns, columnChecks, data, loading, getData, getDataByPage } = useUIPa
               </ElButton>
             ) : null}
             {hasAuth('role:assign') ? (
-              <ElButton
-                type="warning"
-                plain
-                size="small"
-                disabled={isSuper}
-                onClick={() => openPermissionModal(row)}
-              >
+              <ElButton type="warning" plain size="small" disabled={isSuper} onClick={() => openPermissionModal(row)}>
                 分配权限
               </ElButton>
             ) : null}

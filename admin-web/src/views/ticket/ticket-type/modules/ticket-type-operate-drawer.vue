@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { fetchCreateTicketType, fetchGetTicketTypeDetail, fetchUpdatePurchaseRule, fetchUpdateTicketType } from '@/service/api';
+import {
+  fetchCreateTicketType,
+  fetchGetTicketTypeDetail,
+  fetchUpdatePurchaseRule,
+  fetchUpdateTicketType
+} from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
 import { centsToYuan, yuanToCents } from '@/utils/business';
 

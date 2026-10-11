@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { enableStatusOptions } from '@/constants/business';
 import { fetchCreateTimeSlot, fetchUpdateTimeSlot } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
 import { formatHm } from '@/utils/business';
-import { enableStatusOptions } from '@/constants/business';
 
 defineOptions({ name: 'TimeSlotOperateModal' });
 

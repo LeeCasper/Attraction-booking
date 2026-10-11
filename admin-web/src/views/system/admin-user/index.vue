@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import { ref } from 'vue';
+import { enableStatusRecord } from '@/constants/business';
 import { fetchDeleteAdminUser, fetchGetAdminUsers, fetchResetAdminPassword } from '@/service/api';
 import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
-import { backendPageTransform } from '@/utils/backend';
 import { useAuth } from '@/hooks/business/auth';
-import { enableStatusRecord } from '@/constants/business';
+import { backendPageTransform } from '@/utils/backend';
 import AdminUserOperateDrawer from './modules/admin-user-operate-drawer.vue';
 
 const { hasAuth } = useAuth();
@@ -101,10 +101,7 @@ const { columns, columnChecks, data, loading, getData, getDataByPage, pagination
               </ElButton>
             ) : null}
             {hasAuth('admin:delete') ? (
-              <ElPopconfirm
-                title="确认删除该管理员？删除后其账号将无法登录"
-                onConfirm={() => handleDelete(row.id)}
-              >
+              <ElPopconfirm title="确认删除该管理员？删除后其账号将无法登录" onConfirm={() => handleDelete(row.id)}>
                 {{
                   reference: () => (
                     <ElButton type="danger" plain size="small" disabled={isBuiltin}>

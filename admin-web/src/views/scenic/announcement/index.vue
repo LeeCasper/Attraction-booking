@@ -1,10 +1,15 @@
 <script setup lang="tsx">
 import { onMounted, ref } from 'vue';
-import { fetchDeleteAnnouncement, fetchGetAnnouncements, fetchGetScenicAreas, fetchUpdateAnnouncement } from '@/service/api';
-import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
-import { backendArrayTransform } from '@/utils/backend';
-import { useAuth } from '@/hooks/business/auth';
 import { announcementStatusRecord } from '@/constants/business';
+import {
+  fetchDeleteAnnouncement,
+  fetchGetAnnouncements,
+  fetchGetScenicAreas,
+  fetchUpdateAnnouncement
+} from '@/service/api';
+import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
+import { useAuth } from '@/hooks/business/auth';
+import { backendArrayTransform } from '@/utils/backend';
 import AnnouncementOperateDrawer from './modules/announcement-operate-drawer.vue';
 
 const { hasAuth } = useAuth();

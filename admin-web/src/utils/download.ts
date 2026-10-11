@@ -1,5 +1,5 @@
-import { getServiceBaseURL } from '@/utils/service';
 import { getAuthorization } from '@/service/request/shared';
+import { getServiceBaseURL } from '@/utils/service';
 
 /**
  * 文件下载

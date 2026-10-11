@@ -73,11 +73,7 @@ watch(visible, () => {
     <div v-loading="loading" class="min-h-100px">
       <ElEmpty v-if="!loading && logs.length === 0" description="暂无通信日志" />
       <ElCollapse v-else>
-        <ElCollapseItem
-          v-for="log in logs"
-          :key="log.id"
-          :name="log.id"
-        >
+        <ElCollapseItem v-for="log in logs" :key="log.id" :name="log.id">
           <template #title>
             <div class="flex items-center gap-12px">
               <ElTag size="small" type="info">{{ log.action }}</ElTag>
