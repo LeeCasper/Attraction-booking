@@ -303,13 +303,22 @@ onLoad(() => { void load(); });`,
       // （另外 3 个是时段的「余 N 张」），单独定位它会「匹配到 4 个，要求恰好 1 个」。
       // 整行容器 `mt-3 pt-3 border-t …` 全页唯一，锚在它上面最稳。
       // ⚠️ inner 的内容**不过 mapClasses**，所以这里的 class 必须自己写消毒后的名。
+      //
+      // 版式：票名与受众**上下两行**，价格整块 `shrink-0`。
+      // 原先两者是同一行的 flex 兄弟，真实数据一长就散架（用户截过图）：
+      // 票名「优待票（长者 / 学生）」被压成两行、受众「60 周岁及以上长者、全日制在读学生」
+      // 的末字被价格盖住，而价格那一块自己也被挤得把 `/人` 折到了第二行 ——
+      // 挤在中间的 `flex` 子项没有 `min-w-0`，就只剩「一起变形」这一条路。
+      // 现在左边是一个 `min-w-0` 的列（票名 `truncate` 一行、受众照常换行），右边 `shrink-0` 不参与压缩。
       'mt-3 pt-3 border-t border-silk-border/60 flex items-center justify-between': {
         inner:
-          '<view class="flex items-center gap-2">' +
-          '<text class="font-body-md text-14px text-ink-charcoal-text font-semibold">{{ ticketName }}</text>' +
-          '<text class="text-11px text-ink-light-gray">{{ ticketAudience }}</text>' +
+          '<view class="flex flex-col min-w-0 pr-3">' +
+          '<text class="font-body-md text-14px text-ink-charcoal-text font-semibold truncate">{{ ticketName }}</text>' +
+          // 受众可能很长（后台上传的票种说明），让它换行而不是截断 —— 截断掉的正好是
+          // 「……全日制在读学生」这种「谁能买」的关键信息。为空（票种没填 audience）就整行不渲染
+          '<text v-if="ticketAudience" class="text-11px text-ink-light-gray mt-1">{{ ticketAudience }}</text>' +
           '</view>' +
-          '<view class="flex items-baseline">' +
+          '<view class="flex items-baseline shrink-0">' +
           '<text class="text-caption-sm font-semibold text-cinnabar-red">¥</text>' +
           '<text class="font-data-metric-lg text-data-metric-lg font-bold text-cinnabar-red ml-0_5">{{ ticketPrice }}</text>' +
           '<text class="font-caption-sm text-11px text-ink-light-gray ml-1">{{ unitLabel }}</text>' +
