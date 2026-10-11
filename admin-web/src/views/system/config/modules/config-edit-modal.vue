@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { fetchUpdateConfig } from '@/service/api';
+import ImageField from '@/components/business/image-field.vue';
 import { CONFIG_SCHEMA, type ConfigField, toFormValue, toStoredValue } from './config-schema';
 
 defineOptions({ name: 'ConfigEditModal' });
@@ -174,27 +175,47 @@ watch(visible, () => {
 
       <!-- 已知键：带标签与校验的字段表单 -->
       <template v-if="schema">
-        <ElFormItem v-for="field in schema.fields" :key="field.key" :label="field.label">
-          <ElInput v-if="field.type === 'text'" v-model="form[field.key] as string" placeholder="留空表示不使用" />
-
-          <ElInputNumber
-            v-else-if="isNumeric(field)"
-            :model-value="form[field.key] as number"
-            :min="field.min"
-            :max="field.max"
-            :step="field.step ?? 1"
-            class="w-full"
-            @update:model-value="(v: number | undefined) => (form[field.key] = v ?? 0)"
+        <!--
+ 图片字段（平台 Logo）：`ImageField` 自带 ElFormItem，所以这里**不能再套一层**，
+             否则 label 会叠成两层 
+-->
+        <!--
+ 按 schema 顺序渲染：图片字段（平台 Logo）用 ImageField（它自带 ElFormItem，
+             所以不能再套一层），其余走普通表单项。用 `<template v-for>` 而不是两个并列的
+             v-for —— 后者会把图片字段全提到最前，表单顺序与 schema 定义就对不上了。 
+-->
+        <template v-for="field in schema.fields" :key="field.key">
+          <ImageField
+            v-if="field.type === 'image'"
+            v-model="form[field.key] as string"
+            :label="field.label"
+            :hint="field.help ?? ''"
+            ratio-hint="建议 1:1 方图（顶栏是个圆角方块）；5MB 内，支持 jpeg / png / webp"
+            preview-class="h-60px w-60px"
           />
 
-          <ElSwitch
-            v-else
-            :model-value="form[field.key] as boolean"
-            @update:model-value="(v: string | number | boolean) => (form[field.key] = !!v)"
-          />
+          <ElFormItem v-else :label="field.label">
+            <ElInput v-if="field.type === 'text'" v-model="form[field.key] as string" placeholder="留空表示不使用" />
 
-          <div v-if="field.help" class="mt-2px text-12px text-gray-400">{{ field.help }}</div>
-        </ElFormItem>
+            <ElInputNumber
+              v-else-if="isNumeric(field)"
+              :model-value="form[field.key] as number"
+              :min="field.min"
+              :max="field.max"
+              :step="field.step ?? 1"
+              class="w-full"
+              @update:model-value="(v: number | undefined) => (form[field.key] = v ?? 0)"
+            />
+
+            <ElSwitch
+              v-else
+              :model-value="form[field.key] as boolean"
+              @update:model-value="(v: string | number | boolean) => (form[field.key] = !!v)"
+            />
+
+            <div v-if="field.help" class="mt-2px text-12px text-gray-400">{{ field.help }}</div>
+          </ElFormItem>
+        </template>
       </template>
 
       <!-- 未知键：回落到 JSON 编辑器（后端新增配置键时前端不改也不会坏） -->

@@ -5,8 +5,11 @@ import { fetchUploadImage } from '@/service/api';
 /**
  * 「一张图」的表单字段（标题 + 预览 + 上传 + 清除 + 说明）。
  *
- * 抽成组件是因为它要用的地方不止一处：景区的封面与缩略图、首页轮播图的图片 ——
- * 每处内联就是同一套 ElUpload + 预览 + 校验写一遍，改一处必然漏两处。
+ * 抽成组件是因为它要用的地方不止一处：景区的封面与缩略图、首页轮播图的图片、
+ * 参数配置里的平台 Logo —— 每处内联就是同一套 ElUpload + 预览 + 校验写一遍，改一处必然漏两处。
+ *
+ * 落在 `components/business/`：它是**业务组件**（直接调上传接口、存相对路径），
+ * 不属于模板自带的 `custom/`，也不止一个业务模块在用。
  *
  * ⚠️ 上传走 `fetchUploadImage`，那里已经**显式把 Content-Type 置空** ——
  * 否则 axios 的 transformRequest 会把 FormData 转成 JSON 字符串发出去，
@@ -35,6 +38,14 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const uploading = ref(false);
+
+/**
+ * 预览加载失败（路径是手填的，填错/文件被删都可能）。
+ *
+ * 不兜底的话那个 `<img>` 会显示浏览器的「裂图」标记 —— 而这一栏的真实状态是
+ * 「这个值指向的图不存在」，如实写出来比一个裂图清楚。
+ */
+const previewFailed = ref(false);
 
 /**
  * 预览地址：库里存的是相对路径（`/uploads/xxx.jpg`），这里拼上管理端的服务端前缀 ——
@@ -77,8 +88,14 @@ function beforeUpload(file: File) {
         class="flex-center shrink-0 overflow-hidden border border-gray-200 rounded bg-gray-50"
         :class="props.previewClass"
       >
-        <img v-if="preview" :src="preview" class="h-full w-full object-cover" :alt="`${props.label}预览`" />
-        <span v-else class="text-12px text-gray-400">未设置</span>
+        <img
+          v-if="preview && !previewFailed"
+          :src="preview"
+          class="h-full w-full object-cover"
+          :alt="`${props.label}预览`"
+          @error="previewFailed = true"
+        />
+        <span v-else class="text-12px text-gray-400">{{ previewFailed ? '图片无法加载' : '未设置' }}</span>
       </div>
       <ElUpload
         :show-file-list="false"

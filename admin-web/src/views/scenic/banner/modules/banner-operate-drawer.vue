@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { fetchCreateBanner, fetchGetScenicAreas, fetchUpdateBanner } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
-import ImageField from '../../components/image-field.vue';
+import ImageField from '@/components/business/image-field.vue';
 
 defineOptions({ name: 'BannerOperateDrawer' });
 

@@ -8,7 +8,7 @@
  * ⚠️ `percent` 类型的 `min`/`max`/`value` 都是**显示口径（0~100）**，
  * 提交时会 ÷100 存回 `sys_config`（后端存的是 0~1 的比率，如 0.8）。
  */
-export type ConfigFieldType = 'text' | 'number' | 'percent' | 'switch';
+export type ConfigFieldType = 'text' | 'number' | 'percent' | 'switch' | 'image';
 
 export interface ConfigField {
   key: string;
@@ -34,7 +34,12 @@ export const CONFIG_SCHEMA: Record<string, ConfigSchema> = {
       { key: 'name', label: '平台名称', type: 'text', help: '小程序顶栏的中文名' },
       { key: 'nameEn', label: '英文名', type: 'text', help: '顶栏中文名右侧的小字' },
       { key: 'subtitle', label: '副标题', type: 'text' },
-      { key: 'logoUrl', label: 'Logo 地址', type: 'text', help: '留空则使用默认渐变图标' },
+      {
+        key: 'logoUrl',
+        label: '平台 Logo',
+        type: 'image',
+        help: '小程序顶栏左上角那个方块。留空则用设计稿的渐变图标；上传后小程序重启即见'
+      },
       { key: 'contactPhone', label: '客服电话', type: 'text' },
       { key: 'icp', label: 'ICP 备案号', type: 'text' },
       { key: 'copyright', label: '版权/主办信息', type: 'text' },

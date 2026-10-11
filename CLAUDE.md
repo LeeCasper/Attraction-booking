@@ -680,3 +680,12 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
     核验 REFUND_PENDING 三段）。凭证号改随机落库后要记得 `npm run backfill:credential-no`。
     顺带记一个坑：接口字段名是 `approve`（不是 `approved`），写错会被 `whitelist: true` 静默剥掉、
     审核 400 而退款单停在待审核 —— 冒烟里那句「先确认这一步」的断言就是为了让中间步骤不静默失败。
+- **平台 Logo 可上传**（补上「参数配置里那一栏只能手填路径、小程序也没用它」）：
+  `platform.logoUrl` 原来在后台是个**纯文本框**（只能手输 `/uploads/x.jpg`），而且小程序顶栏
+  **压根没读它**（`PageHeader.vue` 画的是设计稿那个纯 CSS 渐变方块 + 树图标）。
+  现在：参数配置的字段类型加了 `image`（`config-schema.ts`），渲染成上传控件
+  （复用 `components/business/image-field.vue` —— 它从 `views/scenic/components/` 挪到了
+  `components/business/`，因为景区两处 + 轮播图 + 这里三处在用）。
+  小程序：`PageHeader` 有 `logoUrl` 就显示图、没有就保持渐变方块，**并且 `<image @error>`
+  退回图标** —— 那一栏是手填的，路径填错（本机就有 `/景点.png` 这种）不兜底就是个空白方块。
+  `ImageField` 的预览也加了同样的兜底（裂图 → 显示「图片无法加载」）。

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { mediaUrl } from '@/api';
 import { platformSettings } from '@/store/settings';
 
 /**
@@ -10,6 +11,10 @@ import { platformSettings } from '@/store/settings';
  * 这里只做「按真实胶囊的位置预留空间」，把设计稿的更多按钮对齐到胶囊左侧。
  *
  * 若要看与设计稿完全一致的 H5 预览效果，把 mockCapsule 打开即可画回假胶囊。
+ *
+ * **Logo**：后台「系统管理 → 参数配置 → platform → Logo 地址」可传（`logoUrl`）。
+ * 传了就显示这张图，没传仍是设计稿那个青绿渐变方块 + 树图标（纯 CSS，无图片资源）——
+ * 运营不改的话界面与以前逐像素一致。
  */
 const props = withDefaults(defineProps<{ mockCapsule?: boolean }>(), { mockCapsule: false });
 
@@ -32,6 +37,18 @@ if (rect && rect.width > 0) {
   capsuleInset.value = win.windowWidth - rect.left + 8;
 }
 // #endif
+
+/**
+ * 后台上传的 logo（相对路径要拼成完整地址）。
+ *
+ * ⚠️ 没配时**留空**而不是给一个兜底图：`<image>` 认不了相对路径（会静默空着），
+ * 而设计稿那个渐变方块本来就是纯 CSS，不需要图片。
+ */
+const logo = computed(() => mediaUrl(platformSettings.value.logoUrl));
+
+/** 图没加载出来（路径填错/文件被删）→ 退回图标，别留一个空白方块 */
+const logoFailed = ref(false);
+const showLogo = computed(() => !!logo.value && !logoFailed.value);
 
 const headerStyle = computed(() => {
   const padTop = `${statusBarHeight.value}px`;
@@ -58,7 +75,19 @@ const headerStyle = computed(() => {
       <view class="pg-header__bar">
         <view class="pg-header__brand">
           <view class="pg-header__logo">
-            <view class="msi icon-park text-19px" />
+            <!--
+              后台上传了 logo 就用它；没传（或图加载失败）保持设计稿的渐变方块 + 树图标。
+              `@error` 那条不是多余的：后台那一栏是**可手填的**，填错了路径（本机就出现过
+              `/景点.png` 这种）图会加载不出来 —— 不兜底的话顶栏左上角就是个空白方块。
+            -->
+            <image
+              v-if="showLogo"
+              class="pg-header__logo-img"
+              :src="logo"
+              mode="aspectFit"
+              @error="logoFailed = true"
+            />
+            <view v-else class="msi icon-park text-19px" />
           </view>
           <view class="pg-header__names">
             <view class="pg-header__title-row">
@@ -134,6 +163,12 @@ const headerStyle = computed(() => {
   justify-content: center;
   color: #ffffff;
   box-shadow: 0 px2rpx(1) px2rpx(2) rgba(0, 0, 0, 0.05);
+}
+
+.pg-header__logo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
 
 .pg-header__names {
