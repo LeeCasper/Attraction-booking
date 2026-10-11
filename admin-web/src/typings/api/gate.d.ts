@@ -26,6 +26,41 @@ declare namespace Api {
       heartbeatAgoSeconds: number | null;
     }
 
+    /** 新增闸机的入参 */
+    interface GateCreatePayload {
+      scenicAreaId: number;
+      /** 闸机身份，**全局唯一**（走 `X-Gate-No` 头，HMAC 签名里没有景区）—— 多景区用前缀区分 */
+      gateNo: string;
+      name?: string;
+      location?: string;
+      ip?: string;
+      /** 1 入 / 2 出 / 3 双向 */
+      direction?: number;
+      /** 留空由服务端生成（长度 ≥ 8 才给填） */
+      secretKey?: string;
+    }
+
+    /** 编辑闸机的入参（只改传了的字段） */
+    interface GateUpdatePayload {
+      /** 换绑景区：景区被删/换绑后闸机会核不了单，这是唯一的救济手段 */
+      scenicAreaId?: number;
+      name?: string;
+      location?: string;
+      ip?: string;
+      direction?: number;
+      /** 1 启用 / 3 禁用。2 离线、4 故障由心跳巡检维护，不接受直接写 */
+      status?: number;
+      /** 留空则不改动密钥 */
+      secretKey?: string;
+    }
+
+    /** 新增闸机的返回：密钥**只在这里给一次**，列表接口不下发 */
+    interface GateCreateResult {
+      id: number;
+      gateNo: string;
+      secretKey: string;
+    }
+
     /** 远程控制类型 */
     type CommandType = 'open' | 'hold_open' | 'close' | 'reboot';
 

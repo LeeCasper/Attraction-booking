@@ -1,11 +1,12 @@
 <script setup lang="tsx">
 import { onMounted, ref } from 'vue';
 import { gateDirectionRecord } from '@/constants/business';
-import { fetchGateCommand, fetchGetGates, fetchGetScenicAreas } from '@/service/api';
-import { useUIPaginatedTable } from '@/hooks/common/table';
+import { fetchDeleteGate, fetchGateCommand, fetchGetGates, fetchGetScenicAreas } from '@/service/api';
+import { useTableOperate, useUIPaginatedTable } from '@/hooks/common/table';
 import { useAuth } from '@/hooks/business/auth';
 import { backendArrayTransform } from '@/utils/backend';
 import GateLogDrawer from './modules/gate-log-drawer.vue';
+import GateOperateDrawer from './modules/gate-operate-drawer.vue';
 
 const { hasAuth } = useAuth();
 
@@ -123,7 +124,7 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
     {
       prop: 'operate',
       label: '操作',
-      width: 200,
+      width: 300,
       fixed: 'right',
       formatter: row => (
         <div class="flex-center gap-8px">
@@ -148,6 +149,27 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
               }}
             </ElDropdown>
           ) : null}
+          {hasAuth('gate:update') ? (
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define -- handleEdit 来自下面的 useTableOperate，而它需要表格的 data/getData（两个 hook 互相依赖，这个顺序是唯一能跑的）；这行只在点击时读它，不是初始化期
+            <ElButton type="success" plain size="small" onClick={() => handleEdit(row.id)}>
+              编辑
+            </ElButton>
+          ) : null}
+          {hasAuth('gate:delete') ? (
+            <ElPopconfirm
+              title="确认删除该闸机？（只有还没跑过的能删）"
+              width="240"
+              onConfirm={() => handleDelete(row.id)}
+            >
+              {{
+                reference: () => (
+                  <ElButton type="danger" plain size="small">
+                    删除
+                  </ElButton>
+                )
+              }}
+            </ElPopconfirm>
+          ) : null}
           <ElButton type="info" plain size="small" onClick={() => openLogDrawer(row)}>
             通信日志
           </ElButton>
@@ -156,6 +178,25 @@ const { columns, columnChecks, data, loading, getData } = useUIPaginatedTable({
     }
   ]
 });
+
+const {
+  drawerVisible: operateDrawerVisible,
+  operateType,
+  editingData,
+  handleAdd,
+  handleEdit,
+  onDeleted
+} = useTableOperate(data, 'id', getData);
+
+/** 删除：服务端对「已有通行/日志/告警」的闸机回 409 原话（刚建错的才删得掉） */
+async function handleDelete(id: number) {
+  const { error } = await fetchDeleteGate(id);
+
+  if (error) return;
+
+  window.$message?.success('删除成功');
+  onDeleted();
+}
 
 /** 离线设备整行标红，便于一眼识别 */
 function rowClassName({ row }: { row: Api.Gate.Device }) {
@@ -207,6 +248,16 @@ onMounted(async () => {
           <p>闸机设备</p>
           <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @refresh="getData">
             <template #default>
+              <!--
+ 新增要 gate:create、编辑/删除要 gate:update / gate:delete（种子只给了景区管理员；
+                   运维拿的是 gate:read + gate:control —— 能监控与控制，不碰设备登记） 
+-->
+              <ElButton v-if="hasAuth('gate:create')" type="primary" @click="handleAdd">
+                <template #icon>
+                  <icon-ic-round-plus class="text-icon" />
+                </template>
+                新增闸机
+              </ElButton>
               <ElText type="info">离线设备整行标红，请及时排查</ElText>
             </template>
           </TableHeaderOperation>
@@ -218,6 +269,14 @@ onMounted(async () => {
     </ElCard>
 
     <GateLogDrawer v-model:visible="logDrawerVisible" :gate="logGate" />
+
+    <GateOperateDrawer
+      v-model:visible="operateDrawerVisible"
+      :operate-type="operateType"
+      :row-data="editingData"
+      :areas="areas"
+      @submitted="getData"
+    />
   </div>
 </template>
 

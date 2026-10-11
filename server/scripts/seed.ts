@@ -34,7 +34,9 @@ const ROLES: { code: string; name: string; remark: string; permissions: string[]
       'ticket:read', 'ticket:create', 'ticket:update', 'ticket:delete',
       'stock:read', 'stock:update',
       'order:read', 'order:refund_audit', 'verify:execute', 'reconcile:run',
-      'gate:read', 'gate:control', 'config:read', 'log:read',
+      // gate:create / gate:update = 新增与编辑闸机设备（编号、绑哪个景区、方向、密钥）。
+      // 监控与远程控制（gate:read / gate:control）是运维的活，设备登记归景区管理员。
+      'gate:read', 'gate:control', 'gate:create', 'gate:update', 'gate:delete', 'config:read', 'log:read',
     ],
   },
   {

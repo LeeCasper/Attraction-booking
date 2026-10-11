@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { GateService } from './gate.service';
 import { AuthService } from '../auth/auth.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -10,6 +10,43 @@ class CommandDto {
   @IsIn(['open', 'hold_open', 'close', 'reboot']) type: string;
 
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+class CreateGateDto {
+  @IsInt() scenicAreaId: number;
+
+  /** 闸机身份，全局唯一，走 `X-Gate-No` 头；多景区请用前缀区分 */
+  @IsString() @MinLength(2) @MaxLength(32) gateNo: string;
+
+  @IsOptional() @IsString() @MaxLength(64) name?: string;
+
+  @IsOptional() @IsString() @MaxLength(128) location?: string;
+
+  @IsOptional() @IsString() @MaxLength(64) ip?: string;
+
+  @IsOptional() @IsIn([1, 2, 3]) direction?: number;
+
+  /** 留空则服务端生成一个；**只在这次的返回里给一次** */
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(128) secretKey?: string;
+}
+
+class UpdateGateDto {
+  /** 换绑景区 —— 景区被删/换绑之后闸机会核不了单，这是唯一的救济手段 */
+  @IsOptional() @IsInt() scenicAreaId?: number;
+
+  @IsOptional() @IsString() @MaxLength(64) name?: string;
+
+  @IsOptional() @IsString() @MaxLength(128) location?: string;
+
+  @IsOptional() @IsString() @MaxLength(64) ip?: string;
+
+  @IsOptional() @IsIn([1, 2, 3]) direction?: number;
+
+  /** 1 启用 / 3 禁用。2 离线、4 故障是心跳巡检的运行时状态，不接受直接写 */
+  @IsOptional() @IsIn([1, 3]) status?: number;
+
+  /** 留空则不改动密钥 */
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(128) secretKey?: string;
 }
 
 class HandleAlarmDto {
@@ -55,6 +92,49 @@ export class GateAdminController {
   @ApiOperation({ summary: '闸机通信日志' })
   logs(@Param('id', ParseIntPipe) id: number, @Query('limit') limit?: number) {
     return this.gateService.listGateLogs(id, Number(limit ?? 50));
+  }
+
+  @Post('gates')
+  @Permissions('gate:create')
+  @ApiOperation({ summary: '新增闸机（返回一次生成的密钥，之后不再下发）' })
+  async create(
+    @Body() dto: CreateGateDto,
+    @Req() req: Express.Request,
+  ) {
+    const adminId = (req as Express.Request & { admin: { id: number } }).admin.id;
+    const result = await this.gateService.createDevice(dto);
+    // 密钥**不能**进操作日志（append-only，谁都查得到）
+    await this.authService.writeLog(adminId, 'gate:create', 'gate_device', result.id, {
+      gateNo: result.gateNo,
+      scenicAreaId: dto.scenicAreaId,
+      direction: dto.direction ?? 1,
+    });
+    return result;
+  }
+
+  @Put('gates/:id')
+  @Permissions('gate:update')
+  @ApiOperation({ summary: '编辑闸机（名称/位置/IP/方向/所属景区/启用禁用/密钥）' })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateGateDto,
+    @Req() req: Express.Request,
+  ) {
+    const adminId = (req as Express.Request & { admin: { id: number } }).admin.id;
+    const result = await this.gateService.updateDevice(id, dto);
+    const { secretKey: _omit, ...logged } = dto;
+    await this.authService.writeLog(adminId, 'gate:update', 'gate_device', id, logged);
+    return result;
+  }
+
+  @Delete('gates/:id')
+  @Permissions('gate:delete')
+  @ApiOperation({ summary: '删除闸机（只允许删还没跑过的，有记录会 409）' })
+  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: Express.Request) {
+    const adminId = (req as Express.Request & { admin: { id: number } }).admin.id;
+    await this.gateService.removeDevice(id);
+    await this.authService.writeLog(adminId, 'gate:delete', 'gate_device', id, null);
+    return null;
   }
 
   // ---------- 通行记录 ----------

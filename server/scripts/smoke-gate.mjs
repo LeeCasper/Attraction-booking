@@ -122,7 +122,8 @@ async function main() {
       `GATE001 现在绑在景区 id=${entryGate?.scenicAreaId ?? '(不存在)'}，而该景区已不在列表里；` +
         `现有景区 id：${(areas.data ?? []).map((a) => a.id).join('/') || '(空)'}。` +
         `核验/开闸/核销/在园人数这几组断言全部无从执行。` +
-        `修法：把闸机改绑到在营景区 —— 后台目前**没有新增/编辑闸机的入口**，只能改库：` +
+        `修法：把闸机改绑到在营景区 —— 后台「闸机管理 → 闸机设备」里「编辑」即可换绑（需要 gate:update，` +
+        `种子给了景区管理员），也可以在那边「新增闸机」建一台；应急时改库：` +
         `UPDATE gate_device SET scenic_area_id=<景区id> WHERE gate_no IN ('GATE001','GATE002')。`,
     );
     console.log(`\n=== 结果: ${pass} 通过 / ${fail} 失败（闸机没有服务于任何在营景区，提前中止）===\n`);
@@ -196,6 +197,59 @@ async function main() {
   check('示例闸机已注册（入口+出口）', !!entryGate && !!exitGate, JSON.stringify(gateRows.map((g) => g.gateNo)));
   check('入口闸机服务于本次被测景区', entryGate?.scenicAreaId === areaId, `GATE001 → 景区 ${entryGate?.scenicAreaId}，被测景区 ${areaId}`);
 
+  // ---- 闸机设备的新增 / 编辑 / 删除 ----
+  // 自己能建自己能删，所以不留垃圾：建的是一台「没跑过」的新闸机，最后删掉。
+  {
+    const gateNo = `SMOKE-GATE-${RUN}`;
+    const created = await api('POST', '/api/admin/gates', {
+      token: adminToken,
+      body: { scenicAreaId: areaId, gateNo, name: '冒烟闸机', direction: 3 },
+    });
+    const newGateId = created.data?.id;
+    check(
+      '新增闸机（返回一次性密钥）',
+      !!newGateId && (created.data?.secretKey ?? '').length >= 32,
+      JSON.stringify(created.json).slice(0, 140),
+    );
+
+    const dup = await api('POST', '/api/admin/gates', {
+      token: adminToken,
+      body: { scenicAreaId: areaId, gateNo, name: '重名' },
+    });
+    check('闸机编号重复被拒(409)', dup.status === 409, `${dup.status} ${dup.json?.msg}`);
+
+    const badArea = await api('POST', '/api/admin/gates', {
+      token: adminToken,
+      body: { scenicAreaId: 999999, gateNo: `${gateNo}-X` },
+    });
+    check('绑到不存在的景区被拒(400)', badArea.status === 400, `${badArea.status} ${badArea.json?.msg}`);
+
+    const updated = await api('PUT', `/api/admin/gates/${newGateId}`, {
+      token: adminToken,
+      body: { name: '冒烟闸机（已改名）', direction: 1, status: 3 },
+    });
+    check('编辑闸机（改名/方向/禁用）', updated.status === 200, JSON.stringify(updated.json).slice(0, 140));
+
+    const after = await api('GET', `/api/admin/gates?areaId=${areaId}`, { token: adminToken });
+    const mine = (after.data ?? []).find((g) => g.id === newGateId);
+    check(
+      '列表看到改动（名称 / 方向 / 禁用都生效）',
+      mine?.name === '冒烟闸机（已改名）' && mine?.direction === 1 && mine?.status === 3,
+      JSON.stringify(mine),
+    );
+    // 密钥只在新增那一次下发；列表里连字段都不该有（listDevices 里 secretKey: undefined）
+    check('列表不下发密钥', mine?.secretKey === undefined, JSON.stringify(mine)?.slice(0, 200));
+
+    const badStatus = await api('PUT', `/api/admin/gates/${newGateId}`, { token: adminToken, body: { status: 2 } });
+    check('运行时状态（2 离线）不接受直接写(400)', badStatus.status === 400, badStatus.status);
+
+    // 删除：跑过的删不掉（那些记录会变成说不清是哪台设备的孤儿行），刚建的能删
+    const delOld = await api('DELETE', `/api/admin/gates/${entryGate.id}`, { token: adminToken });
+    check('删有记录的闸机被拒(409)', delOld.status === 409, `${delOld.status} ${String(delOld.json?.msg).slice(0, 70)}`);
+    const delNew = await api('DELETE', `/api/admin/gates/${newGateId}`, { token: adminToken });
+    check('删刚建、没跑过的闸机 → 成功', delNew.status === 200, `${delNew.status} ${delNew.json?.msg}`);
+  }
+
   // ---- 1. 闸机心跳与规则 ----
   console.log('[1] 闸机心跳与规则拉取');
   const heartbeat = await gateApi('POST', '/api/gate/heartbeat', {
@@ -258,6 +312,27 @@ async function main() {
   check('获取动态凭证 token', !!cred.data?.token && cred.data?.expiresIn === 60, JSON.stringify(cred.data));
   check('凭证返回剩余可入园人数', cred.data?.remainingCount === 2, `remaining=${cred.data?.remainingCount}`);
   let credentialToken = cred.data?.token;
+
+  // 闸机被禁用 ⇒ 核验一律拒。
+  // 借**这张还没用过的凭证**验：被拒**不会消耗名额**（这正是「拒绝」的含义），之后照常走完核销。
+  // 用完立刻恢复，别把这台闸机留在禁用态（后面还有出入园的断言要靠它）。
+  {
+    await api('PUT', `/api/admin/gates/${entryGate.id}`, { token: adminToken, body: { status: 3 } });
+    const disabled = await gateApi('POST', '/api/gate/verify', { credential: credentialToken, direction: 1 });
+    // ⚠️ 拒在**鉴权层**：`GateAuthGuard` 直接在验签前拦掉 `status === 3`，回 401 + 「闸机已禁用」，
+    // 业务层那句 `checkGate` 的「闸机已禁用」根本走不到（那条只有 `/api/admin/verify` 代刷那条路会用）。
+    check(
+      '闸机被禁用时核验被拒（401 闸机已禁用）',
+      disabled.status === 401 && /禁用/.test(disabled.json?.msg ?? ''),
+      `${disabled.status} ${disabled.json?.msg}`,
+    );
+
+    await api('PUT', `/api/admin/gates/${entryGate.id}`, { token: adminToken, body: { status: 1 } });
+    const restored = await api('GET', `/api/admin/gates?areaId=${areaId}`, { token: adminToken });
+    const back = (restored.data ?? []).find((g) => g.id === entryGate.id);
+    // 「启用」落成 1 在线还是 2 离线，取决于最近有没有心跳 —— 只要不是 3 就行
+    check('恢复启用（不再是禁用态）', back?.status !== 3, `status=${back?.status}`);
+  }
 
   // ---- 3. 闸机核验开闸 ----
   console.log('\n[3] 闸机核验与开闸');

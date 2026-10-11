@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -6,6 +6,7 @@ import { GateCommand, GateDevice, GateLog, OfflineSyncRecord } from '../../datab
 import { Alarm, PassageRecord } from '../../database/entities/verify.entity';
 import { Reservation } from '../../database/entities/order.entity';
 import { Blacklist } from '../../database/entities/user.entity';
+import { ScenicArea } from '../../database/entities/scenic.entity';
 import { CredentialService } from '../verify/credential.service';
 import { VerifyService } from '../verify/verify.service';
 import { randomBytes } from 'crypto';
@@ -13,6 +14,19 @@ import { businessToday } from '../../common/utils/date.util';
 
 /** 心跳超时判定（秒）：超过该时长未心跳即视为离线 */
 const HEARTBEAT_TIMEOUT_SECONDS = 90;
+
+/** 新建/编辑闸机时允许提交的字段（其余由心跳与协议流程自己维护） */
+export interface GateDeviceInput {
+  scenicAreaId?: number;
+  gateNo?: string;
+  name?: string;
+  location?: string;
+  ip?: string;
+  direction?: number;
+  /** 只在编辑时出现：1 启用 / 3 禁用。2 离线 / 4 故障 是心跳巡检的运行时状态，不接受直接写 */
+  status?: number;
+  secretKey?: string;
+}
 
 @Injectable()
 export class GateService {
@@ -26,9 +40,146 @@ export class GateService {
     @InjectRepository(Alarm) private readonly alarmRepo: Repository<Alarm>,
     @InjectRepository(Reservation) private readonly resRepo: Repository<Reservation>,
     @InjectRepository(Blacklist) private readonly blacklistRepo: Repository<Blacklist>,
+    @InjectRepository(ScenicArea) private readonly areaRepo: Repository<ScenicArea>,
     private readonly credential: CredentialService,
     private readonly verifyService: VerifyService,
   ) {}
+
+  // ==================== 闸机设备的新增 / 编辑 ====================
+
+  /** 心跳是否新鲜 —— 决定「启用」到底落成 1 在线还是 2 离线 */
+  private isHeartbeatFresh(gate: GateDevice) {
+    return !!gate.lastHeartbeat && Date.now() - gate.lastHeartbeat.getTime() < HEARTBEAT_TIMEOUT_SECONDS * 1000;
+  }
+
+  private async assertAreaExists(scenicAreaId: number) {
+    const area = await this.areaRepo.findOne({ where: { id: scenicAreaId } });
+    if (!area) throw new BadRequestException(`景区不存在（id=${scenicAreaId}）`);
+    return area;
+  }
+
+  /**
+   * 新建闸机。
+   *
+   * ⚠️ **`gate_no` 全局唯一**（`uk_gate_no`）—— 它是闸机的身份，走 `X-Gate-No` 头，
+   * HMAC 签名里没有景区；多景区请用前缀区分（`A-北门` / `B-北门`）。所以重名要在这里拦住，
+   * 否则会冒一个 `ER_DUP_ENTRY` 出去变成 500。
+   *
+   * 新闸机的 `status` 落 **2 离线**：1 是「在线」，含义是「心跳新鲜」，而它还没心跳过 ——
+   * 让设备打上第一次心跳，或者由离线巡检去纠正，都比一建出来就谎报在线好。
+   *
+   * **密钥只在返回值里给一次**，列表接口永远不下发（`listDevices` 里 `secretKey: undefined`）。
+   */
+  async createDevice(dto: GateDeviceInput) {
+    if (!dto.scenicAreaId) throw new BadRequestException('请选择所属景区');
+    await this.assertAreaExists(dto.scenicAreaId);
+
+    const gateNo = (dto.gateNo ?? '').trim();
+    if (!gateNo) throw new BadRequestException('请填写闸机编号');
+    const dup = await this.gateRepo.findOne({ where: { gateNo } });
+    if (dup) {
+      throw new ConflictException(
+        `闸机编号「${gateNo}」已被占用（编号全局唯一，多景区请用前缀区分，如 A-北门 / B-北门）`,
+      );
+    }
+
+    const secretKey = dto.secretKey?.trim() || randomBytes(24).toString('hex');
+    const gate = await this.gateRepo.save(
+      this.gateRepo.create({
+        scenicAreaId: dto.scenicAreaId,
+        gateNo,
+        name: (dto.name ?? '').trim() || gateNo,
+        location: dto.location?.trim() || null,
+        ip: dto.ip?.trim() || null,
+        direction: dto.direction ?? 1,
+        status: 2,
+        protocol: 'http',
+        secretKey,
+      }),
+    );
+
+    return { id: Number(gate.id), gateNo: gate.gateNo, secretKey };
+  }
+
+  /**
+   * 编辑闸机：名称/位置/IP/方向/所属景区/启用禁用/密钥，都是可选字段（只改传了的）。
+   *
+   * 「所属景区」可改是**必需的**：景区被删（或换绑）之后闸机会指向不存在的景区，
+   * 那台闸机就核不了任何单（`GATE_NO_PERMISSION`）—— 在界面做出来之前，只能改库。
+   */
+  async updateDevice(id: number, dto: GateDeviceInput) {
+    const gate = await this.gateRepo.findOne({ where: { id } });
+    if (!gate) throw new NotFoundException('闸机不存在');
+
+    const patch: QueryDeepPartialEntity<GateDevice> = {};
+    if (dto.scenicAreaId !== undefined && dto.scenicAreaId !== gate.scenicAreaId) {
+      await this.assertAreaExists(dto.scenicAreaId);
+      patch.scenicAreaId = dto.scenicAreaId;
+    }
+    if (dto.name !== undefined) patch.name = dto.name.trim() || gate.gateNo;
+    if (dto.location !== undefined) patch.location = dto.location.trim() || null;
+    if (dto.ip !== undefined) patch.ip = dto.ip.trim() || null;
+    if (dto.direction !== undefined) patch.direction = dto.direction;
+    if (dto.secretKey?.trim()) patch.secretKey = dto.secretKey.trim();
+
+    if (dto.status !== undefined) {
+      if (dto.status === 3) {
+        patch.status = 3; // 禁用：离线巡检只扫 status=1 的行，禁用态不会被它改掉
+      } else if (dto.status === 1) {
+        // 「启用」落成在线还是离线，取决于最近有没有心跳 —— 别让界面替心跳撒谎
+        patch.status = this.isHeartbeatFresh(gate) ? 1 : 2;
+      } else {
+        throw new BadRequestException('状态只能是 1 启用 / 3 禁用（2 离线、4 故障由闸机心跳自己维护）');
+      }
+    }
+
+    if (Object.keys(patch).length === 0) return { id, changed: 0 };
+    await this.gateRepo.update(id, patch);
+    return { id, changed: Object.keys(patch).length };
+  }
+
+  /**
+   * 删除闸机。**有通信/通行记录时拒绝**（409），并提示改用「禁用」。
+   *
+   * 与删除景区同一个道理（见 `ScenicService.removeArea`）：`init.sql` 一条外键都没有，
+   * 删掉设备行之后，`passage_record` / `gate_log` / `gate_command` / `offline_sync_record` /
+   * `alarm` 里那些 `gate_id` 就成了查不到设备的孤儿行 ——「这台闸机昨天放了多少人」再也答不上来。
+   *
+   * 只有**刚建错、还没跑过**的闸机才允许删（这已经够清理误操作了）。
+   */
+  async removeDevice(id: number) {
+    const gate = await this.gateRepo.findOne({ where: { id } });
+    if (!gate) throw new NotFoundException('闸机不存在');
+
+    const [refs] = (await this.gateRepo.manager.query(
+      `SELECT
+         (SELECT COUNT(*) FROM passage_record     WHERE gate_id = ?) AS passages,
+         (SELECT COUNT(*) FROM gate_log           WHERE gate_id = ?) AS logs,
+         (SELECT COUNT(*) FROM gate_command       WHERE gate_id = ?) AS commands,
+         (SELECT COUNT(*) FROM offline_sync_record WHERE gate_id = ?) AS syncs,
+         (SELECT COUNT(*) FROM alarm              WHERE gate_id = ?) AS alarms`,
+      [id, id, id, id, id],
+    )) as Array<{ passages: number; logs: number; commands: number; syncs: number; alarms: number }>;
+
+    const used = [
+      refs.passages > 0 ? `${refs.passages} 条通行记录` : '',
+      refs.alarms > 0 ? `${refs.alarms} 条告警` : '',
+      refs.commands > 0 ? `${refs.commands} 条指令` : '',
+      refs.logs > 0 ? `${refs.logs} 条通信日志` : '',
+      refs.syncs > 0 ? `${refs.syncs} 条离线同步` : '',
+    ].filter(Boolean);
+
+    if (used.length > 0) {
+      throw new ConflictException(
+        `该闸机已有 ${used.join('、')}，不能删除 —— 删了这些记录就再也说不清是哪台设备了。` +
+          `不再使用请改成「禁用」（禁用后核验会拒：闸机已禁用）。`,
+      );
+    }
+
+    await this.gateRepo.delete(id);
+    return null;
+  }
+
 
   // ==================== 心跳 ====================
 

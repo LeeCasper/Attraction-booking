@@ -11,6 +11,37 @@ export function fetchGetGates(areaId?: number) {
   });
 }
 
+/**
+ * 新增闸机。
+ *
+ * 返回里的 `secretKey` **只在这一次给**（列表接口不下发）—— 要拿它去配设备的签名密钥，
+ * 而操作日志里也刻意不记它（append-only，谁都查得到）。
+ */
+export function fetchCreateGate(data: Api.Gate.GateCreatePayload) {
+  return request<Api.Gate.GateCreateResult>({
+    url: '/admin/gates',
+    method: 'post',
+    data
+  });
+}
+
+/** 编辑闸机（名称/位置/IP/方向/所属景区/启用禁用/密钥，只改传了的字段） */
+export function fetchUpdateGate(id: number, data: Api.Gate.GateUpdatePayload) {
+  return request<{ id: number; changed: number }>({
+    url: `/admin/gates/${id}`,
+    method: 'put',
+    data
+  });
+}
+
+/** 删除闸机（只允许删还没跑过的；有通行/日志/告警记录时服务端 409） */
+export function fetchDeleteGate(id: number) {
+  return request<null>({
+    url: `/admin/gates/${id}`,
+    method: 'delete'
+  });
+}
+
 /** 远程控制：开闸 / 常开 / 常闭 / 重启 */
 export function fetchGateCommand(id: number, type: Api.Gate.CommandType, remark?: string) {
   return request<{ commandNo: string; type: string; status: number }>({
