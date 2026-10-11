@@ -17,8 +17,9 @@
  * 选中 = 青绿渐变 + 白透底胶囊 + 底部一个小三角指向下面的凭证卡（与个人中心那排四格同一处细节）；
  * **退款审核中** = 琥珀色虚线边 + 淡琥珀底，让人点之前就知道它暂时用不了。
  *
- * ⚠️ 只在**多于一张**时渲染（`views/credential/index.vue` 的绑定里判的）——
- * 只有一张票时多一行选择器纯属噪音。
+ * ⚠️ **只在多于一张时渲染**（只有一张票时多一行选择器纯属噪音）——
+ * 判断写在**这里**（根节点的 `v-if`），而不是调用处的 `v-if`：见 `page-bindings.mjs` 的注解，
+ * 组件节点上的条件渲染在小程序里会「切走再切回就不见了」。
  */
 import { getCurrentInstance, onMounted, reactive, ref } from 'vue';
 import type { CredentialOption } from '@/views/credential/behavior';
@@ -53,7 +54,8 @@ function onScroll(e: { detail?: { scrollLeft?: number; scrollWidth?: number } })
 }
 
 // —— class 常量（条件类走标识符：`check:classes` 会把模板三目里的引号串当类名扫）——
-const WRAP = 'relative -mx-margin';
+// `mb-2` 与设计稿那一块一致（它是 `w-full mb-2`）—— 不写的话这一条会贴着下面的凭证卡
+const WRAP = 'relative -mx-margin mb-2';
 const SCROLLER = 'w-full pg-cred-scroll';
 const ROW = 'flex items-center gap-2_5';
 const FADE_BASE = 'pointer-events-none absolute top-0 bottom-0 z-10 transition-opacity duration-200';
@@ -108,7 +110,8 @@ const dotClass = (c: CredentialOption) => (isOn(c) ? PILL_DOT_ON : PILL_DOT_REFU
 </script>
 
 <template>
-  <view :class="WRAP">
+  <!-- 只有一张凭证时不渲染（判断放这里，不放调用处，见文件头注解） -->
+  <view v-if="props.items.length > 1" :class="WRAP">
     <view :class="FADE_LEFT" :style="{ opacity: fade.left ? 0.9 : 0 }" />
     <view :class="FADE_RIGHT" :style="{ opacity: fade.right ? 0.9 : 0 }" />
 

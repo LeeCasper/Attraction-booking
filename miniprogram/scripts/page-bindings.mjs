@@ -128,10 +128,13 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 二维码那个白框：退款中把描边与光环换成琥珀色（框本身就在提示「这里现在不是码」）
       'relative w-[218px] h-[218px] bg-white rounded-2xl border-2 border-primary/30 p-2.5 shadow-sm flex items-center justify-center ring-4 ring-mist-cyan-50':
         { class: { 'is-blocked': 'refundPending' } },
-      // 凭证选择：**多于一张才渲染**（只有一张票时多一条选择器纯属噪音）
+      // 凭证选择：**多于一张才渲染**（只有一张票时多一条选择器纯属噪音）。
+      // ⚠️ 这个判断写在**组件内部**（`CredentialPicker.vue` 的根节点上），不要挪回这里的
+      // `v-if` —— 组件节点上的条件渲染会编译成「props 对象有没有」(`wx:if="{{a}}"` 配
+      // `u-p="{{c}}"`)，实测在小程序里**切走再切回会让整块不再出现**（同一个包里、
+      // 结构完全一样、只是没有 v-if 的分类条就一直好好的）。
       '#credentialPicker': {
-        replace:
-          '<CredentialPicker v-if="credentials.length > 1" :items="credentials" :value="activeId" @change="onPickCredential" />',
+        replace: '<CredentialPicker :items="credentials" :value="activeId" @change="onPickCredential" />',
       },
       // 凭证号（服务端从预约派生）。拿不到整行不渲染，别留一个空的「凭证号」
       '#credentialNoRow': { class: { 'is-hidden': '!credentialNo' } },
