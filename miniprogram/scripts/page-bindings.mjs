@@ -100,7 +100,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
   qrToken, qrHint, countdownLabel, refreshAfterLabel, qrSpinning, refreshQr, watermarks, onExport, onOrders,
   passModes, passMode, onPickPassMode,
   periodLabel, areaName, holderLabel, statusLabel,
-  credentials, activeId, onPickCredential, refundPending, refundButtonLabel, credentialNo, load,
+  credentials, activeId, onPickCredential, refundPending, refundHintText, refundButtonLabel, credentialNo, load,
 } = useCredentialPage();
 // 首次可见时才拉数据
 watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
@@ -109,9 +109,25 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 设计稿里 `<svg class="w-full h-full">` 是 218×218 白卡片的直接 flex 子项，`100%` 能直接
       // 对着 218px 解析；换成组件后多了一层宿主 `<dynamic-qr>`，卡片又是 `items-center` 不拉伸，
       // 宿主没有尺寸 → 组件根节点的 `height:100%` 无从计算 → 塌成 0 → 一个码点都画不出来。
+      // 二维码区：正常出码；**退款审核中换成一整块说明** ——
+      // 原先只是在空框里显示一行小字「退款中」，太小太弱，用户看不出来发生了什么。
+      // 这一块：会呼吸的沙漏 + 标题 + 子行（子行说的是「接下来会怎样」）。
       '#dynamic-qr-svg': {
-        replace: '<view class="w-full h-full"><DynamicQr :token="qrToken" :hint="qrHint" /></view>',
+        replace:
+          '<view v-if="!refundPending" class="w-full h-full"><DynamicQr :token="qrToken" :hint="qrHint" /></view>' +
+          '<view v-else class="w-full h-full flex flex-col items-center justify-center gap-2">' +
+          '<view class="relative w-16 h-16 rounded-full bg-amber-gold_15 flex items-center justify-center">' +
+          '<view class="msi icon-hourglass_top text-28px text-amber-gold animate-pulse" />' +
+          '<text class="absolute -top-1 -right-2 w-2_5 h-2_5 rounded-full bg-amber-gold animate-ping" />' +
+          '</view>' +
+          '<text class="font-headline-md text-17px font-bold text-tertiary-container">退款审核中</text>' +
+          '<text class="font-caption-sm text-12px text-ink-light-gray">凭证已停用</text>' +
+          // 「接下来会怎样」那句只放在**框下面**那一行（`v-else` 的那条绑定）——两处都写会在同一屏重复
+          '</view>',
       },
+      // 二维码那个白框：退款中把描边与光环换成琥珀色（框本身就在提示「这里现在不是码」）
+      'relative w-[218px] h-[218px] bg-white rounded-2xl border-2 border-primary/30 p-2.5 shadow-sm flex items-center justify-center ring-4 ring-mist-cyan-50':
+        { class: { 'is-blocked': 'refundPending' } },
       // 凭证选择：**多于一张才渲染**（只有一张票时多一条选择器纯属噪音）
       '#credentialPicker': {
         replace:
@@ -140,7 +156,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
         replace:
           '<text v-if="!refundPending" class="font-caption-sm text-12px text-ink-light-gray">动态码每 {{ refreshAfterLabel }} 秒刷新 · 剩余 ' +
           '<text class="text-primary font-bold">{{ countdownLabel }}</text></text>' +
-          '<text v-else class="font-caption-sm text-12px text-tertiary-container font-medium">该订单正在退款审核中，凭证暂不可用</text>',
+          '<text v-else class="font-caption-sm text-12px text-tertiary-container font-medium">审核通过后退款到账；未通过则凭证自动恢复</text>',
       },
       // 「入园时段」与「持票人」的值两行**类名完全相同**，只能靠文档顺序定位（第 1、2 个）
       'text-ink-charcoal-text font-bold mt-0.5 block :nth(1)': { text: 'periodLabel' },
@@ -177,7 +193,13 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     // `is-dimmed`：退款审核中时把「退款中」那颗按钮压暗（点了会提示原因，见 behavior）
     style: `.pg-page .is-spinning { animation: pg-spin 600ms linear; }
 .pg-page .is-dimmed { opacity: 0.55; }
-.pg-page .is-hidden { display: none; }`,
+.pg-page .is-hidden { display: none; }
+/* 退款审核中：二维码那个白框整体换成琥珀（与框里那块说明同一个语义） */
+.pg-page .is-blocked {
+  border-color: rgba(217, 119, 6, 0.45) !important;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.1) !important;
+  background-color: #fffdf7 !important;
+}`,
   },
 
   booking: {

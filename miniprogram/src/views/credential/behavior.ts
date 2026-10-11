@@ -161,6 +161,14 @@ export function useCredentialPage() {
    */
   const qrHint = computed(() => (refundPending.value ? '退款中' : '暂无可入园凭证'));
 
+  /**
+   * 退款中时框里那块说明的子行。
+   *
+   * 说的是**接下来会怎样**：审核通过 → 退款到账、凭证作废；审核被拒 → 凭证自动恢复。
+   * 只写「暂不可用」用户不知道要等多久、也不知道会不会自己好。
+   */
+  const refundHintText = computed(() => '审核通过后退款到账；未通过则凭证自动恢复');
+
   /** 待入园（20）或部分核销（30）——只有这两种状态下才有凭证可看 */
   const usable = (o: OrderSummary) => o.status === 20 || o.status === 30;
 
@@ -185,6 +193,7 @@ export function useCredentialPage() {
         id: o.id,
         date: o.reservation?.date ?? '',
         ticketName: o.ticketName,
+        remaining: Math.max(0, (o.reservation?.totalCount ?? o.itemCount) - (o.reservation?.verifyCount ?? 0)),
         refundPending: REFUND_PENDING_STATUS.includes(o.refundStatus ?? -1),
       }));
 
@@ -356,6 +365,7 @@ export function useCredentialPage() {
     activeId,
     onPickCredential,
     refundPending,
+    refundHintText,
     refundButtonLabel,
     credentialNo,
     qrHint,
@@ -390,6 +400,8 @@ export interface CredentialOption {
   /** `yyyy-MM-dd` */
   date: string;
   ticketName: string;
+  /** 还没核销的人数（`totalCount - verifyCount`）—— 卡片上显示「余 N 人」 */
+  remaining: number;
   /** 退款审核中/退款处理中：这张票暂时不可用 */
   refundPending: boolean;
 }
