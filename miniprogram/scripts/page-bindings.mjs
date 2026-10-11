@@ -306,7 +306,7 @@ onLoad(() => { void load(); });`,
     ],
     setup: `const {
   loading, error,
-  keyword, category, filterVisible, filterOptions,
+  keyword, categories, category, filterVisible, filterOptions,
   filteredAreas, presenceLabel, contactLine, stockStatus, isActive,
   onPickCategory, openFilter, closeFilter, onPickArea, onBook, filterItemClass, load,
 } = useAreaPage();
@@ -333,10 +333,10 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       'flex items-center gap-1 text-primary active:opacity-75 transition-opacity pl-1':
         { attrs: { '@tap': 'openFilter' } },
       // 分类胶囊条：改成数据驱动的组件，点击真筛
-      // 分类条：**传 `filterOptions` 而不是 `categories`** —— 卡片第二行要显示该类下的景点数，
-      // 而 `filterOptions` 就是「分类 + 数量」，与「筛选」弹层里那份完全同源（不另算一套）
+      // 分类条：只列分类本身（`categories`）。数量是「筛选」弹层里才要的信息 ——
+      // 弹层里一行一个分类、带个数字很好读；放到横滑卡片的第二行就显得啰嗦
       '#categoryTabs': {
-        replace: '<CategoryTabs :items="filterOptions" :value="category" @change="onPickCategory" />',
+        replace: '<CategoryTabs :items="categories" :value="category" @change="onPickCategory" />',
       },
       // 承载横幅：设计稿把呼吸点和文案写在同一个 span 里，没法只换文案 → 整块换组件
       'bg-surface-container-low rounded-xl p-3 flex items-start gap-2.5 shadow-sm': {

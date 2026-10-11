@@ -14,16 +14,17 @@
  *     第一张卡贴屏幕边），`scroll-padding-*` 让吸附点从内边距之后起算
  *   - 两端渐隐遮罩，滚到哪一端就隐藏哪一端（`@scroll` 里算）
  *   - 外观向日期卡看齐：**未选 = 白卡描边 + `shadow-xs`**、**选中 = 青绿渐变**（不是原来那排
- *     灰底胶囊）。两行 = 分类名 + 该类景点数
+ *     灰底胶囊）。**单行**：只有分类名 —— 曾试过第二行放「N 个景点」，读着啰嗦，去掉了
+ *     （数量在「筛选」弹层里更合适：一行一个分类，数字一目了然）
  *
  * ⚠️ 组件自带**负外边距**把整条拉成全屏宽（设计稿也是这么做的：`-mx-margin px-margin`）——
  * 内边距那一半挪到了 `<scroll-view>` 上，两端遮罩才能贴着屏幕边。
  * 类名逐字取自设计稿（含 `booking.html` 的日期卡），已消毒 —— 见 `check:classes` 的口径。
  */
 import { getCurrentInstance, onMounted, reactive, ref } from 'vue';
-import type { FilterSheetOption } from '@/views/area/behavior';
+import type { CategoryOption } from '@/utils/area';
 
-const props = defineProps<{ items: FilterSheetOption[]; value: string }>();
+const props = defineProps<{ items: CategoryOption[]; value: string }>();
 const emit = defineEmits<{ change: [id: string] }>();
 
 // —— 两端渐隐（与购票页日期条同一套；判断「还能不能滚」需要先量出可视宽度）——
@@ -62,18 +63,15 @@ const FADE_LEFT = `${FADE_BASE} left-0 w-6 bg-gradient-to-r from-surface to-tran
 const FADE_RIGHT = `${FADE_BASE} right-0 w-8 bg-gradient-to-l from-surface to-transparent`;
 
 const CARD_BASE =
-  'shrink-0 snap-start flex flex-col items-center justify-center px-3_5 py-2 rounded-xl border shadow-xs transition-all select-none cursor-pointer';
+  'shrink-0 snap-start flex items-center justify-center px-3_5 py-2 rounded-xl border shadow-xs transition-all select-none cursor-pointer';
 /** 选中：与日期卡的选中态同一套（青绿渐变 + 描边 + 同一条阴影） */
 const CARD_ON = 'border-primary bg-gradient-to-b from-primary to-deep-teal-800 text-on-primary shadow-0_2px_8px_rgba0104950_22';
 /** 未选：日期卡的未选态（白卡 + 描边） */
 const CARD_OFF = 'border-silk-border bg-paper-surface text-ink-charcoal-text';
 const LABEL = 'text-13px font-semibold';
-const COUNT_ON = 'text-10px opacity-90';
-const COUNT_OFF = 'text-10px text-ink-light-gray';
 
-const isOn = (item: FilterSheetOption) => item.id === props.value;
-const cardClass = (item: FilterSheetOption) => `${CARD_BASE} ${isOn(item) ? CARD_ON : CARD_OFF}`;
-const countClass = (item: FilterSheetOption) => (isOn(item) ? COUNT_ON : COUNT_OFF);
+const isOn = (item: CategoryOption) => item.id === props.value;
+const cardClass = (item: CategoryOption) => `${CARD_BASE} ${isOn(item) ? CARD_ON : CARD_OFF}`;
 </script>
 
 <template>
@@ -97,7 +95,6 @@ const countClass = (item: FilterSheetOption) => (isOn(item) ? COUNT_ON : COUNT_O
           @tap="emit('change', item.id)"
         >
           <text :class="LABEL">{{ item.label }}</text>
-          <text :class="countClass(item)">{{ item.count }} 个景点</text>
         </view>
       </view>
     </scroll-view>

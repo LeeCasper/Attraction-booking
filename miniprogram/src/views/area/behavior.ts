@@ -151,7 +151,10 @@ export function useAreaPage() {
     loading,
     error,
     keyword,
-    category,    filterVisible,
+    /** 分类条只列分类本身；「筛选」弹层用的是带数量的 `filterOptions` */
+    categories: CATEGORIES,
+    category,
+    filterVisible,
     filterOptions,
     filteredAreas,
     presenceLabel,
