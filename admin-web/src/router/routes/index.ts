@@ -216,10 +216,12 @@ const businessRouteMeta: Record<string, Partial<RouteMeta>> = {
   verify: { title: '核销中心', icon: 'mdi:qrcode-scan', order: 2 },
   verify_desk: { title: '核销台', icon: 'mdi:line-scan', roles: ['super', 'admin', 'checker'] },
   verify_record: { title: '核销记录', icon: 'mdi:clipboard-check-outline', roles: ['super', 'admin', 'checker'] },
-  // 景区管理
-  scenic: { title: '景区管理', icon: 'mdi:map-marker-radius-outline', order: 3 },
+  // 内容管理（景点档案 + 公告 + 首页轮播图）
+  scenic: { title: '内容管理', icon: 'mdi:map-marker-radius-outline', order: 3 },
   scenic_area: { title: '景区信息', icon: 'mdi:information-outline', roles: ['super', 'admin'] },
   scenic_announcement: { title: '公告管理', icon: 'mdi:bullhorn-outline', roles: ['super', 'admin'] },
+  // 首页轮播图：与景点解耦的一组图（顺序、启停、跳转景点都在这里配）
+  scenic_banner: { title: '首页轮播图', icon: 'mdi:image-multiple-outline', roles: ['super', 'admin'] },
   // 票务管理
   ticket: { title: '票务管理', icon: 'mdi:ticket-confirmation-outline', order: 4 },
   'ticket_ticket-type': { title: '票种管理', icon: 'mdi:tag-multiple-outline', roles: ['super', 'admin'] },
