@@ -22,6 +22,7 @@
  * 底部的留白则改由 TabBar 自己占位（视图侧已去掉设计稿的 `pb-24`/`pb-28`，见 gen-pages 的 VIEW_DROP）。
  */
 import { reactive, watch } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import PageHeader from '@/components/PageHeader.vue';
 import AreaTopBar from '@/components/AreaTopBar.vue';
 import TabBar from '@/components/TabBar.vue';
@@ -29,7 +30,7 @@ import HomeView from '@/views/home/index.vue';
 import AreaView from '@/views/area/index.vue';
 import CredentialView from '@/views/credential/index.vue';
 import ProfileView from '@/views/profile/index.vue';
-import { activeTab as tab, type TabKey } from '@/store/shell';
+import { activeTab as tab, markShellShown, type TabKey } from '@/store/shell';
 
 // tab 状态放在模块里（而不是这里的局部 ref）：视图里也需要切页 ——
 // 比如购票页下单支付成功后要自动跳到凭证页。外壳只给视图传一个 active prop，加不了别的通道。
@@ -56,6 +57,14 @@ const visited = reactive<Record<TabKey, boolean>>({
 watch(tab, (t) => {
   visited[t] = true;
 });
+
+/**
+ * 外壳重新可见 = 用户可能刚在**二级页**（订单详情 / 支付页 / 购票页 / 出行人管理）里
+ * 改过东西。这里只记一笔，各视图自己决定要不要重取 —— 见 `store/shell.ts` 的 `shellShowTick`。
+ *
+ * 注意它是**页面**生命周期：在视图（子组件）里注册 `onShow` 不算数，只有这里收得到。
+ */
+onShow(markShellShown);
 </script>
 
 <template>

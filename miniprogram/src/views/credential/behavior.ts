@@ -3,6 +3,7 @@ import { areaApi, orderApi, visitorApi, type OrderDetail, type OrderSummary } fr
 import { errorText } from '@/api/request';
 import { currentOrderId, setCurrentOrderId } from '@/store/order';
 import { platformSettings } from '@/store/settings';
+import { activeTab, shellShowTick } from '@/store/shell';
 import { hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
@@ -320,6 +321,8 @@ export function useCredentialPage() {
   }
 
   let loaded = false;
+  /** 上次拉到数据时外壳「被显示过几次」（见 `store/shell.ts` 的 `shellShowTick`） */
+  let loadedAtTick = -1;
   async function load(force = false) {
     if (loaded && !force) return;
     loading.value = true;
@@ -346,12 +349,29 @@ export function useCredentialPage() {
         await refresh();
       }
       loaded = true;
+      loadedAtTick = shellShowTick.value;
     } catch (err) {
       error.value = errorText(err);
     } finally {
       loading.value = false;
     }
   }
+
+  /**
+   * 「这一格又可见了」时该不该重取 —— 与个人中心同一套（见 `views/profile/behavior.ts`）。
+   *
+   * 本页尤其需要：「申请退改」就是 `navigateTo` 到订单详情，用户在那儿提交完退款再返回，
+   * `props.active` 没变过、没人重取 → `refundPending` 还是 false，
+   * **二维码照旧出得来**（要到下一次换码时服务端回 409 才会塌成错误态，最多 50 秒）。
+   * 服务端本来就拦（`REFUND_PENDING`），但界面不该在这段时间里说反话。
+   */
+  function ensureFresh() {
+    if (!loaded || loadedAtTick !== shellShowTick.value) void load(true);
+  }
+
+  watch([shellShowTick, activeTab], () => {
+    if (activeTab.value === 'credential') ensureFresh();
+  });
 
   /**
    * 「换了一单」→ 强制重取。

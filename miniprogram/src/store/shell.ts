@@ -37,6 +37,29 @@ const storedArea = uni.getStorageSync(AREA_KEY);
 export const currentAreaId = ref<number | null>(storedArea ? Number(storedArea) : null);
 
 /**
+ * 「外壳页又被显示了一次」的计数。
+ *
+ * 外壳（`pages/main/index.vue`）是**唯一**的页面，四个视图都挂在它里面 ——
+ * 于是「进二级页改了点东西、再返回」对视图来说是**完全静默**的：`props.active` 一直是 true，
+ * 各视图那个「首次可见才拉数据」的守卫不会重取，页面上留着的是改动前的数据。
+ *
+ * 用户报的就是这个：在个人中心点「查看详情」→ 在订单详情里取消订单 → 返回，
+ * 「待支付」那一格还挂着**已经取消掉**的那一单（该单其实已经归到「退改·售后」了）。
+ * 凭证页同理：从「申请退改」进去提交退款、返回，二维码还照样能出示。
+ *
+ * 二级页自己不受影响 —— 它们是真实页面，`onShow` 就够（见 `pages/orders/index.vue`）。
+ * 视图拿不到 `onShow`（它不是页面），所以由外壳记一笔、视图各自 `watch` 这个计数。
+ *
+ * 只递增、不重置：视图比的是「跟我上次拉数据时是不是同一个值」。
+ */
+export const shellShowTick = ref(0);
+
+/** 外壳重新可见（从二级页返回 / 从后台切回）。由 `pages/main/index.vue` 的 `onShow` 调用 */
+export function markShellShown() {
+  shellShowTick.value += 1;
+}
+
+/**
  * 切景点。
  *
  * ⚠️ 这里只改一个跨视图共享的值。各视图自己的缓存（首页的公告、购票页的日期条/余票）

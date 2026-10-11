@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   areaApi,
   orderApi,
@@ -9,7 +9,7 @@ import {
 } from '@/api';
 import { errorText } from '@/api/request';
 import { setCurrentOrderId } from '@/store/order';
-import { switchTab } from '@/store/shell';
+import { activeTab, shellShowTick, switchTab } from '@/store/shell';
 import { platformSettings } from '@/store/settings';
 import { dayOffsetStr, fen2yuan, hhmm, shortDate } from '@/utils/format';
 
@@ -155,6 +155,11 @@ export function useProfilePage() {
   }));
 
   let loaded = false;
+  /**
+   * 上次拉到数据时外壳「被显示过几次」（见 `store/shell.ts` 的 `shellShowTick`）。
+   * 与当前值对不上 = 期间用户离开过外壳又回来了，手上这份数据可能已经旧了。
+   */
+  let loadedAtTick = -1;
   async function load(force = false) {
     if (loaded && !force) return;
     loading.value = true;
@@ -177,6 +182,7 @@ export function useProfilePage() {
         isDefault: v.isDefault,
       }));
       loaded = true;
+      loadedAtTick = shellShowTick.value;
       // 列表到手后补一次「最近一单」的详情（时段区间/支付截止/退款金额都只在详情里）。
       // 失败不影响卡片 —— 只用列表字段也能把卡渲染出来，只是时段那格显示日期
       now.value = Date.now();
@@ -187,6 +193,31 @@ export function useProfilePage() {
       loading.value = false;
     }
   }
+
+  /**
+   * 「这一格又可见了」时该不该重取。
+   *
+   * 三种情形分开对待：
+   *   - **没拉过** → 拉（首次进入本格，与 `load()` 的守卫无关）
+   *   - **期间离开过外壳**（去过订单详情/支付页/出行人管理，`shellShowTick` 变了）→ 重取。
+   *     用户报的那个 bug 就在这一条：在详情里取消订单后返回，「待支付」那一格
+   *     一直挂着已经取消的那一单 —— 因为返回时 `props.active` 没变过，没人去重取
+   *   - **只是在这一格里切来切去**（计数没变）→ 什么都不做，沿用「首次可见才拉数据」的初衷
+   */
+  function ensureFresh() {
+    if (!loaded || loadedAtTick !== shellShowTick.value) void load(true);
+  }
+
+  /**
+   * 外壳重新可见 / 切回本格 → 检查数据是否过期。
+   *
+   * 两个来源都要盯着：`shellShowTick`（从二级页返回，本格一直显示着）与 `activeTab`
+   * （从别的格切回来 —— 中间可能经由支付页付掉了某一单）。
+   * 只在**本格正显示着**时重取：四个视图一直挂在外壳里，另外三格没必要跟着打接口。
+   */
+  watch([shellShowTick, activeTab], () => {
+    if (activeTab.value === 'profile') ensureFresh();
+  });
 
   const toastVisible = ref(false);
   let timer: ReturnType<typeof setTimeout> | null = null;
