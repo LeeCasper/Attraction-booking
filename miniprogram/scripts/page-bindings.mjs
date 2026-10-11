@@ -140,14 +140,22 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       //
       // ⚠️ 这里**不要**给它加 `v-if`：`credentials` 为空时下面的 v-for 自然不渲染，
       // 只剩一条空的渐变条（内容为空 = 看不出来）。
+      // ⚠️ 外面这层 `v-if="props.active"` 是**刻意的**：这一格是外壳里的 `v-show` 视图，
+      // 真机上出现过「切走再切回来这一条就不见了」（数据正常、同一屏别的块都还好）。
+      // 挂上 `v-if` 之后，每次切回凭证页这块都是**重新创建**的：既不会带着上一次的滚动位置/
+      // 布局状态回来，也保证卡片是用当下的 `credentials` 重新渲染的。
       '#credentialPicker': {
         replace:
-          '<view class="relative -mx-margin mb-2">' +
+          '<view v-if="props.active" class="relative -mx-margin mb-2">' +
           // 两端渐隐：左侧滚过才出现；右侧常显（从页面底色渐变到透明，装得下时看不出来）
           '<view class="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-surface to-transparent z-10 transition-opacity duration-200" :style="{ opacity: credFadeLeft ? 0.9 : 0 }" />' +
           '<view class="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface to-transparent z-10 transition-opacity duration-200" style="opacity: 0.9" />' +
           '<scroll-view class="w-full pg-cred-scroll" scroll-x="true" :show-scrollbar="false" style="scroll-behavior: smooth" @scroll="onCredScroll">' +
           '<view class="flex items-center gap-2_5 min-h-44px">' +
+          // 一张可入园凭证都没有时给一句话（而不是一条空白的渐变带）——
+          // 顺带它也是一条**判据**：看不到卡片、却看到这句话 = 客户端手里确实没有凭证数据；
+          // 两样都看不到 = 这一整块根本没渲染出来。两种故障的修法完全不同。
+          '<view v-if="!credentials.length" class="text-12px text-ink-light-gray px-1">暂无可入园的凭证</view>' +
           '<view v-for="c in credentials" :key="c.id" :class="credCardClass(c)" :hover-class="credHoverClass(c)" @tap="onPickCredential(c.id)">' +
           '<view class="flex items-center justify-between w-full">' +
           '<text class="font-data-metric-md text-15px font-bold leading-none">{{ c.dateLabel }}</text>' +
