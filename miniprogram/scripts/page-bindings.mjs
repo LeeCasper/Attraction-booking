@@ -306,7 +306,7 @@ onLoad(() => { void load(); });`,
     ],
     setup: `const {
   loading, error,
-  keyword, categories, category, filterVisible, filterOptions,
+  keyword, category, filterVisible, filterOptions,
   filteredAreas, presenceLabel, contactLine, stockStatus, isActive,
   onPickCategory, openFilter, closeFilter, onPickArea, onBook, filterItemClass, load,
 } = useAreaPage();
@@ -333,8 +333,10 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       'flex items-center gap-1 text-primary active:opacity-75 transition-opacity pl-1':
         { attrs: { '@tap': 'openFilter' } },
       // 分类胶囊条：改成数据驱动的组件，点击真筛
+      // 分类条：**传 `filterOptions` 而不是 `categories`** —— 卡片第二行要显示该类下的景点数，
+      // 而 `filterOptions` 就是「分类 + 数量」，与「筛选」弹层里那份完全同源（不另算一套）
       '#categoryTabs': {
-        replace: '<CategoryTabs :items="categories" :value="category" @change="onPickCategory" />',
+        replace: '<CategoryTabs :items="filterOptions" :value="category" @change="onPickCategory" />',
       },
       // 承载横幅：设计稿把呼吸点和文案写在同一个 span 里，没法只换文案 → 整块换组件
       'bg-surface-container-low rounded-xl p-3 flex items-start gap-2.5 shadow-sm': {
@@ -342,9 +344,16 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       },
       // 套票推荐通栏：后端没有套票/联票这个概念，留着等于卖一个不存在的东西
       'px-margin mt-space-sm mb-space-sm': { remove: true },
-      // 四张写死的景点卡 → 一个组件按真实数据渲染
+      // 四张写死的景点卡 → 一个组件按真实数据渲染。
+      // 空态是**本轮补的**：分类条现在会显示「N 个景点」，0 个的分类点进去、或者搜索词
+      // 谁都不匹配时，原来列表是一片空白（卡片位都没有），看着像没加载出来。
       'px-margin flex flex-col gap-3.5 mb-space-md': {
         inner:
+          '<view v-if="!loading && filteredAreas.length === 0" class="rounded-2xl bg-paper-surface border border-silk-border shadow-sm p-space-md flex flex-col items-center gap-1_5">' +
+          '<view class="msi icon-explore text-28px text-ink-light-gray" />' +
+          '<text class="font-body-md text-14px font-medium text-ink-charcoal-text">没有匹配的景点</text>' +
+          '<text class="font-caption-sm text-12px text-ink-light-gray">{{ keyword ? \'换个关键词试试，或点「全部景点」\' : \'这个分类下还没有开放中的景点\' }}</text>' +
+          '</view>' +
           '<AreaCard v-for="(a, i) in filteredAreas" :key="a.id" :area="a" :index="i" :status="stockStatus(a)" :active="isActive(a)" @pick="onPickArea" @book="onBook" />',
       },
       // 页脚联系行：设计稿是「客服热线：400-880-9966 / 服务时间：08:00-21:00」两段写死的文案。
