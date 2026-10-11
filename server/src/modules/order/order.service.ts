@@ -24,6 +24,7 @@ import {
   TimeSlot,
 } from '../../database/entities/ticket.entity';
 import { PurchaseRule } from '../ticket/purchase-rule.entity';
+import { ScenicArea } from '../../database/entities/scenic.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { generateCredentialNo, generateOrderNo } from './order-no.util';
 import { RedisClient, REDIS_CLIENT } from '../redis/redis.constants';
@@ -374,10 +375,30 @@ export class OrderService {
       return first ? (types.find((t) => t.id === first.ticketTypeId)?.name ?? '') : '';
     };
 
+    /**
+     * 景区名。
+     *
+     * 客户端只有 `scenicAreaId`，而**小程序端的 `/areas` 只返回开放中的景点**，
+     * 于是「同一天买了两个景点的票」时，凭证切换条上那几张卡片长得一模一样，
+     * 用户得逐个点开才知道哪张是哪个景点的。这里按 id 取一次名字给它。
+     *
+     * ⚠️ **不筛 `status`**：门票的有效性与景点当下开不开放入园是两回事 ——
+     * 景点被「关闭」（status=0）后，手上那张票仍要能看出是哪个景点的。
+     * 景点被**删除**时这行查不到，返回空串（客户端据此显示「景点已下线」）——
+     * 现在有引用就删不掉景区（见 `ScenicService.removeArea`），新数据不会再出现这种情况。
+     */
+    const areaIds = [...new Set(orders.map((o) => o.scenicAreaId))];
+    const areas = areaIds.length
+      ? await this.dataSource.getRepository(ScenicArea).find({ where: { id: In(areaIds) } })
+      : [];
+    const areaNameOf = (id: number) => areas.find((a) => a.id === id)?.name ?? '';
+
     return orders.map((o) => ({
       ...o,
       itemCount: items.filter((i) => i.orderId === o.id).length,
       ticketName: ticketNameOf(o.id),
+      /** 空串 = 该景点已不存在（客户端显示「景点已下线」，不要编一个名字） */
+      scenicAreaName: areaNameOf(o.scenicAreaId),
       reservation: reservations.find((r) => r.orderId === o.id) ?? null,
       // 申请退款后订单状态**不变**（仍是 20/30），只多一条待审的退款单 ——
       // 没有这个字段，客户端就无从知道「审核中 / 已拒绝」，只会看到「待入园」。
@@ -406,10 +427,19 @@ export class OrderService {
     // 最新一条退款单（整单退时 orderItemId 为 null）
     const refund = await this.refundRepo.findOne({ where: { orderId }, order: { id: 'DESC' } });
 
+    // 景区名（与列表同一个口径：不筛 status，删除的返回空串）——
+    // 客户端原先只能拿 `scenicAreaId` 去 `/areas` 里找，而那个接口只返回开放中的景点，
+    // 于是「景点关闭后手上的票」会被显示成平台名，那是错的。
+    const area = await this.dataSource
+      .getRepository(ScenicArea)
+      .findOne({ where: { id: order.scenicAreaId } });
+
     return {
       ...order,
       reservation,
       timeSlot: slot,
+      /** 空串 = 该景点已不存在 */
+      scenicAreaName: area?.name ?? '',
       refundStatus: refund?.status ?? null,
       refund: refund
         ? {

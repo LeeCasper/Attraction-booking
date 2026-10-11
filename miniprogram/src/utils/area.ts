@@ -30,6 +30,19 @@ export const CATEGORIES: CategoryOption[] = [
 export const TIGHT_THRESHOLD = 50;
 
 /**
+ * 订单所属景点**已被删除**时显示的四个字。
+ *
+ * 景点名随订单一起从服务端回来（`OrderSummary.scenicAreaName`，按 `scenicAreaId` 查、
+ * **不筛 status**，所以景点被「关闭」后手上的票仍认得出是哪个景点）。查不到只可能是
+ * 那一行没了 —— 现在「有订单引用就删不掉景区」（见 `ScenicService.removeArea`），
+ * 所以这只可能是历史数据。
+ *
+ * 为什么不留空：**个人中心卡片、凭证切换条**上都靠这一行分清「哪张是哪个景点的」，
+ * 留空的话那几张卡片又长得一模一样了；而「景点已下线」正好解释了它们为什么没名字。
+ */
+export const AREA_GONE_LABEL = '景点已下线';
+
+/**
  * 封面兜底图。
  *
  * `scenic_area.cover_url` 为空时没有图可显示（后台上传入口已有，但不是每个景点都传过）。

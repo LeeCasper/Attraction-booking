@@ -1,16 +1,10 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
-import {
-  areaApi,
-  orderApi,
-  visitorApi,
-  type MiniArea,
-  type OrderDetail,
-  type OrderSummary,
-} from '@/api';
+import { orderApi, visitorApi, type OrderDetail, type OrderSummary } from '@/api';
 import { errorText } from '@/api/request';
 import { setCurrentOrderId } from '@/store/order';
 import { activeTab, shellShowTick, switchTab } from '@/store/shell';
 import { platformSettings } from '@/store/settings';
+import { AREA_GONE_LABEL } from '@/utils/area';
 import { dayOffsetStr, fen2yuan, hhmm, shortDate } from '@/utils/format';
 
 /**
@@ -20,7 +14,8 @@ import { dayOffsetStr, fen2yuan, hhmm, shortDate } from '@/utils/format';
  *   - 四态筛选的角标与「最近一单」卡片 ← `GET /api/mini/orders`（不传 status 取全量，前端分组）
  *     + 该单的 `GET /api/mini/orders/:id`（时段/支付截止/退款明细要详情才有）
  *   - 常用出行人     ← `GET /api/mini/visitors`
- *   - 景点名         ← `GET /api/mini/areas`（订单只有 `scenicAreaId`，没有名字）
+ *   - 景点名         ← 订单列表里自带（`scenicAreaName`），不必再打 `/areas`
+ *                      —— 而且 `/areas` 只返回**开放中**的景点，景点一关闭名字就没了
  *
  * ⚠️ 四格**不再是跳转入口**：点哪一格，下面那张卡就切到**那一态最近的一单**；
  *    进列表的入口是右上的「全部预约单」（列表页自己有四个筛选）。
@@ -85,13 +80,6 @@ export function useProfilePage() {
   const error = ref('');
   const orders = ref<OrderSummary[]>([]);
   const visitors = ref<VisitorCard[]>([]);
-  /**
-   * 景点 id → 名字。
-   *
-   * 订单只有 `scenicAreaId`（列表与详情都不带景点名），所以卡片要显示景点名就得自己拼一份。
-   * 一次 `GET /areas` 取回全部开放景点即可 —— 订单只可能落在开放中的景点上。
-   */
-  const areaNames = ref<Map<number, string>>(new Map());
 
   /**
    * 页脚版本行：设计稿写死「枫林谷智慧文旅 V1.2.0」，改成平台信息拼出来。
@@ -165,14 +153,8 @@ export function useProfilePage() {
     loading.value = true;
     error.value = '';
     try {
-      const [orderList, visitorList, areaList] = await Promise.all([
-        orderApi.list(),
-        visitorApi.list(),
-        // 行程卡的景点名是锦上添花，拿不到不该让整页报错
-        areaApi.list().catch(() => [] as MiniArea[]),
-      ]);
+      const [orderList, visitorList] = await Promise.all([orderApi.list(), visitorApi.list()]);
       orders.value = orderList;
-      areaNames.value = new Map(areaList.map((a) => [a.id, a.name]));
       visitors.value = visitorList.map((v) => ({
         id: v.id,
         name: v.name,
@@ -357,9 +339,10 @@ export function useProfilePage() {
       };
     }
 
-    // 景点名查不到 = 这个景点已经不在开放列表里（`/areas` 只返回开放中的）。
-    // 留空比编一个名字好：卡片上少了景点名不影响读懂，写个错的景点名是另一回事。
-    const areaName = areaNames.value.get(o.scenicAreaId) ?? '';
+    // 景点名随订单一起回来（服务端不筛 status 地查），景点被删除时才有可能是空 → 显示「景点已下线」。
+    // 以前这里是自己打 `/areas` 拼一份 id→名字的表，而那个接口**只返回开放中的景点** ——
+    // 景点一「关闭」，卡片上的景点名就凭空消失了。
+    const areaName = o.scenicAreaName || AREA_GONE_LABEL;
     const date = o.reservation?.date ?? '';
     const detail = previewDetail.value;
     /** 详情可能还没到（或失败），一律以列表字段兜底 */

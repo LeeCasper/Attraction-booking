@@ -100,7 +100,7 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
   passModes, passMode, onPickPassMode,
   periodLabel, areaName, holderLabel, statusLabel,
   credentials, activeId, onPickCredential, credFadeLeft, onCredScroll,
-  credCardClass, credWeekClass, credTicketClass, credPillClass, credDotClass, credHoverClass,
+  credCardClass, credWeekClass, credAreaClass, credTicketClass, credPillClass, credDotClass, credHoverClass,
   refundPending, refundHintText, refundButtonLabel, credentialNo, load,
 } = useCredentialPage();
 // 首次可见时才拉数据
@@ -159,6 +159,9 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
           '<text class="font-data-metric-md text-15px font-bold leading-none">{{ c.dateLabel }}</text>' +
           '<text :class="credWeekClass(c)">{{ c.weekLabel }}</text>' +
           '</view>' +
+          // 景点名 —— 用户报的「同一天买了不同景点的票，卡片长得一样、得逐个点开才知道是哪个」。
+          // 它比票种那行重（semibold + 正文色），票种退到 10px 灰字，一行放得下三层信息。
+          '<text :class="credAreaClass(c)">{{ c.areaName }}</text>' +
           '<text :class="credTicketClass(c)">{{ c.ticketName || \'门票\' }}</text>' +
           '<text :class="credPillClass(c)">' +
           '<text v-if="c.refundPending" :class="credDotClass(c)" />' +
@@ -238,8 +241,13 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
   scroll-padding-right: 30.77rpx;
   scroll-snap-type: x proximity;
 }
-.pg-page .is-dimmed { opacity: 0.55; }
-.pg-page .is-hidden { display: none; }
+.pg-page .is-dimmed { opacity: 0.55; }.pg-page .is-hidden { display: none; }
+/* 凭证卡片的宽度：208rpx ≈ 108px。
+   为什么不挂工具类：classmap 里只有 w-70px / w-88px 两档，而 88px 装不下
+   「驻马店市嵖岈山」这种长度的景点名 —— 而**景点名正是这张卡要让人一眼看清的那一行**
+   （同一天在不同景点各买了票时，用户就是靠它分辨的，本轮加的）。
+   宽度只在这里给一次，卡片 class 里不再写 w-*，避免两处抢同一个属性。 */
+.pg-page .pg-cred-card { width: 208rpx; }
 /* 退款审核中：二维码那个白框整体换成琥珀（与框里那块说明同一个语义） */
 .pg-page .is-blocked {
   border-color: rgba(217, 119, 6, 0.45) !important;

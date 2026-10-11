@@ -75,6 +75,8 @@ async function main() {
 
   const areas = await api('GET', '/api/admin/scenic/areas', { token: adminToken });
   const areaId = areas.data?.[0]?.id;
+  /** 下单用的那个景点的名字（断言订单列表回填的 scenicAreaName 与它一致） */
+  const areaName = areas.data?.[0]?.name;
   const types = await api('GET', `/api/admin/ticket-types?areaId=${areaId}`, { token: adminToken });
   const ticketTypeId = types.data?.[0]?.id;
   const slots = await api('GET', `/api/admin/time-slots?areaId=${areaId}`, { token: adminToken });
@@ -295,6 +297,14 @@ async function main() {
     '列表带票种名（原先只有 itemCount，卡片没法说清买的是什么票）',
     !!appliedRow?.ticketName,
     JSON.stringify(appliedRow?.ticketName),
+  );
+  // 景区名随订单一起给：客户端原先各自拿 scenicAreaId 去 `/areas` 里找，而那个接口
+  // 只返回**开放中**的景点 —— 景点一关闭，用户手上那张有效票就没了名字。
+  // 这里断言的是「名字与下单时选的那个景点一致」（不是「非空」——非空抓不出取错表）。
+  check(
+    '列表带景区名，且就是下单那个景点',
+    appliedRow?.scenicAreaName === areaName,
+    JSON.stringify({ got: appliedRow?.scenicAreaName, want: areaName }),
   );
 
   // 重复申请应被拒（前端据此不再展示「申请退款」）

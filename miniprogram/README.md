@@ -197,7 +197,7 @@ src/utils/format.ts 分→元、日期/星期、HH:mm:ss→HH:mm。**金额一�
 | 首页 | 轮播与推荐景点 `/areas/overview`；公告 `/areas/:id`（**当前景点**的，文案带景点名）；快捷卡与卡片跳转见下 |
 | 购票页 | 单价 `/tickets`；日期条与时段余量 `/stocks`；出行人 `/visitors`；下单 `POST /orders` → 模拟支付 `POST /pay/mock-notify` → 自动跳凭证页 |
 | 凭证页 | 时段与持票人 `/orders/:id`；动态码 `/orders/:id/credential`（token / 60s 有效期 / 剩余 10s 时自动换码）；水印里的脱敏手机号回查 `/visitors`（凭证与订单接口都不给这个字段） |
-| 个人中心 | 四态筛选角标与统计 `/orders`；常用出行人 `/visitors` |
+| 个人中心 | 四态筛选角标与统计 `/orders`；常用出行人 `/visitors`。**景点名不再单独打 `/areas`** —— 订单自带 `scenicAreaName`（见下） |
 | 出行人管理页 | `src/pages/visitor/index.vue` —— **设计稿里没有这一页**，版式自拟，把 `visitors` 的增删改 UI 补上 |
 | 订单列表页 | `src/pages/orders/index.vue` —— **设计稿里没有这一页**。四态筛选（与个人中心那 4 个格子同一套桶）+ 卡片显示票种/日期/张数/金额/状态 |
 | 订单详情页 | `src/pages/orders/detail.vue` —— **设计稿里没有这一页**。U-021 的六项 + 按状态给操作（取消 / 去支付 / 申请退款） |

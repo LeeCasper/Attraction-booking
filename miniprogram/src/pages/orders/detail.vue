@@ -15,7 +15,7 @@
  */
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { areaApi, orderApi, type OrderDetail, type RefundInfo } from '@/api';
+import { orderApi, type OrderDetail, type RefundInfo } from '@/api';
 import { errorText } from '@/api/request';
 import { fen2yuan, hhmm, shortDate, weekdayOf } from '@/utils/format';
 
@@ -104,16 +104,12 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [detail, areas] = await Promise.all([
-      orderApi.detail(orderId.value),
-      // 详情不返回景区名，只有 scenicAreaId；本应用是单景区部署，取列表里对得上的那个
-      areaApi.list().catch(() => []),
-    ]);
+    const detail = await orderApi.detail(orderId.value);
     order.value = detail;
-    // 按订单自己的 scenicAreaId 查名字。
-    // **不要**再回落到 areas[0] —— 查不到只可能是该景点已下架（/areas 只返回开放中的），
-    // 那时顶着一个别的景点的名字比留空更糟
-    areaName.value = areas.find((a) => a.id === detail.scenicAreaId)?.name ?? '';
+    // 景点名随订单一起回来（服务端按 `scenicAreaId` 查，**不筛 status**）。
+    // ⚠️ 以前这里是打 `/areas` 再 `find`，而那个接口只返回**开放中**的景点 ——
+    // 景点被关闭后，这一格就显示成「—」，而票其实还在用户手上。
+    areaName.value = detail.scenicAreaName;
   } catch (err) {
     error.value = errorText(err);
   } finally {

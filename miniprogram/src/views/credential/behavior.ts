@@ -1,9 +1,10 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { areaApi, orderApi, visitorApi, type OrderDetail, type OrderSummary } from '@/api';
+import { orderApi, visitorApi, type OrderDetail, type OrderSummary } from '@/api';
 import { errorText } from '@/api/request';
 import { currentOrderId, setCurrentOrderId } from '@/store/order';
 import { platformSettings } from '@/store/settings';
 import { activeTab, shellShowTick } from '@/store/shell';
+import { AREA_GONE_LABEL } from '@/utils/area';
 import { hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
@@ -195,6 +196,7 @@ export function useCredentialPage() {
         date: o.reservation?.date ?? '',
         dateLabel: shortDate(o.reservation?.date ?? ''),
         weekLabel: weekdayOf(o.reservation?.date ?? ''),
+        areaName: o.scenicAreaName || AREA_GONE_LABEL,
         ticketName: o.ticketName,
         remaining: Math.max(0, (o.reservation?.totalCount ?? o.itemCount) - (o.reservation?.verifyCount ?? 0)),
         refundPending: REFUND_PENDING_STATUS.includes(o.refundStatus ?? -1),
@@ -227,8 +229,12 @@ export function useCredentialPage() {
     credFadeLeft.value = (e.detail?.scrollLeft ?? 0) > 4;
   };
 
+  /**
+   * 卡片宽度走 `.pg-cred-card`（见 `page-bindings.mjs` 的 style），**不是** `w-88px`：
+   * 88px 装不下「驻马店市嵖岈山」这样的景点名，而那一行正是这张卡要让人一眼看清的东西。
+   */
   const CRED_CARD_BASE =
-    'shrink-0 snap-start relative flex flex-col items-start gap-0_5 w-88px px-2 py-2 rounded-xl border shadow-xs transition-all select-none cursor-pointer';
+    'pg-cred-card shrink-0 snap-start relative flex flex-col items-start gap-0_5 px-2 py-2 rounded-xl border shadow-xs transition-all select-none cursor-pointer';
   const CRED_CARD_ON =
     'border-primary bg-gradient-to-b from-primary to-deep-teal-800 text-on-primary shadow-0_2px_8px_rgba0104950_22';
   const CRED_CARD_ON_REFUND =
@@ -251,8 +257,17 @@ export function useCredentialPage() {
   };
   const credWeekClass = (c: CredentialOption) =>
     c.id === activeId.value ? 'font-caption-sm text-10px opacity-90' : 'font-caption-sm text-10px text-ink-light-gray';
+  /**
+   * 景点名那一行 —— 这一条上**最关键的一行**：同一天在不同景点各买了票时，
+   * 用户就是靠它分清楚哪张是哪儿的（本轮加的，见 `CredentialOption.areaName`）。
+   * 所以它比票种那行重（`font-semibold` + 正文色），票种退到 10px 灰字。
+   */
+  const credAreaClass = (c: CredentialOption) =>
+    c.id === activeId.value
+      ? 'text-11px font-semibold opacity-90 w-full truncate'
+      : 'text-11px font-semibold text-ink-charcoal-text w-full truncate';
   const credTicketClass = (c: CredentialOption) =>
-    c.id === activeId.value ? 'text-11px opacity-90 w-full truncate' : 'text-11px text-ink-light-gray w-full truncate';
+    c.id === activeId.value ? 'text-10px opacity-90 w-full truncate' : 'text-10px text-ink-light-gray w-full truncate';
   const credPillClass = (c: CredentialOption) => {
     const on = c.id === activeId.value;
     if (c.refundPending) return on ? CRED_PILL_ON : CRED_PILL_REFUND;
@@ -262,16 +277,6 @@ export function useCredentialPage() {
     c.id === activeId.value ? CRED_DOT_ON : CRED_DOT_REFUND;
   const credHoverClass = (c: CredentialOption) =>
     c.id === activeId.value ? 'pg-hover' : 'active-scale-95 pg-hover';
-
-  /** 按订单的 scenicAreaId 查景点名。查不到（景点已下架）就留空，别乱填一个 */
-  async function loadAreaName(areaId: number): Promise<string> {
-    try {
-      const areas = await areaApi.list();
-      return areas.find((a) => a.id === areaId)?.name ?? '';
-    } catch {
-      return '';
-    }
-  }
 
   /** 凭证与订单详情都不含持票人手机号，回查常用出行人补上（只用于水印脱敏展示） */
   async function loadHolderMask(detail: OrderDetail) {
@@ -337,9 +342,12 @@ export function useCredentialPage() {
       }
       const detail = await orderApi.detail(orderId);
       order.value = detail;
-      // 景点名查不到（该景点已停用/不在开放列表里）就退回**平台名** —— 凭证卡片头上那行
-      // 是一整个 `<h1>`，留空会只剩一个孤零零的图标，看着像没渲染出来
-      areaName.value = (await loadAreaName(detail.scenicAreaId)) || platformSettings.value.name;
+      // 景点名随订单一起回来（服务端按 `scenicAreaId` 不筛 status 地查）。
+      // 只有**景点被删除**时才为空 —— 那时退回平台名：凭证卡片头上那行是一整个 `<h1>`，
+      // 留空会只剩一个孤零零的图标，看着像没渲染出来。
+      // ⚠️ 以前这里是自己打 `/areas` 找名字，而那个接口**只返回开放中的景点** ——
+      // 景点一「关闭」，手上这张票就被扣上平台的名字，那是错的。
+      areaName.value = detail.scenicAreaName || platformSettings.value.name;
       await loadHolderMask(detail);
       // 退款审核中**不取码**：服务端也会拒（409），不如就地不给码 + 显示说明
       if (refundPending.value) {
@@ -440,6 +448,7 @@ export function useCredentialPage() {
     onCredScroll,
     credCardClass,
     credWeekClass,
+    credAreaClass,
     credTicketClass,
     credPillClass,
     credDotClass,
@@ -483,6 +492,16 @@ export interface CredentialOption {
   dateLabel: string;
   /** `周六` */
   weekLabel: string;
+  /**
+   * 景点名。
+   *
+   * 用户报的：同一天在不同景点各买了票时，这一条上几张卡片长得**一模一样**
+   * （都是「10-11 周日 · 成人全票 · 余 1 人」），得逐个点开才知道哪张是哪个景点的。
+   * 服务端现在随订单一起给（`scenicAreaName`，不筛 status），直接显示在卡片上。
+   * 景点已删除时是「景点已下线」四个字（服务端返回空串）—— 总比留一片空白强，
+   * 而且它正好解释了「为什么这几张卡片看着一样」。
+   */
+  areaName: string;
   ticketName: string;
   /** 还没核销的人数（`totalCount - verifyCount`）—— 卡片上显示「余 N 人」 */
   remaining: number;

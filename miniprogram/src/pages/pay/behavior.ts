@@ -1,6 +1,6 @@
 import { computed, onUnmounted, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { areaApi, orderApi, visitorApi, type MiniVisitor, type OrderDetail } from '@/api';
+import { orderApi, visitorApi, type MiniVisitor, type OrderDetail } from '@/api';
 import { errorText } from '@/api/request';
 import { setCurrentOrderId } from '@/store/order';
 import { platformSettings } from '@/store/settings';
@@ -225,11 +225,10 @@ export function usePayPage() {
         return;
       }
 
-      const [areas, allVisitors] = await Promise.all([
-        areaApi.list().catch(() => []),
-        visitorApi.list().catch(() => [] as MiniVisitor[]),
-      ]);
-      areaName.value = areas.find((a) => a.id === detail.scenicAreaId)?.name ?? '';
+      const allVisitors = await visitorApi.list().catch(() => [] as MiniVisitor[]);
+      // 景点名随订单一起回来（服务端不筛 status 地查）——
+      // 原先这里也要打一次 `/areas`，而那个接口只返回开放中的景点
+      areaName.value = detail.scenicAreaName;
       const phoneOf = (visitorId: number) => allVisitors.find((v) => v.id === visitorId)?.phoneMask ?? '—';
       visitors.value = detail.items.map((i) => ({
         id: i.id,

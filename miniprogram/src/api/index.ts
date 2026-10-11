@@ -248,8 +248,18 @@ export interface Reservation {
 export interface OrderSummary {
   id: number;
   orderNo: string;
-  /** 景区 id。详情不返回景区名，只有这个 id（列表接口同样） */
+  /** 景区 id */
   scenicAreaId: number;
+  /**
+   * 景区名。
+   *
+   * 服务端按 `scenicAreaId` 取的（**不筛 `status`**）—— 客户端原先各自拿 id 去 `/areas` 里找，
+   * 而那个接口只返回**开放中**的景点：景点一「关闭」，用户手上那张有效票就被显示成平台名
+   * （个人中心卡片、凭证页标题、支付页、订单详情四处都这么干，各打一次接口）。
+   * **空串 = 该景点已被删除**（现在有引用就删不掉景区），客户端据此显示「景点已下线」，
+   * 不要编一个名字。
+   */
+  scenicAreaName: string;
   /** 单位：分 */
   amount: number;
   /** 10 待支付 / 20 已支付 / 30 部分核销 / 40 已核销 / 50 已取消 / 60 已退款 / 70 已过期 */
