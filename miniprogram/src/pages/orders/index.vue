@@ -17,6 +17,8 @@ import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { orderApi, type OrderSummary } from '@/api';
 import { errorText } from '@/api/request';
+import { setCurrentOrderId } from '@/store/order';
+import { switchTab } from '@/store/shell';
 import { fen2yuan, hhmm, shortDate } from '@/utils/format';
 
 /** 状态栏高度用**真实 px**（不是 rpx）—— 设备物理量，不随屏宽缩放。二级页不走 PageHeader，得自己让位 */
@@ -113,6 +115,23 @@ onLoad((query) => {
 onShow(load);
 
 const goDetail = (id: number) => uni.navigateTo({ url: `/pages/orders/detail?id=${id}` });
+
+/** 待入园/部分核销：这两态才有凭证可看 */
+const canShowCredential = (o: OrderSummary) => o.status === 20 || o.status === 30;
+
+/**
+ * 「查看凭证」→ 把这一单设成「当前订单」，退回外壳并切到凭证 tab。
+ *
+ * ⚠️ 本页是**压栈进来的二级页**，光 `switchTab` 切不到凭证视图（外壳在它下面，
+ * 用户看到的还是这一页）—— 所以先按页面栈深度退到底，再切。
+ * 口径与支付页的 `backToShell()` 一致（栈深不固定，不能写死 delta）。
+ */
+function viewCredential(o: OrderSummary) {
+  setCurrentOrderId(o.id);
+  const pages = getCurrentPages();
+  uni.navigateBack({ delta: Math.max(1, pages.length - 1) });
+  switchTab('credential');
+}
 const goBack = () => uni.navigateBack();
 
 /** 「10-09 08:00-10:00」，没有预约为空 */
@@ -137,6 +156,9 @@ const STATUS_PILL =
   'text-11px px-2 py-0_5 rounded-full border border-primary_20 bg-mist-cyan-50 text-primary shrink-0';
 const REFUND_PILL =
   'text-11px px-2 py-0_5 rounded-full border border-amber-gold_30 bg-amber-gold_15 text-tertiary-container shrink-0';
+/** 「查看凭证」：卡片右下角那颗，与详情页的主按钮同一套青绿 */
+const QR_BTN =
+  'h-8 px-3 rounded-lg bg-primary text-white text-12px font-medium shadow-xs flex items-center justify-center gap-1_5 shrink-0';
 </script>
 
 <template>
@@ -191,10 +213,23 @@ const REFUND_PILL =
             <text class="text-13px font-semibold mr-0_5">¥</text>
             <text class="font-data-metric-lg text-20px font-bold leading-none">{{ fen2yuan(o.amount) }}</text>
           </view>
-          <!-- 退款申请不改订单状态，所以「审核中」只能靠 refundStatus 显示 -->
+          <!--
+            右下角那格：**退款审核中优先**（申请退款不改订单状态，只能靠 refundStatus 显示），
+            否则「待入园/部分核销」给一个「查看凭证」直达凭证页 ——
+            以前这里只有状态和金额，买了多张票的用户从列表里**没有任何入口看凭证**。
+          -->
           <text v-if="REFUND_STATUS_LABEL[o.refundStatus ?? -1]" :class="REFUND_PILL">
             {{ REFUND_STATUS_LABEL[o.refundStatus ?? -1] }}
           </text>
+          <view
+            v-else-if="canShowCredential(o)"
+            :class="QR_BTN"
+            hover-class="pg-hover"
+            @tap.stop="viewCredential(o)"
+          >
+            <view class="msi icon-qr_code text-14px" />
+            <text>查看凭证</text>
+          </view>
         </view>
       </view>
 

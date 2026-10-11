@@ -207,6 +207,13 @@ export interface Reservation {
   status: number;
   verifyCount: number;
   totalCount: number;
+  /**
+   * 凭证号（**展示用**）：`V` + 预约日 + 预约 id 补足 6 位，如 `V20261011-000171`。
+   *
+   * 服务端由预约派生（库里没有这一列）—— 同一张票在列表与详情上永远是同一个号。
+   * ⚠️ 它只是给人看的：闸机不认这个号，通行判定一律走动态 token / 证件。
+   */
+  credentialNo: string | null;
 }
 
 export interface OrderSummary {

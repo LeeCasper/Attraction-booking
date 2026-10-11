@@ -167,6 +167,14 @@ async function main() {
     JSON.stringify(detail1.data?.timeSlot),
   );
 
+  // 凭证号（展示用，派生自预约，库里没有这一列）：`V` + 预约日 + 预约 id 补 6 位。
+  // 断言格式而不是断言某个具体值 —— 它的作用是「同一张票在详情/列表上印的是同一个号」。
+  check(
+    '详情返回凭证号（V+预约日+预约 id）',
+    /^V\d{8}-\d{6}$/.test(detail1.data?.reservation?.credentialNo ?? ''),
+    String(detail1.data?.reservation?.credentialNo),
+  );
+
   // ---- 4. 支付（幂等）----
   console.log('\n[4] 支付回调幂等');
   const pay1 = await api('POST', `/api/mini/pay/mock-notify?orderNo=${orderNo1}`, { token });
@@ -267,6 +275,15 @@ async function main() {
   const appliedList = await api('GET', '/api/mini/orders', { token });
   const appliedRow = appliedList.data?.find((o) => o.id === orderId1);
   check('列表带 refundStatus', appliedRow?.refundStatus === 10, JSON.stringify(appliedRow?.refundStatus));
+
+  // 退款审核中（10）**不下发凭证**：申请退款不改订单状态，若不拦，用户能一边过闸一边等退款
+  // （闸机侧的拦截见 smoke:gate 的 REFUND_PENDING）
+  const credWhileRefunding = await api('GET', `/api/mini/orders/${orderId1}/credential`, { token });
+  check(
+    '退款审核中不再下发凭证（409）',
+    credWhileRefunding.status === 409,
+    `实际 ${credWhileRefunding.status} ${JSON.stringify(credWhileRefunding.json)}`,
+  );
   check(
     '列表带票种名（原先只有 itemCount，卡片没法说清买的是什么票）',
     !!appliedRow?.ticketName,

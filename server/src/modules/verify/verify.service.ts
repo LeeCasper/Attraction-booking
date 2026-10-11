@@ -12,8 +12,10 @@ import { TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import {
   OrderItemStatus,
   OrderStatus,
+  RefundStatus,
   ReservationStatus,
 } from '../../common/enums/status.enum';
+import { Refund } from '../../database/entities/pay.entity';
 import { businessToday } from '../../common/utils/date.util';
 
 /** 核销结果码（闸机据此播报语音/屏幕提示） */
@@ -34,7 +36,14 @@ export enum VerifyCode {
   /** 黑名单 */
   BLACKLIST = 'BLACKLIST',
   /** 闸机方向/景区权限不符 */
-  GATE_NO_PERMISSION = 'GATE_NO_PERMISSION'
+  GATE_NO_PERMISSION = 'GATE_NO_PERMISSION',
+  /**
+   * 退款审核中/退款处理中。
+   *
+   * 单独一个码（而不是并进 INVALID_CREDENTIAL）是因为现场要能一眼看出**为什么**过不去：
+   * 这单是用户自己申请了退款，不是票坏了。
+   */
+  REFUND_PENDING = 'REFUND_PENDING'
 }
 
 export interface VerifyContext {
@@ -86,6 +95,8 @@ export class VerifyService {
     @InjectRepository(TimeSlot) private readonly slotRepo: Repository<TimeSlot>,
     // 通行规则（A-044）拒绝时要报票种名，现场才看得懂
     @InjectRepository(TicketType) private readonly typeRepo: Repository<TicketType>,
+    // 退款审核中/退款处理中的订单不可通行（见 doVerify）
+    @InjectRepository(Refund) private readonly refundRepo: Repository<Refund>,
     private readonly credential: CredentialService,
     private readonly presence: PresenceService,
     private readonly dataSource: DataSource,
@@ -187,6 +198,23 @@ export class VerifyService {
     }
     if ([OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.REFUNDED].includes(order.status)) {
       return this.reject(VerifyCode.INVALID_CREDENTIAL, '订单已失效', ctx, reservation.id);
+    }
+
+    // 退款审核中/退款处理中：**不能放行**。
+    // 申请退款不改订单状态（仍是 20/30），只多一条待审的退款单 —— 只看 `order.status`
+    // 的话，用户能一边过闸入园、一边等退款到账（小程序端也会把凭证置灰，但那只是提示，
+    // 刷身份证/人脸这两条路走不到小程序，必须在这里拦）。
+    // 只在 10 待审核 / 20 退款中拦；40 已拒绝、50 退款失败都是**没退成**，凭证照常可用。
+    const pendingRefund = await this.refundRepo.findOne({
+      where: { orderId: order.id, status: In([RefundStatus.PENDING_AUDIT, RefundStatus.REFUNDING]) },
+    });
+    if (pendingRefund) {
+      return this.reject(
+        VerifyCode.REFUND_PENDING,
+        '该订单正在退款审核中，暂不可通行',
+        ctx,
+        reservation.id,
+      );
     }
 
     // 日期校验（当天有效）

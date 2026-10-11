@@ -92,13 +92,15 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     imports: [
       "import { watch } from 'vue';",
       "import DynamicQr from '@/components/DynamicQr.vue';",
+      "import CredentialPicker from '@/components/CredentialPicker.vue';",
       "import PassPicker from '@/components/PassPicker.vue';",
       "import { useCredentialPage } from './behavior';",
     ],
     setup: `const {
-  qrToken, countdownLabel, refreshAfterLabel, qrSpinning, refreshQr, watermarks, onExport, onOrders,
+  qrToken, qrHint, countdownLabel, refreshAfterLabel, qrSpinning, refreshQr, watermarks, onExport, onOrders,
   passModes, passMode, onPickPassMode,
-  periodLabel, areaName, holderLabel, statusLabel, load,
+  periodLabel, areaName, holderLabel, statusLabel,
+  credentials, activeId, onPickCredential, refundPending, refundButtonLabel, credentialNo, load,
 } = useCredentialPage();
 // 首次可见时才拉数据
 watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
@@ -108,8 +110,16 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 对着 218px 解析；换成组件后多了一层宿主 `<dynamic-qr>`，卡片又是 `items-center` 不拉伸，
       // 宿主没有尺寸 → 组件根节点的 `height:100%` 无从计算 → 塌成 0 → 一个码点都画不出来。
       '#dynamic-qr-svg': {
-        replace: '<view class="w-full h-full"><DynamicQr :token="qrToken" /></view>',
+        replace: '<view class="w-full h-full"><DynamicQr :token="qrToken" :hint="qrHint" /></view>',
       },
+      // 凭证选择：**多于一张才渲染**（只有一张票时多一条选择器纯属噪音）
+      '#credentialPicker': {
+        replace:
+          '<CredentialPicker v-if="credentials.length > 1" :items="credentials" :value="activeId" @change="onPickCredential" />',
+      },
+      // 凭证号（服务端从预约派生）。拿不到整行不渲染，别留一个空的「凭证号」
+      '#credentialNoRow': { class: { 'is-hidden': '!credentialNo' } },
+      '#credentialNoText': { text: 'credentialNo' },
       // 去掉二维码正中的景区 logo。两个理由：
       // 1. 它盖住约 16% 的码点，为此纠错等级不得不提到 H —— 137 字符的 token 下矩阵 65×65、
       //    单模块约 0.45mm，贴着「能扫」的边。去掉后纠错回到 M，矩阵降到 49×49、单模块约 0.58mm。
@@ -125,10 +135,12 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       // 只绑父节点会把子节点一起冲掉，绑子节点又改不了写死的「60」。
       // ⚠️ 必须带 `:nth(2)`：上面「门票通行凭证 · 全园闸机通用」那行的类名是这三者的超集，
       // 匹配器用的是「包含」而非「相等」，不加序号会命中 2 个。
+      // 退款审核中时这一行换成说明：那时**没有码在走**，还显示「剩余 30s」就是骗人
       'font-caption-sm text-[12px] text-ink-light-gray :nth(2)': {
         replace:
-          '<text class="font-caption-sm text-12px text-ink-light-gray">动态码每 {{ refreshAfterLabel }} 秒刷新 · 剩余 ' +
-          '<text class="text-primary font-bold">{{ countdownLabel }}</text></text>',
+          '<text v-if="!refundPending" class="font-caption-sm text-12px text-ink-light-gray">动态码每 {{ refreshAfterLabel }} 秒刷新 · 剩余 ' +
+          '<text class="text-primary font-bold">{{ countdownLabel }}</text></text>' +
+          '<text v-else class="font-caption-sm text-12px text-tertiary-container font-medium">该订单正在退款审核中，凭证暂不可用</text>',
       },
       // 「入园时段」与「持票人」的值两行**类名完全相同**，只能靠文档顺序定位（第 1、2 个）
       'text-ink-charcoal-text font-bold mt-0.5 block :nth(1)': { text: 'periodLabel' },
@@ -147,8 +159,14 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       '#watermark-line-3': { text: 'watermarks[2]' },
       // 「申请退改」：设计稿画了，但以前**连 @tap 都没有**（完全死的按钮）。
       // 后端没有改签，所以只接退款 —— 跳到该单的订单详情，退款动作在那边（要填原因、看审核状态）
+      // 「申请退改」：文案跟着状态走（退款审核中 → 「退款中」），同时置灰
       'flex-1 h-11 rounded-full border border-silk-border bg-paper-surface hover:bg-surface-container-low text-ink-charcoal-text font-body-sm text-[13px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all shadow-2xs':
-        { attrs: { '@tap': 'onOrders' } },
+        {
+          attrs: { '@tap': 'onOrders' },
+          class: { 'is-dimmed': 'refundPending' },
+          inner:
+            '<view class="msi icon-currency_exchange text-16px text-ink-light-gray" /><text>{{ refundButtonLabel }}</text>',
+        },
       '#export-pass-btn': { attrs: { '@tap': 'onExport' } },
       // 设计稿没给 id：容器 class 唯一，用它定位（组件根节点带这组 grid 类）
       'grid grid-cols-3 gap-2.5 text-center': {
@@ -156,7 +174,10 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       },
     },
     // 点刷新时让 refresh 图标转一圈（设计稿的 active:rotate-180 只在按住时转 180°）
-    style: `.pg-page .is-spinning { animation: pg-spin 600ms linear; }`,
+    // `is-dimmed`：退款审核中时把「退款中」那颗按钮压暗（点了会提示原因，见 behavior）
+    style: `.pg-page .is-spinning { animation: pg-spin 600ms linear; }
+.pg-page .is-dimmed { opacity: 0.55; }
+.pg-page .is-hidden { display: none; }`,
   },
 
   booking: {

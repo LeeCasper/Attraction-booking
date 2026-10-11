@@ -27,8 +27,15 @@ const props = withDefaults(
     token: string;
     /** 纠错等级。中间没有 logo 压盖，M（可恢复 15%）足够；矩阵越小单模块越大、越好扫 */
     ecc?: QrEcc;
+    /**
+     * 没有码可画时显示的文案。
+     *
+     * 默认「暂无可入园凭证」；**退款审核中**这类「有票但暂时不能用」的场合由调用方换成
+     * 对应的说法（否则用户看到「暂无可入园凭证」会以为票没了）。
+     */
+    hint?: string;
   }>(),
-  { ecc: 'M' },
+  { ecc: 'M', hint: '暂无可入园凭证' },
 );
 
 const matrix = computed(() => {
@@ -55,7 +62,7 @@ const source = computed(() =>
     -->
     <image v-if="source" class="pg-qr__image" :src="source" mode="scaleToFill" />
     <view v-else class="pg-qr__empty">
-      <text class="pg-qr__empty-text">暂无可入园凭证</text>
+      <text class="pg-qr__empty-text">{{ props.hint }}</text>
     </view>
   </view>
 </template>

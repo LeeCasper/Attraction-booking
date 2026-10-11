@@ -520,6 +520,74 @@ async function main() {
     }
   }
 
+  // ---- 5.5 退款审核中的订单不可通行 ----
+  //
+  // 申请退款**不改订单状态**（仍是 20/30），只多一条待审的退款单 —— 只看 `order.status`
+  // 的话，用户能一边过闸入园、一边等退款到账。小程序端会把凭证置灰，但那只是提示：
+  // 刷身份证 / 人脸这两条路走不到小程序，必须在核验链路上拦（VerifyCode.REFUND_PENDING）。
+  console.log('\n[5.5] 退款审核中不可通行');
+  const refundOrder = await api('POST', '/api/mini/orders', {
+    token,
+    body: {
+      ticketTypeId,
+      date: today(),
+      timeSlotId: slotId,
+      visitors: [{ name: '退款中游客', idCard: idCard(10) }],
+    },
+  });
+  if (refundOrder.data?.orderNo) {
+    await api('POST', `/api/mini/pay/mock-notify?orderNo=${refundOrder.data.orderNo}`, { token });
+    const refundCred = await api('GET', `/api/mini/orders/${refundOrder.data.orderId}/credential`, { token });
+    check('退款前可以拿到凭证', !!refundCred.data?.token, JSON.stringify(refundCred.json));
+
+    const applied = await api('POST', `/api/mini/orders/${refundOrder.data.orderId}/refund`, {
+      token,
+      body: { reason: '冒烟：退款审核中不应放行' },
+    });
+    check('申请退款成功（待审核）', applied.status === 201 || applied.status === 200, `实际 ${applied.status} ${JSON.stringify(applied.json)}`);
+
+    const blocked = await gateApi('POST', '/api/gate/verify', {
+      credential: refundCred.data.token,
+      direction: 1,
+    });
+    check(
+      '退款审核中的订单核验被拒（REFUND_PENDING）',
+      blocked.data?.ok === false && blocked.data?.code === 'REFUND_PENDING',
+      JSON.stringify(blocked.data),
+    );
+
+    const blockedCred = await api('GET', `/api/mini/orders/${refundOrder.data.orderId}/credential`, { token });
+    check(
+      '退款审核中不再下发凭证（409）',
+      blockedCred.status === 409,
+      `实际 ${blockedCred.status} ${JSON.stringify(blockedCred.json)}`,
+    );
+
+    // 审核通过（退款）后订单变成 60 已退款 —— 走「订单已失效」那条，不再是 REFUND_PENDING
+    const refunds = await api('GET', '/api/admin/refunds?status=10&pageSize=50', { token: adminToken });
+    const mine = refunds.data?.items?.find((r) => r.orderId === refundOrder.data.orderId);
+    if (mine) {
+      // ⚠️ 字段名是 `approve`（不是 approved）—— 写错会被 `whitelist: true` 静默剥掉、
+      // 接口 400 而退款单还停在「待审核」，下一句就会以 REFUND_PENDING 失败，
+      // 看上去像被拦对了。所以这里**断言审核这一步本身成功**，别让中间步骤静默失败。
+      const audit = await api('POST', `/api/admin/refunds/${mine.id}/audit`, {
+        token: adminToken,
+        body: { approve: true, remark: '冒烟通过' },
+      });
+      check('退款审核通过并完成退款（先确认这一步）', audit.data?.status === 30, JSON.stringify(audit.json));
+
+      const afterRefund = await gateApi('POST', '/api/gate/verify', {
+        credential: refundCred.data.token,
+        direction: 1,
+      });
+      check(
+        '退款完成后核验仍被拒（订单已失效）',
+        afterRefund.data?.ok === false && afterRefund.data?.code === 'INVALID_CREDENTIAL',
+        JSON.stringify(afterRefund.data),
+      );
+    }
+  }
+
   // ---- 6. 告警与离线同步 ----
   console.log('\n[6] 告警与离线记录同步');
   const alarm = await gateApi('POST', '/api/gate/alarm', {

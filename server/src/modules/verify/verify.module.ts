@@ -8,6 +8,7 @@ import { OrderItem, Orders, Reservation } from '../../database/entities/order.en
 import { Blacklist, Visitor } from '../../database/entities/user.entity';
 import { Alarm, PassageRecord, Verification } from '../../database/entities/verify.entity';
 import { GateDevice } from '../../database/entities/gate.entity';
+import { Refund } from '../../database/entities/pay.entity';
 import { TicketType, TimeSlot } from '../../database/entities/ticket.entity';
 import { AuthModule } from '../auth/auth.module';
 
@@ -25,6 +26,8 @@ import { AuthModule } from '../auth/auth.module';
       Verification,
       PassageRecord,
       Alarm,
+      // 退款审核中/退款处理中的订单不可通行
+      Refund,
     ]),
     AuthModule,
   ],

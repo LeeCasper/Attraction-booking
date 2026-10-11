@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -25,6 +26,7 @@ import { PayService } from '../pay/pay.service';
 import { WxPayService } from '../pay/wxpay.service';
 import { CreateOrderDto } from '../order/dto/create-order.dto';
 import { CredentialService } from '../verify/credential.service';
+import { RefundStatus } from '../../common/enums/status.enum';
 import { SysConfigService } from '../system/sys-config.service';
 import { DEFAULT_PLATFORM_SETTINGS } from '../../common/constants/platform-defaults';
 
@@ -186,6 +188,11 @@ export class MiniController {
     }
     if (![20, 30].includes(order.status)) {
       throw new BadRequestException('订单当前状态不可入园');
+    }
+    // 退款审核中/退款处理中：不下发凭证（客户端也会把入口置灰，这里是兜底）
+    // 只拦 10 待审核 / 20 退款中；40 已拒绝、50 退款失败是**没退成**，凭证照常可用
+    if (order.refund && [RefundStatus.PENDING_AUDIT, RefundStatus.REFUNDING].includes(order.refund.status)) {
+      throw new ConflictException('该订单正在退款审核中，凭证暂不可用');
     }
 
     const credential = await this.credentialService.issue(order.reservation.id, user.id);

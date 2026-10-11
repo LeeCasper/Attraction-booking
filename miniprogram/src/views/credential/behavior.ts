@@ -1,7 +1,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { areaApi, orderApi, visitorApi, type OrderDetail } from '@/api';
+import { areaApi, orderApi, visitorApi, type OrderDetail, type OrderSummary } from '@/api';
 import { errorText } from '@/api/request';
-import { currentOrderId } from '@/store/order';
+import { currentOrderId, setCurrentOrderId } from '@/store/order';
 import { platformSettings } from '@/store/settings';
 import { hhmm } from '@/utils/format';
 
@@ -16,7 +16,17 @@ import { hhmm } from '@/utils/format';
  * 提交给 `POST /api/gate/verify`，格式一变就会被判 `MALFORMED`。编码在 `DynamicQr` 里做。
  *
  * 没有可入园订单时 `qrToken` 为空，`DynamicQr` 显示空态文案 —— 不再拿设计稿那个假图案顶替。
+ *
+ * 本轮补上三件事（都是「手上有不止一张票」才会暴露的）：
+ *   ① **凭证选择**：动态码是按**订单**签发的，而这一页原来只认「当前订单」，
+ *      买了两张票的用户没法在页面上看第二张 —— 现在顶部有一条可滑动的凭证卡（多于一张才出现）
+ *   ② **退款审核中不能使用**：申请退款不改订单状态（仍是 20/30），所以只看 `status` 会照常
+ *      出码；现在按 `refundStatus` 置灰（服务端也会拒，见核验链路的 `REFUND_PENDING`）
+ *   ③ **凭证号**：服务端从预约派生的展示号（`V20261011-000171`），显示在门票信息里
  */
+
+/** 退款单状态：10 待审核 / 20 退款中 —— 这两个状态下凭证不可用 */
+const REFUND_PENDING_STATUS = [10, 20];
 const PASS_MODES = [
   { id: 'qr', icon: 'qr_code_scanner', label: '动态二维码', hint: '主推荐', hintPill: true },
   { id: 'idcard', icon: 'id_card', label: '实体身份证', hint: '贴卡即过' },
@@ -42,6 +52,10 @@ export function useCredentialPage() {
   /** 服务端建议的换码间隔（秒），直接用于「动态码每 N 秒刷新」那句文案 */
   const refreshAfter = ref(DEFAULT_REFRESH_AFTER_SECONDS);
   const spinning = ref(false);
+  /** 可入园的凭证（= 待入园/部分核销的订单），给顶部的凭证选择条用 */
+  const credentials = ref<CredentialOption[]>([]);
+  /** 当前展示的凭证（订单）id。与 `currentOrderId` 同步 —— 用户的选择要活过重启 */
+  const activeId = ref<number | null>(null);
   const now = ref(hhmmss());
   /** 持票人的脱敏手机号（水印用）——凭证与订单详情都不给这个字段，只能回查常用出行人 */
   const holderMask = ref('');
@@ -117,7 +131,13 @@ export function useCredentialPage() {
     return item.ticketName ? `${item.visitorName} · ${item.ticketName}` : item.visitorName;
   });
 
+  /** 这一单是不是正在退款（审核中/退款中）—— 是的话凭证不可用 */
+  const refundPending = computed(() => REFUND_PENDING_STATUS.includes(order.value?.refundStatus ?? -1));
+
   const statusLabel = computed(() => {
+    // 退款中优先：订单状态还是 20/30（申请退款不改状态），但票已经不能用了，
+    // 顶上还显示「待使用」会让人以为可以过闸
+    if (refundPending.value) return '退款中';
     switch (order.value?.status) {
       case 20:
         return '待使用';
@@ -130,11 +150,55 @@ export function useCredentialPage() {
     }
   });
 
-  /** 没有「当前订单」时，回落到最近一张可入园的订单 —— 杀掉小程序再进来还能看到凭证 */
-  async function resolveOrderId(): Promise<number | null> {
-    if (currentOrderId.value) return currentOrderId.value;
+  /** 凭证号（服务端从预约派生，列表/详情都有） */
+  const credentialNo = computed(() => order.value?.reservation?.credentialNo ?? '');
+
+  /**
+   * 二维码区没有码可画时的文案。
+   *
+   * 退款中只说「退款中」——完整那句在框下面那一行（`v-else` 的说明），
+   * 两处都写整句会在同一张卡上重复两遍。
+   */
+  const qrHint = computed(() => (refundPending.value ? '退款中' : '暂无可入园凭证'));
+
+  /** 待入园（20）或部分核销（30）——只有这两种状态下才有凭证可看 */
+  const usable = (o: OrderSummary) => o.status === 20 || o.status === 30;
+
+  /**
+   * 拉出用户手上**所有可入园的凭证**，并决定这一屏展示哪一张。
+   *
+   * 选择顺序：
+   *   ① `currentOrderId`（用户上次选的 / 刚支付的那一单）**且它仍然可入园**
+   *   ② 否则取最近一张可入园的（按预约日升序 —— 最近要去的排前面）
+   *
+   * ⚠️ ① 里那个「仍然可入园」的检查是必须的：`currentOrderId` 是**落盘**的，
+   * 那一单可能已经核销、退款或过期了 —— 不检查就会拿一张废票去要凭证，
+   * 服务端回「订单当前状态不可入园」，整页变成错误态（踩过）。
+   */
+  async function loadCredentials(): Promise<number | null> {
     const list = await orderApi.list();
-    return list.find((o) => o.status === 20 || o.status === 30)?.id ?? null;
+    const rows = list.filter(usable);
+    credentials.value = rows
+      .slice()
+      .sort((a, b) => (a.reservation?.date ?? '').localeCompare(b.reservation?.date ?? ''))
+      .map((o) => ({
+        id: o.id,
+        date: o.reservation?.date ?? '',
+        ticketName: o.ticketName,
+        refundPending: REFUND_PENDING_STATUS.includes(o.refundStatus ?? -1),
+      }));
+
+    const kept = credentials.value.find((c) => c.id === currentOrderId.value);
+    const chosen = kept ?? credentials.value[0] ?? null;
+    // 落盘：这样「退出重进」还停在用户刚选的那张
+    if (chosen && chosen.id !== currentOrderId.value) setCurrentOrderId(chosen.id);
+    return chosen?.id ?? null;
+  }
+
+  /** 用户换一张凭证 —— 写进「当前订单」，随后 `watch(currentOrderId)` 会重取详情与动态码 */
+  function onPickCredential(id: number) {
+    if (id === activeId.value) return;
+    setCurrentOrderId(id);
   }
 
   /** 按订单的 scenicAreaId 查景点名。查不到（景点已下架）就留空，别乱填一个 */
@@ -164,6 +228,12 @@ export function useCredentialPage() {
   async function refresh() {
     const orderId = order.value?.id;
     if (!orderId) return;
+    // 退款审核中：不出码（倒计时那条也不会走 —— `token` 为空时 tick 直接返回）
+    if (refundPending.value) {
+      token.value = '';
+      remain.value = 0;
+      return;
+    }
 
     spinning.value = true;
     if (spinTimer) clearTimeout(spinTimer);
@@ -194,7 +264,8 @@ export function useCredentialPage() {
     loading.value = true;
     error.value = '';
     try {
-      const orderId = await resolveOrderId();
+      const orderId = await loadCredentials();
+      activeId.value = orderId;
       if (!orderId) {
         order.value = null;
         token.value = '';
@@ -202,9 +273,17 @@ export function useCredentialPage() {
       }
       const detail = await orderApi.detail(orderId);
       order.value = detail;
-      areaName.value = await loadAreaName(detail.scenicAreaId);
+      // 景点名查不到（该景点已停用/不在开放列表里）就退回**平台名** —— 凭证卡片头上那行
+      // 是一整个 `<h1>`，留空会只剩一个孤零零的图标，看着像没渲染出来
+      areaName.value = (await loadAreaName(detail.scenicAreaId)) || platformSettings.value.name;
       await loadHolderMask(detail);
-      await refresh();
+      // 退款审核中**不取码**：服务端也会拒（409），不如就地不给码 + 显示说明
+      if (refundPending.value) {
+        token.value = '';
+        remain.value = 0;
+      } else {
+        await refresh();
+      }
       loaded = true;
     } catch (err) {
       error.value = errorText(err);
@@ -258,12 +337,28 @@ export function useCredentialPage() {
       uni.showToast({ title: '暂无进行中的订单', icon: 'none' });
       return;
     }
+    // 已经申请过了（审核中/退款中）：按钮那时已改成「退款中」且不可点，
+    // 这里再兜一层 —— 点到了就说清楚，而不是跳过去让人再申请一次（服务端会 400）
+    if (refundPending.value) {
+      uni.showToast({ title: '该订单正在退款审核中，请等待处理', icon: 'none', duration: 2500 });
+      return;
+    }
     uni.navigateTo({ url: `/pages/orders/detail?id=${id}` });
   }
+
+  /** 「申请退改」按钮的文案：退款中时直接告诉用户当前状态 */
+  const refundButtonLabel = computed(() => (refundPending.value ? '退款中' : '申请退改'));
 
   return {
     loading,
     error,
+    credentials,
+    activeId,
+    onPickCredential,
+    refundPending,
+    refundButtonLabel,
+    credentialNo,
+    qrHint,
     qrToken,
     countdownLabel,
     refreshAfterLabel,
@@ -281,4 +376,20 @@ export function useCredentialPage() {
     statusLabel,
     load,
   };
+}
+
+/**
+ * 一张可入园凭证 —— `components/CredentialPicker.vue` 的 props 元素类型。
+ *
+ * 放在 behavior 里而不是组件里：`<script setup>` **不允许任何 ES 导出**，
+ * 而组件要 `import type` 它（同 `RecentOrderView` / 当年的 `HomeTicketCard`）。
+ */
+export interface CredentialOption {
+  /** 订单 id —— 选中它就是把它设成「当前订单」 */
+  id: number;
+  /** `yyyy-MM-dd` */
+  date: string;
+  ticketName: string;
+  /** 退款审核中/退款处理中：这张票暂时不可用 */
+  refundPending: boolean;
 }
