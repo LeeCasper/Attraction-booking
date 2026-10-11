@@ -34,6 +34,13 @@
         "navigationStyle": "custom",
         "navigationBarTitleText": "预约购票"
       }
+    },
+    {
+      "path": "pages/pay/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "订单支付"
+      }
     }
   ],
   "globalStyle": {

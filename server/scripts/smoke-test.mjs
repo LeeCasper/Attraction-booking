@@ -78,11 +78,14 @@ async function main() {
 
   const detail = await api('GET', `/api/admin/ticket-types/${typeId}`, { token });
   check('票种详情含限购规则', detail.json?.data?.purchaseRule?.perUserPerOrder === 4, JSON.stringify(detail.json?.data?.purchaseRule));
+  // ⚠️ 只断言「非空」，**不要写 `>= 4`**：那 4 个是种子给示例景区的，而时段是运营能在后台随手
+  // 增删的用户数据 —— 实测把首个景区换成真实景区（只留一个「全天场」）后这条就红了，
+  // 报的是「时段不够」，看着像功能坏了。冒烟要状态无关（见 CLAUDE.md 的「常用命令」那段）。
   const slotCount = detail.json?.data?.availableSlots?.length ?? 0;
-  check(`票种详情含可用时段（${slotCount} 个）`, slotCount >= 4);
+  check(`票种详情含可用时段（${slotCount} 个）`, slotCount >= 1);
 
   const slots = await api('GET', `/api/admin/time-slots?areaId=${areaId}`, { token });
-  check('时段列表可用', slots.json?.data?.length >= 4, `实际 ${slots.json?.data?.length}`);
+  check('时段列表可用', slots.json?.data?.length >= 1, `实际 ${slots.json?.data?.length}`);
 
   // 3. 库存
   console.log('\n[3] 库存生成与调整');

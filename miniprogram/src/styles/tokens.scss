@@ -117,12 +117,16 @@ $c-screen-blaze-red: #f87171;
 // 字体族
 // 中文走系统字体（Google Fonts 国内小程序不可用，中文字体子集又超主包限制）；
 // 拉丁与数字用自托管的子集字体，见 fonts.scss。
+//
+// ⚠️ **全站只有两套**：标题用宋体，其余一律正文族（含金额、数字、角标、水印）。
+// 这里原本还有第三个变量 `$font-mono`（Space Grotesk，设计系统给看板 KPI 的几何展示体）——
+// 它与汉字不是一套骨架，同屏三套字体也谈不上统一，**已整个退役**（见 CLAUDE.md 约束 18）。
+// 设计稿的 `font-display-kpi-screen` / `font-label-badge` / `font-mono` 三个类名仍在用，
+// 但在 `gen-utilities.mjs` 里都指向 `$font-body`。
 // -----------------------------------------------------------------------------
 $font-serif: 'Noto Serif Subset', 'Songti SC', 'SimSun', serif;
 $font-body: 'Plus Jakarta Sans Subset', -apple-system, BlinkMacSystemFont, 'PingFang SC',
   'Helvetica Neue', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
-// 等宽数字：设计系统要求核验倒计时、毫秒延迟、闸机计数「零跳变」
-$font-mono: 'Space Grotesk Subset', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
 // -----------------------------------------------------------------------------
 // 字号体系（设计系统 typography；行高同比例换算成 rpx）

@@ -1,8 +1,7 @@
 import { computed, getCurrentInstance, onMounted, reactive, ref, watch } from 'vue';
 import { areaApi, orderApi, stockApi, ticketApi, visitorApi, type MiniTicket, type StockItem } from '@/api';
 import { errorText } from '@/api/request';
-import { setCurrentOrderId } from '@/store/order';
-import { currentAreaId, selectedTicketTypeId, switchTab } from '@/store/shell';
+import { currentAreaId, selectedTicketTypeId } from '@/store/shell';
 import { dayOffsetStr, fen2yuan, hhmm, shortDate, weekdayOf } from '@/utils/format';
 
 /**
@@ -302,7 +301,15 @@ export function useBookingPage() {
   );
 
   /**
-   * 下单 → 模拟支付 → 切到凭证页。
+   * 「立即预约」→ **建单，然后进订单支付页**。
+   *
+   * ⚠️ 这里只建单、**不在这里付款**（原先是在这一页直接打模拟支付回调、再跳凭证页）。
+   * 拆开是因为支付有它自己的界面（应付总额、倒计时、支付方式、协议勾选），
+   * 那是设计稿单独画的一页 `pages/pay/`，而且「我的预约 → 详情 → 去支付」也该落到同一个地方。
+   *
+   * 建单放在**跳转之前**：库存是从建单那一刻锁住的，支付截止时间（`payDeadline`）也同时起算，
+   * 支付页的倒计时读的就是这个值 —— 不能在支付页里建单，否则倒计时会比库存锁定晚起。
+   * 代价是用户直接返回时名额要等到超时才释放，与设计稿「名额保留中」那句口径一致。
    *
    * 传的是 `visitorId` 而不是明文证件：`GET /api/mini/visitors` 出于隐私只返回脱敏号，
    * 客户端手里根本没有明文（服务端按 id 取记录）。这也是为什么下单接口新支持了这个字段。
@@ -321,19 +328,11 @@ export function useBookingPage() {
         visitors: pickedIds.value.map((id) => ({ visitorId: id })),
       });
 
-      setCurrentOrderId(order.orderId);
-
-      if (order.mock) {
-        // 本地联调：直接触发模拟支付成功回调，省得去后台改订单状态
-        await orderApi.mockPay(order.orderNo);
-      }
-
       uni.hideLoading();
-      uni.showToast({ title: '预约成功', icon: 'success' });
-      // 让凭证页知道要展示这一单，并**退回外壳**落到那一格 ——
-      // 购票页是压栈的二级页，光切 tab 还停在页面上（下面的外壳换了，看不到）
-      switchTab('credential');
-      uni.navigateBack();
+      // 压栈进支付页：付成功 / 超时 / 用户自己返回，都由那一页负责收尾。
+      // 「当前订单」**不在这里记** —— 这一单此刻还是待支付，记下来凭证页会拿它去要凭证、
+      // 拿到一句「订单当前状态不可入园」。等真正付成功了由支付页记。
+      uni.navigateTo({ url: `/pages/pay/index?id=${order.orderId}` });
     } catch (err) {
       uni.hideLoading();
       uni.showToast({ title: errorText(err), icon: 'none', duration: 2500 });

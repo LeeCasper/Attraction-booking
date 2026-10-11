@@ -5,6 +5,7 @@
  * 背景：
  *   设计稿用 Google Fonts（Noto Serif / Plus Jakarta Sans / Space Grotesk），
  *   国内小程序既不可达、也不在白名单里，不能用 CDN 引用。
+ *   ⚠️ 现在只内嵌前两套 —— Space Grotesk 已随「全站只留两套字体」退役（见 FAMILIES 上的说明）。
  *   小程序的 @font-face 又**不支持本地文件路径**，只能 base64 内联或网络地址。
  *
  * 做法：
@@ -28,10 +29,13 @@ const CHARS_FILE = join(ROOT, 'design/latin-chars.txt');
 const CACHE = join(ROOT, 'design/fonts-cache');
 const OUT = join(ROOT, 'src/styles/fonts.scss');
 
+// 全站只有两套字体（见 CLAUDE.md 约束 18）：标题宋体 + 其余正文族。
+// 这里原本还有第三套 Space Grotesk（设计系统给看板 KPI 的几何展示体），已退役删掉。
+// ⚠️ 仓库里现成的 `src/styles/fonts.scss` 仍带着它的 @font-face（那是联网跑出来的产物）——
+// 下次联网执行 `npm run gen:fonts` 就会真正瘦掉那 ~20KB。在那之前它只是白打的体积。
 const FAMILIES = [
   { css: 'Noto Serif', var: 'Noto Serif Subset', weights: [400, 600, 700] },
   { css: 'Plus Jakarta Sans', var: 'Plus Jakarta Sans Subset', weights: [400, 500, 600, 700] },
-  { css: 'Space Grotesk', var: 'Space Grotesk Subset', weights: [400, 500, 600, 700] },
 ];
 
 /** 现代 UA，否则 Google Fonts 只会返回 ttf 而不是 woff2 */

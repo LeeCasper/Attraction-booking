@@ -56,6 +56,11 @@ const PAGES = [
     standalone: true,
     drop: ['pt-16'],
   },
+  // 订单支付页：**购票页点「立即预约」之后**才进来的二级页（下单 → 支付 → 凭证）。
+  // 它自己也带固定页头与固定底部操作栏，所以是 standalone。
+  // 设计稿的固定页头同样拿不到（生成器只取 `<main>` 的子节点），由 before 片段自绘一条，
+  // 于是给固定页头让位的 `pt-14` 要去掉 —— 与 booking 页同一个处理。
+  { file: 'pay.html', name: 'pay', img: {}, standalone: true, drop: ['pt-14'] },
   { file: 'credential.html', name: 'credential', img: {} },
   { file: 'profile.html', name: 'profile', img: { 'aida-public': '/static/images/bg-profile.jpg' } },
   // 「景点选择」是外壳的**第 2 个 tab**（底栏「预约购票」那一格）。它的设计稿自带固定标题栏，
@@ -84,8 +89,12 @@ const VIEW_DROP = new Set(['min-h-screen', 'pb-24', 'pb-28']);
  * 曾经把 div 也映射成 text，结果两个本该上下排列的块级元素变成行内排在一行，
  * 整个卡片布局塌掉 —— 这类偏差肉眼极难定位，务必守住这条不变量。
  *
- * 安全性前提：<text> 不能包含 <view>。已核验设计稿中 301 个 <span> 无一嵌套块级元素，
- * 故 span → text 不会产生非法嵌套。
+ * ⚠️ 关于「`<text>` 里嵌 `<view>`」：设计稿里**有**这类写法 —— `material-symbols-outlined`
+ * 的图标 span 映射后是 `<view class="msi …">`，而它外面常常裹着一个普通 span（→ `<text>`），
+ * 于是产物里出现 `<text>…<view class="msi" />…</text>`（个人中心的「已实名核验」「全部预约单 ›」、
+ * 凭证页的「闸机均已联网」、订单支付页的支付方式图标圈都是）。**这是能正常渲染的**，
+ * 不要为了「干净」把外层改成 view —— 那会把一个行内元素变成块级，整行排版都会跟着变。
+ * （曾以为「<text> 不能包含 <view>」是硬约束，实测不是；这几个页面都已上线验证过。）
  */
 const TAG_MAP = {
   // 块级 → view
@@ -241,17 +250,43 @@ function esc(s) {
  */
 function renderSvg(node, page, ctx, inheritedFill) {
   const rects = [];
+  /** 除 <rect> 之外的图形标签（path/circle/…）—— 拿不到就没有对应的画法 */
+  const unsupported = new Set();
   const walk = (n, fill) => {
     for (const c of n.children ?? []) {
       if (c.tag === '#text') continue;
       const f = c.attrs?.fill || fill;
       if (c.tag === 'rect') rects.push({ ...c.attrs, fill: f });
-      else walk(c, f);
+      else {
+        if (['path', 'circle', 'ellipse', 'polygon', 'polyline', 'line'].includes(c.tag)) unsupported.add(c.tag);
+        walk(c, f);
+      }
     }
   };
   walk(node, inheritedFill || node.attrs.fill || '#000');
 
+  // 内联 SVG 只能还原成绝对定位的 <view>，而**只有 <rect> 是被支持的**（二维码那套）。
+  // <path> 这类画不了，整块图形会静默消失 —— 所以这里必须吵一声。
+  // 之所以不判失败：它到目前为止都只是装饰纹样（订单支付页横幅右上角那朵水墨云），
+  // 少一朵云不影响任何信息，让人为了修它去手工描一版 view 也不值。
+  if (unsupported.size > 0) {
+    console.warn(
+      `  ! ${page.name}：内联 SVG 里的 <${[...unsupported].join('>、<')}> 无法还原（只支持 <rect>），该图从产物里丢弃`,
+    );
+  }
+
+  // 一个 rect 都没有 = 什么都画不出来。这时**整块不要输出**，别留一个空壳。
+  // 空壳不只是没用：`.pg-svg` 自带 `position: relative`（矩形要靠它当定位基准），
+  // 而设计稿这块往往写着 `.absolute` —— 两条规则特异性相同，谁生效只看 CSS 输出顺序，
+  // 实测是 `.pg-svg` 赢 ⇒ 一个本该绝对定位的装饰块变成**在文档流里占满 w-28 h-28 的空盒子**。
+  // 订单支付页倒计时横幅顶上那一大块空白就是这么来的（112px 的空盒 + 内边距）。
+  if (rects.length === 0) return '';
+
   const cls = mapClasses(node.attrs.class ?? '');
+  // 就算有矩形，设计稿自带的定位类与 `.pg-svg` 的 relative 仍会打架，
+  // 这里用内联样式把设计稿的意图明确压回去（`position` 内联样式必定赢过类选择器）。
+  const pos = (node.attrs.class ?? '').match(/(?:^|\s)(absolute|fixed|sticky)(?:\s|$)/)?.[1];
+  const posStyle = pos ? ` style="position:${pos}"` : '';
   const body = rects
     .map((r) => {
       const w = Number(r.width ?? 0);
@@ -271,7 +306,7 @@ function renderSvg(node, page, ctx, inheritedFill) {
     })
     .join('');
 
-  return `<view class="pg-svg ${cls}">${body}</view>`;
+  return `<view class="pg-svg ${cls}"${posStyle}>${body}</view>`;
 }
 
 /** 递归渲染节点 */
@@ -339,7 +374,13 @@ function render(node, page, ctx) {
       // 表达式取值为空时回落到设计稿那张图 —— 没有这个绑定时与改动前逐字一致。
       const srcAttr = binding?.image ? `:src="${binding.image} || '${src}'"` : `src="${src}"`;
       bgImage = `<image class="pg-bgimg" ${srcAttr} mode="aspectFill" />`;
-      cls = `${cls} pg-has-bg`.trim();
+      // `pg-has-bg` 的作用是给那张绝对定位的 <image> 一个定位基准。
+      // **只在元素本身没有被定位时才加** —— 加了它就是 `position: relative`，
+      // 而设计稿自己的 `.absolute` 与它特异性相同、谁赢只看 CSS 输出顺序
+      // （`.pg-*` 结构类写在 App.vue 里，实际排在工具类之后 ⇒ 会把 `absolute` 压掉、
+      //   元素掉回文档流）。本身就是 absolute/fixed/sticky 的元素**照样是有效的定位基准**，
+      // 不需要 relative。二维码那块 `<svg>` 踩的是同一个坑（见 renderSvg）。
+      if (!/(?:^|\s)(absolute|fixed|sticky|relative)(?:\s|$)/.test(classStr)) cls = `${cls} pg-has-bg`.trim();
     }
   }
 

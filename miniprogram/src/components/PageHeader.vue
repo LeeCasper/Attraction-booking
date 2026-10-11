@@ -156,7 +156,9 @@ const headerStyle = computed(() => {
 }
 
 .pg-header__en {
-  font-family: $font-mono;
+  // 设计稿这里给的是 Space Grotesk（等宽感），全站统一成两套字体后并进正文族
+  // —— 大写 + tracking 的装饰感靠 letter-spacing 保留，见 CLAUDE.md 约束 18
+  font-family: $font-body;
   font-size: px2rpx(10);
   font-weight: 700;
   color: rgba(0, 104, 95, 0.7);

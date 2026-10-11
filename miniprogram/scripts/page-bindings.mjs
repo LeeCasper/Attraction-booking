@@ -395,4 +395,244 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       '#toastNotification': { replace: '<AppToast :visible="toastVisible" :text="toastText" />' },
     },
   },
+
+  /**
+   * 订单支付页 —— **购票页点「立即预约」之后**才进来的二级页（下单 → 支付 → 凭证）。
+   *
+   * 与 booking 一样是 `standalone`：设计稿自带固定页头与固定底部操作栏，
+   * 生成器只取 `<main>` 的子节点（页头拿不到），所以标题栏由下面的 `before` 片段自绘，
+   * 并据此去掉给固定页头让位的 `pt-14`。
+   *
+   * 设计稿里那三处「后端没有对应能力」的地方（另两个支付渠道、意外险/补贴两行、
+   * 闸机门名）怎么处理，**口径都写在 `pages/pay/behavior.ts` 的注解里**，
+   * 这里只落实现。要点：版式尽量不动，但**不抄一个系统做不到的承诺**。
+   */
+  pay: {
+    imports: ["import { usePayPage } from './behavior';"],
+    // 二级页（购票页 / 订单详情进来的），收不到外壳的 `props.active` ——
+    // 首次加载挂在小程序页生命周期上，由 behavior 自己 `onLoad` 里读 query 里的订单号触发。
+    // 只解模板真正用到的（其余状态经由 `canPay`/`payButtonLabel` 这类计算属性间接体现）
+    setup: `const {
+  statusBarHeight, goBack,
+  loading, error, order,
+  timerLabel, totalLabel, amountHint, visitorsTitle, visitors,
+  areaName, ticketName, dateLabel, slotLabel, ticketSummary, unitLabel, feeItemLabel,
+  onPickPay, toggleAgree, agreeIconClass, canPay,
+  drawerOpen, toggleDrawer, payButtonLabel, policyTitle, refundNote, onDoc, noop,
+  onPay,
+} = usePayPage();`,
+    // 设计稿的页头是**固定**的（fixed top-0 + pt-safe），但它拿不到 —— 生成器只取 <main>。
+    // 这里照设计稿的版式自绘一条：状态栏占位 + 56px 横条（返回键 + 绝对居中的标题）。
+    // 标题走 `absolute left-1/2 -translate-x-1/2`（设计稿原样），**不做胶囊避让** ——
+    // 补右内边距会把居中基准一起推走，这是景点选择页踩过的坑（见 AreaTopBar.vue）。
+    before: `<view :style="{ height: statusBarHeight + 'px' }" />
+    <view class="relative h-14 px-gutter flex items-center">
+      <view
+        class="w-11 h-11 -ml-space-xs flex items-center justify-center text-on-surface"
+        hover-class="pg-hover"
+        @tap="goBack"
+      >
+        <view class="msi icon-arrow_back_ios_new text-24px" />
+      </view>
+      <text class="absolute left-1_2 -translate-x-1_2 font-headline-md text-headline-md text-on-surface tracking-tight">订单支付</text>
+    </view>
+    <view v-if="loading && !order" class="px-margin pt-space-md text-center font-caption-sm text-caption-sm text-ink-light-gray">
+      <text>正在加载订单…</text>
+    </view>
+    <view v-else-if="error" class="px-margin mt-space-sm">
+      <text class="block rounded-xl bg-surface-container-low text-cinnabar-red text-13px px-3 py-2">{{ error }}</text>
+    </view>`,
+    bindings: {
+      // —— 1. 支付倒计时横幅 ——
+      // 时间是**订单自己的 payDeadline**（下单 + sys_config 的支付超时），不是本地另起的 15 分钟
+      '#payment-timer': { text: 'timerLabel' },
+
+      // —— 2. 应付总额卡 ——
+      //
+      // 金额整行用 `inner` 重写，而不是只绑那个数字 —— **¥ 与数字必须同一套字**。
+      // 设计稿给的是 `<span class="font-headline-lg …">¥</span><span class="font-display-kpi-screen …">240.00</span>`：
+      // 前者是标题宋体、后者是 Space Grotesk（¥ 细衬线 + 数字粗几何）。
+      // 全站统一成两套字体后 `display-kpi-screen` 已并到正文族，这里只要把 ¥ 也换成正文族。
+      // ⚠️ 不能写成 `font-body-lg text-headline-lg` —— `.text-headline-lg` 在我们这套转换里
+      // **自带 font-family: $font-serif**，而 `utilities.scss` 里 `.font-*` 排在 `.text-*` 之前，
+      // 结果是衬线反过来压掉 `font-body-lg`。所以字号用**不带族**的 `text-22px`（= headline-lg 的号）。
+      'flex items-baseline justify-center mt-1 text-primary': {
+        inner:
+          '<text class="font-body-lg text-22px font-bold mr-0_5">¥</text>' +
+          '<text class="font-display-kpi-screen text-display-kpi-screen font-extrabold tracking-tight">{{ totalLabel }}</text>',
+      },
+      // 「含 2 位游客门票及景区人身意外险」→ 改成真实的人数与**不虚构保险**（后端没有这个险）
+      'inline-flex items-center justify-center mt-1.5 px-space-sm py-0.5 rounded-full bg-surface-container-low font-caption-sm text-caption-sm text-on-surface-variant':
+        {
+          inner:
+            '<view class="msi icon-verified_user text-14px mr-1 text-primary" /><text>{{ amountHint }}</text>',
+        },
+
+      // —— 3. 预约景点与场次信息卡 ——
+      // 上方角标改放**票种名**（设计稿写死「主景区联票」，后端没有套票这个概念）
+      'font-label-badge text-label-badge text-surface-tint bg-bamboo-light-100 px-1.5 py-0.5 rounded':
+        { text: 'ticketName' },
+      // 标题改放**真实景区名**（设计稿写死「枫林谷国家森林公园 · 云巅栈道」）
+      'font-headline-md text-headline-md text-ink-charcoal-text font-bold mt-1 leading-snug': { text: 'areaName' },
+      // 日期行与票种行：设计稿各自写死（「2026年10月09日 周一」「成人全票 × 2张」），
+      // 两行的容器 class 完全一样，只能按文档顺序取第 1、2 个。
+      // ⚠️ 内层那个 `text-primary font-semibold` 是**子集匹配**会撞上协议里的三个链接的
+      // （它们多一个 hover:underline，但包含关系成立），所以整行用 inner 重写而不是去绑那个 span。
+      'flex items-center text-ink-dark-gray font-body-sm text-body-sm :nth(1)': {
+        inner:
+          '<view class="msi icon-calendar_month text-primary text-18px mr-2 shrink-0" />' +
+          '<text class="font-medium">{{ dateLabel }}</text>' +
+          '<text class="mx-1 text-outline">|</text>' +
+          '<text class="text-primary font-semibold">{{ slotLabel }}</text>',
+      },
+      'flex items-center text-ink-dark-gray font-body-sm text-body-sm :nth(2)': {
+        inner:
+          '<view class="msi icon-confirmation_number text-primary text-18px mr-2 shrink-0" />' +
+          '<text>{{ ticketSummary }}</text>' +
+          '<text class="text-ink-light-gray ml-1_5">{{ unitLabel }}</text>',
+      },
+      // 闸机说明：修掉设计稿的「凭动态动态凭证」重复字，并去掉写死的门名
+      //（小程序端没有闸机列表接口，编一个门名等于告诉游客走一个可能不存在的门）
+      'font-caption-sm text-caption-sm text-deep-teal-800 leading-relaxed': {
+        inner:
+          '<text class="font-semibold">通行保障：</text>' +
+          '<text>凭动态凭证或二代身份证在景区闸机感应开闸通行，闸机直连入园。</text>',
+      },
+
+      // —— 4. 实名出行人卡 ——
+      // 标题带人数。这一行**没有能唯一定位的类**：它的 4 个类与抽屉里「金额明细」那个 h4
+      // **完全相同**（只是书写次序不同），子集匹配命中 5 个、全等匹配命中 2 个。
+      // 与个人中心页脚那行同样的处理：在设计稿里补 `id="visitors-title"`，而不是去改产物。
+      '#visitors-title': { text: 'visitorsTitle' },
+      // 两张写死的游客卡（张*林 / 李*婷）→ v-for 真实持票人
+      'space-y-space-sm': {
+        inner: `<view
+        v-for="(v, i) in visitors"
+        :key="v.id"
+        class="bg-surface-container-low p-space-sm rounded-lg flex items-center justify-between"
+      >
+        <view class="flex items-start space-x-2">
+          <view
+            class="w-6 h-6 rounded-full flex items-center justify-center font-label-badge text-11px font-bold mt-0_5"
+            :class="i === 0 ? 'bg-primary text-on-primary' : 'bg-outline-variant text-on-surface'"
+          >
+            <text>{{ i + 1 }}</text>
+          </view>
+          <view>
+            <view class="flex items-center space-x-1_5">
+              <text class="font-body-md text-body-md font-bold text-ink-charcoal-text">{{ v.name }}</text>
+              <text
+                class="font-caption-sm text-11px px-1_5 py-0_2 rounded"
+                :class="i === 0 ? 'bg-secondary-fixed text-on-secondary-fixed-variant' : 'bg-surface-container-high text-on-surface-variant'"
+              >{{ i === 0 ? '主出行人' : '同行人' }}</text>
+            </view>
+            <view class="font-caption-sm text-caption-sm text-ink-light-gray mt-0_5 font-mono"><text>身份证: {{ v.idCard }}</text></view>
+            <view class="font-caption-sm text-caption-sm text-ink-light-gray font-mono"><text>手机号: {{ v.phone }}</text></view>
+          </view>
+        </view>
+        <view class="msi icon-id_card text-outline-variant text-20px" />
+      </view>`,
+      },
+
+      // —— 5. 费用明细 ——
+      // 只列**真实构成**：门票 × 人数 = 实付。设计稿的「景区游览意外险 赠送 ¥0.00」与
+      // 「绿色文旅惠民补贴 立减 -¥0.00」后端都没有字段 —— 尤其保险不是营销文案，
+      // 系统既不签发也不承保，抄了就是对游客的一句空承诺。
+      // 这个容器 class 与抽屉里那份**完全一样**，按文档顺序取第 1（费用明细卡）、第 2（抽屉）。
+      'space-y-2 font-body-sm text-body-sm text-ink-dark-gray :nth(1)': {
+        inner:
+          '<view class="flex justify-between items-center">' +
+          '<text>{{ feeItemLabel }}</text>' +
+          '<text class="font-data-metric-md text-ink-charcoal-text font-semibold">¥{{ totalLabel }}</text>' +
+          '</view>' +
+          '<view class="pt-2 mt-2 flex justify-between items-center font-body-md text-body-md font-bold text-ink-charcoal-text">' +
+          '<text>实付金额</text>' +
+          // `text-headline-md` 换成 `text-18px`：前者**连字体族一起输出**（Noto Serif），
+          // 会把 `font-data-metric-lg` 的正文族顶掉，同一张卡里两行金额字体不一致。
+          '<text class="font-data-metric-lg text-18px text-primary">¥{{ totalLabel }}</text>' +
+          '</view>',
+      },
+      'space-y-2 font-body-sm text-body-sm text-ink-dark-gray :nth(2)': {
+        inner:
+          '<view class="flex justify-between">' +
+          '<text>{{ feeItemLabel }}</text>' +
+          '<text>¥{{ totalLabel }}</text>' +
+          '</view>',
+      },
+
+      // —— 6. 支付方式 ——
+      // 后端只有微信 JSAPI 支付，亲属卡与数字人民币**没有对应渠道**。
+      // 两行的版式原样保留（设计稿就是这么画的），但点了如实提示「暂未开通」——
+      // 删掉它们会让这一块只剩一行，保留又必须有反馈，所以两个都留、只把话说清楚。
+      //
+      // ⚠️ 绑的是**整行**而不是设计稿留的 `#pay-check-2/3` —— 那两个 id 在右侧的勾选**图标**上，
+      // 而设计稿的 onclick 是写在行上的：只绑图标就变成「只有戳中那个小圈才有反应」，
+      // 可整行都画着 `cursor-pointer`、看起来哪儿都能点。
+      // 两行 class 完全相同，只能按文档顺序定位（第 1、2 个 = 亲属卡、数字人民币）。
+      'flex items-center justify-between p-2.5 rounded-lg bg-surface-container-low cursor-pointer :nth(1)': {
+        attrs: { '@tap': "onPickPay('family')" },
+      },
+      'flex items-center justify-between p-2.5 rounded-lg bg-surface-container-low cursor-pointer :nth(2)': {
+        attrs: { '@tap': "onPickPay('ecny')" },
+      },
+
+      // —— 7. 退改与入园须知 ——
+      // 整段重写：协议名里的**品牌主体**要跟着后台「平台信息」走（设计稿写死「枫林谷」），
+      // 而那句退改说明与后端实际规则**不一致** —— 设计稿说「未核销游玩日前可全额极速退款」，
+      // 真实规则（`pay.service.refundFee`）是「游玩日前 1 天方免手续费、当天收 feeRate 比例、
+      // 过预约日不退」，且退款要**后台审核**而不是「极速到账」。
+      'font-caption-sm text-caption-sm text-ink-dark-gray leading-relaxed': {
+        inner: `<text>我已阅读并同意</text><text class="text-primary font-semibold" @tap="onDoc">《{{ policyTitle }}》</text><text>、</text><text class="text-primary font-semibold" @tap="onDoc">《游客须知》</text><text>及</text><text class="text-primary font-semibold" @tap="onDoc">《门禁实名制隐私协议》</text>
+        <view class="text-ink-light-gray mt-0_5"><text>• {{ refundNote }}</text></view>`,
+      },
+      '#agree-checkbox': { attrs: { '@tap': 'toggleAgree' } },
+      // 勾选框的图标：设计稿靠 JS 换文字（check_box ↔ check_box_outline_blank）。
+      // 这里用 replace 而不是 text 绑定 —— 图标节点是 `<view class="msi icon-xxx" />`，
+      // 生成器对图标只认 remove/replace（图标名就在 class 里，绑定 attrs/text 都会被跳过）。
+      '#agree-icon': { replace: '<view :class="agreeIconClass" />' },
+
+      // —— 8. 底部固定操作栏 ——
+      'flex flex-col cursor-pointer': { attrs: { '@tap': 'toggleDrawer' } },
+      // 底栏金额同理：¥ 原本是 `font-headline-md`（衬线）、数字是 `font-data-metric-lg`（正文族）→ 拉齐
+      'flex items-baseline text-primary font-bold': {
+        inner:
+          '<text class="font-body-md text-18px font-semibold mr-0_5">¥</text>' +
+          '<text class="font-data-metric-lg text-data-metric-lg font-extrabold tracking-tight">{{ totalLabel }}</text>',
+      },
+      '#arrow-icon': {
+        replace: '<view class="msi icon-expand_less text-16px text-ink-light-gray ml-0_5 transform transition-transform" :class="{ \'is-flip\': drawerOpen }" />',
+      },
+      '#submit-pay-btn': {
+        attrs: { '@tap': 'onPay' },
+        class: { 'opacity-60': '!canPay' },
+        inner: '<view class="msi icon-lock text-18px" /><text>{{ payButtonLabel }}</text>',
+      },
+      // 「待支付 ¥240」那一块：点开金额明细抽屉（设计稿就是这么画的）——
+      // 上面 `flex flex-col cursor-pointer` 那个父节点已经挂了 @tap，
+      // **子节点的「待支付」行不能再挂一次**：小程序的事件会冒泡，两处都挂就是「开一次又关一次」，
+      // 表现是抽屉点了没反应。
+      // 取消订单也**不放在这里** —— 设计稿的底栏没有这个入口，订单详情页已经有了；
+      // 超时未付还会由服务端自动取消并释放名额（横幅那句「名额保留中」说的就是这个）。
+
+      // —— 9. 金额明细抽屉 ——
+      // 设计稿靠 JS 切 hidden / opacity-0。小程序里 class 切换要过绑定，
+      // 而 `hidden` 是 display:none，得保证 `is-open` 的特异性压得过它（用 .pg-page 垫一层，
+      // 与景点选择页的 is-hidden 同一套）。
+      '#details-drawer': {
+        attrs: { '@tap': 'toggleDrawer' },
+        class: { 'is-open': 'drawerOpen' },
+      },
+      // 抽屉本体要吞掉冒泡，否则点面板也会被上面那层遮罩关掉
+      'absolute bottom-16 inset-x-0 bg-paper-surface rounded-t-2xl p-space-md shadow-2xl': {
+        attrs: { '@tap.stop': 'noop' },
+      },
+      // 面板右上角那个 ×（设计稿的 `onclick=toggleDetailsPopup()` 被生成器丢掉了）
+      'text-ink-light-gray hover:text-ink-charcoal-text': { attrs: { '@tap': 'toggleDrawer' } },
+    },
+    // 金额曾经用过一个 `pg-figure` 的 scoped 覆盖把 ¥ 与数字拉回正文族 ——
+    // 全站统一成两套字体之后它没必要了（`display-kpi-screen` 在 token 表里就是正文族），
+    // 已删；倒是这个「覆盖类一删掉就少一处特例」本身是那次统一做对了的证据。
+    style: `.pg-page .is-open { display: block; opacity: 1; }
+.pg-page .is-flip { transform: rotate(180deg); }`,
+  },
 };

@@ -1,6 +1,6 @@
 # 设计稿原始素材
 
-Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Bamboo Stone」）导出的 5 份页面 HTML，
+Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Bamboo Stone」）导出的 6 份页面 HTML，
 以及从项目设计系统导出的 token。
 
 这些是 `scripts/gen-classes.mjs`（类名清单）、`scripts/gen-utilities.mjs`（工具类样式）
@@ -13,20 +13,36 @@ Stitch 项目 *Scenic Spot Reservation UI System*（设计系统「Cyan Ink & Ba
 | `booking.html` | 分时预约购票页 | `src/views/booking/index.vue` |
 | `credential.html` | 动态防伪电子凭证页 | `src/views/credential/index.vue` |
 | `profile.html` | 个人中心 | `src/views/profile/index.vue` |
-| `areas.html` | 景点选择与预约 | `src/pages/area/index.vue`（**独立页面**，见下） |
+| `areas.html` | 景点选择与预约 | `src/views/area/index.vue`（**外壳的第 2 格**，见下） |
+| `pay.html` | 订单支付 | `src/pages/pay/index.vue`（**独立页面**，见下） |
 
 前 4 份是「单页外壳」里的视图（`gen-pages` 会拿掉 `min-h-screen`/`pb-24`，因为高度与底部留白
-由外壳与底栏负责）；`areas.html` 自带 header/footer，是**独立页面**，
-在 `PAGES` 里标了 `standalone: true` —— 保留整屏高度、不注入 `props.active`、
-数据加载挂在小程序页生命周期上，标题栏由 `page-bindings.mjs` 的 `before` 片段自绘。
-它也自带 `pt-14`（给设计稿那个**固定** header 让位），所以在 `PAGES` 里用 `drop: ['pt-14']` 去掉。
+由外壳与底栏负责）；`booking.html` 与 `pay.html` 在 `PAGES` 里标了 `standalone: true`
+—— 它们产出到 `src/pages/`，是**真实页面**（自带路由）：保留整屏高度、不注入 `props.active`、
+数据加载挂在小程序页生命周期上。`areas.html` 现在也是外壳视图（底栏第 2 格）。
+
+⚠️ **生成器只取 `<main>` 的子节点，`<header>` 一律丢掉**（它进不了 WXML）。所以设计稿画了
+固定页头的 `areas/booking/pay` 三页，标题栏都由 `page-bindings.mjs` 的 `before` 片段自绘；
+三份设计稿的 `<main>` 上都有给那个固定页头让位的类（`pt-14` / `pt-16`），
+凡是自绘标题栏的就用 `drop: [...]` 去掉它，别让 56px 的留白和自绘的横条叠起来。
+
+## 手工补过的 id
+
+`page-bindings.mjs` 的定位器要求**恰好命中 1 个**元素，个别位置没有任何能唯一定位的类，
+于是直接在这两份设计稿里补了 id（改设计稿、不改产物，下次 `npm run gen` 才会复现）：
+
+- `profile.html`：`#app-version`（页脚版本行连 class 都没有）
+- `pay.html`：`#visitors-title`（那 4 个类与抽屉里的「金额明细」h4 完全相同）
+
+重新从 Stitch 拉稿会把这些 id 冲掉 —— 拉完 `gen:pages` 会立刻报「绑定键定位失败」，
+按报错把 id 补回去即可。
 
 ## 关于这些 HTML
 
 Stitch 的导出是自包含页面：**Tailwind CDN + 内联 `tailwind.config`（含全套设计 token）+ Google Fonts**，
-版式全部写在 Tailwind 工具类里。每页 158–236 个标签。
+版式全部写在 Tailwind 工具类里。每页 168–248 个标签。
 
-- `classes.json` 是这 5 份 HTML 里所有 class 的去重清单（**502 个**），由 `npm run gen:classes` 从
+- `classes.json` 是这 6 份 HTML 里所有 class 的去重清单（**567 个**），由 `npm run gen:classes` 从
   HTML 重新提取。⚠️ 在这之前它是个**手工维护的静态文件**（没有生成器，加一页设计稿就得手补类名，
   漏一个的后果是静默少一条样式）—— 现在是派生产物，别再手改
 - `classmap.json` 是「设计类名 → 安全类名」的映射表（WXSS 选择器不能可靠地处理 `[ ] . / #`）

@@ -14,6 +14,18 @@ export function fen2yuan(fen: number | null | undefined): string {
   return yuan.toFixed(2).replace(/\.?0+$/, '');
 }
 
+/**
+ * 分 → 元，**恒两位小数**（`12000 → '120.00'`）。
+ *
+ * 「钱」出现的场合用这个（订单支付页的应付总额、实付金额、支付按钮）。
+ * 与 `fen2yuan` 的差别是**产品口径**而不是对错：设计稿在同一个卡片里
+ * 就是「成人全票 (¥120 × 2)」→「¥240.00」—— 单价不带小数、总额带两位。
+ */
+export function fen2yuanFixed(fen: number | null | undefined): string {
+  const n = Number(fen ?? 0);
+  return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00';
+}
+
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 function parseDate(dateStr: string): Date {

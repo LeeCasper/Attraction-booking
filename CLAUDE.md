@@ -273,6 +273,46 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
     规矩：`const instance = getCurrentInstance()` 写在 `<script setup>` 顶层并闭包引用；
     给 `paint` 这类「可能炸」的绘制函数包 `try/catch`，炸了就退回降级路径，不要留空白。
 
+17. **`App.vue` 里的 `pg-*` 结构类会和设计稿的工具类抢同一个属性，而结构类写在后面 ⇒ 它赢** ——
+    `.pg-svg` / `.pg-has-bg` 都声明了 `position: relative`（作用是给它们内部那些绝对定位的
+    子元素当定位基准），而设计稿的元素**自己常常写着 `.absolute`**。两条规则**特异性完全相同**，
+    谁生效只看 CSS 输出顺序，而 `App.vue` 的全局样式排在 `utilities.scss` 之后 ⇒ 结构类把
+    `absolute` 压掉、元素掉回文档流按固有尺寸占位。
+    踩过：订单支付页倒计时横幅里那个**装饰用的 `<svg>` 只有一个 `<path>`**（生成器只认 `<rect>`），
+    转出来是个**空 `<view class="pg-svg absolute … w-28 h-28">`** —— 空壳本身不画东西，
+    但 `w-28 h-28` 在文档流里实打实占 112px，**把整条横幅顶出一大块空白**。
+    两条规矩：① 生成器只在该元素**本身没有被定位**时才加 `pg-has-bg`
+    （`absolute`/`fixed`/`sticky` 同样是有效的定位基准，不需要 relative）；
+    ② 内联 SVG 一个 `<rect>` 都没有时**整块不输出**（`gen-pages.mjs` 里有警告）。
+    **以后往 `App.vue` 加 `pg-*` 结构类之前，先想清楚它会不会和设计稿的工具类抢同一个属性。**
+
+18. **全站只有两套字体：标题宋体（Noto Serif）+ 其余一切正文族（Plus Jakarta Sans）** ——
+    设计稿原本还有第三套 **Space Grotesk**（`data-metric-*` / `display-kpi-screen` /
+    `label-badge` / `font-mono`），一套为看板 KPI 准备的几何展示体。它跟汉字不是一套骨架
+    （「¥60」紧挨着「门票」两个字就很跳），同屏三套字体也谈不上统一 ——
+    2026-10 起**整个族退役**：`gen-utilities.mjs` 的 `FONT_TOKENS` 里那四个类名全部指向
+    `$font-body`，**字号/字重/字距一律保留**（只换族）；`tokens.scss` 的 `$font-mono` 与
+    `gen-fonts.mjs` 的 `FAMILIES` 也都去掉了它 —— ⚠️ 产物里那个 @font-face 要等**联网**跑一次
+    `npm run gen:fonts` 才会真正消失（在那之前只是白打 ~20KB）。
+    - **加新排版 token 时族只能从 `FONT_VAR` 里挑**：`gen-utilities.mjs` 里有一段断言守着，
+      写第三个族直接非 0 退出。不守的话产物里会出现 `font-family: undefined`，静默忽略、最难查。
+    - ⚠️ 顺带记住这个坑：`utilities.scss` 里 `.font-*` 的输出顺序排在 `.text-*` **之前**，
+      而**排版 token 类自带 `font-family`** —— 于是 `font-body-lg text-headline-lg` 这种组合里，
+      衬线会**反过来压掉** `font-body-lg`。要让一段文字走正文族，字号得用**不带族**的
+      `text-[Npx]`（消毒后 `text-NNpx`），别再叠一个 token 类。
+
+19. **admin-web 上传文件必须显式把 `Content-Type` 置空**（`headers: { 'Content-Type': undefined }`）——
+    请求实例的默认头是 `application/json`（`@sa/axios` 的 `createAxiosConfig` 里写死），
+    而 axios 的 `transformRequest` 有这么一段：
+    `if (isFormData(data)) return hasJSONContentType ? JSON.stringify(formDataToJSON(data)) : data;`
+    ⇒ **带 json 头的 FormData 会被转成 JSON 字符串发出去**（实测 body 是 `{"file":{}}`），
+    服务端 multer 收不到任何 multipart 字段，接口回 400「没有收到文件（字段名应为 file）」。
+    后台的表现是「点了上传封面没反应」。踩过一次（景区封面），
+    根因与修法写在 `admin-web/src/service/api/scenic.ts` 的 `fetchUploadImage` 上。
+    - **不能写死 `'multipart/form-data'`**：浏览器不给显式设好的类型补 boundary。
+    - ⚠️ **这条在 Node 里测不出来** —— axios 的 http 适配器会自己算边界，
+      本地脚本无论怎么写都是 201，只有浏览器才暴露。改完请**在浏览器里点一次**。
+
 ## 当前进度（对照设计文档 §9）
 
 - **M1 服务端 + 后台页面已完成**：认证/RBAC/景区/票种/时段/价格日历/库存 + admin-web 对应页面（票务、景区、系统管理），冒烟 25/25
@@ -456,3 +496,29 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
   - **闸机编号全局唯一**：这一条**不改**。`gate_no` 是闸机的身份，走 `X-Gate-No` 头
     （HMAC 签名里没有景点），改成按景点唯一就得动真机协议与模拟器；
     多景点请用前缀区分（`A-北门` / `B-北门`）。已在文档里写明这是刻意的。
+- **订单支付页（Stitch 屏 `7c6ff3c646d34a1c8f1ecea322101b68`）1:1 还原，并改掉「点立即预约就直接付掉」**：
+  设计稿是 `design/reference/pay.html`。**下单与支付拆开**了 ——
+  购票页点「立即预约」只**建单**（库存从建单那刻锁住、支付截止时间同时起算），
+  再 `navigateTo` 到 `src/pages/pay/`；「我的预约 → 详情 → 去支付」也落到同一页，
+  两处不再各写一套支付逻辑。支付页的倒计时读 **`order.payDeadline`**（详情接口返回，
+  smoke:order 新增两项断言盯着它），**不是**本地另起的 15 分钟 —— 后者杀进程重进就和
+  库存释放的真实时刻对不上。付成功后 `setCurrentOrderId` + `switchTab('credential')` +
+  按**页面栈深度** `navigateBack` 回外壳（入口可能是购票页、也可能是订单详情，层数不固定）。
+  **四处「后端没有对应能力」的地方，一律保留版式、不编内容**：
+  ① 亲属卡/数字人民币**保留两行但不可选**（后端只有微信 JSAPI），点了提示「暂未开通」；
+  ② 费用明细**去掉保险与补贴两行** —— 保险不是营销文案而是对游客的承诺，系统既不签发也不承保；
+  ③ 闸机说明去掉写死的 `北门/东门`（小程序端没有闸机列表接口），顺带修掉设计稿的
+  「凭**动态动态**凭证」重复字；④ 退改说明按 `pay.service.refundFee()` 的真实规则重写
+  （设计稿的「未核销游玩日前可全额极速退款」既漏了当天手续费、又把**后台审核**说成了「极速到账」），
+  且**故意不写死比例** —— 那是 `sys_config` 里可改的值。
+  三处管线缺口也一并补了：`gen-utilities` 新增 `space-x/y-*`（**相邻子元素间距**，
+  与 divide 同一套路数用 `A + B` 展开；`gap` 表达不了非 flex 容器）、`rounded-{t,b,l,r}-*` 单边圆角、
+  `font-extrabold` / `leading-snug` / `shadow-2xl` / `shadow-inner` / `decoration-*` /
+  `underline-offset-*` 与 5 条具名阴影（共 20 个新类，之前会**非 0 退出并点名**）；
+  `gen-icons` 补 13 个图标（65 个）；`gen-pages` 遇到内联 `<svg>` 里的 `<path>/<circle>` 会**打印警告**
+  （只支持 `<rect>`，支付页横幅那朵水墨云因此没有，不判失败）。
+  ⚠️ `pay.html` 里**补了一个 `id="visitors-title"`**（那 4 个类与抽屉里「金额明细」的 h4 完全相同，
+  子集命中 5 个、全等命中 2 个）—— 与 `profile.html` 的 `#app-version` 同一处理，见
+  `miniprogram/README.md` 的「设计稿里补过的 `id`」。
+  顺带修了个**既有缺陷**：凭证视图 `load()` 有「加载过就不再来」的守卫，而**支付成功后就地切到那一格**
+  是它的主要入口之一 —— 「我的预约」里点「去支付」回来能是旧单。现在 `watch(currentOrderId)` 强制重取。

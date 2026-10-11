@@ -90,12 +90,19 @@ const SHADOWS = {
   'shadow-[0_1px_4px_rgba(0,104,95,0.08)]': '0 1px 4px rgba(0,104,95,.08)',
   'shadow-[0_1px_8px_rgba(0,104,95,0.04)]': '0 1px 8px rgba(0,104,95,.04)',
   'shadow-[0_4px_20px_rgba(0,104,95,0.06)]': '0 4px 20px rgba(0,104,95,.06)',
+  // 订单支付页带进来的三档（底部操作栏的上投影、页头与角标的下投影）
+  'shadow-[0_-4px_16px_rgba(0,106,97,0.08)]': '0 -4px 16px rgba(0,106,97,.08)',
+  'shadow-[0_1px_4px_rgba(0,0,0,0.06)]': '0 1px 4px rgba(0,0,0,.06)',
+  'shadow-[0_1px_8px_rgba(0,0,0,0.04)]': '0 1px 8px rgba(0,0,0,.04)',
   /** 裸 `shadow`（Tailwind 的第一档）= shadow-sm */
   'shadow': '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)',
   'shadow-2xs': '0 1px rgba(0,0,0,.05)',
   'shadow-xs': '0 1px 2px 0 rgba(0,0,0,.05)',
   'shadow-sm': '0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1)',
   'shadow-md': '0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1)',
+  'shadow-2xl': '0 25px 50px -12px rgba(0,0,0,.25)',
+  // 内阴影（订单支付页那个倒计时数字的「凹槽」底）—— 注意 inset 必须写在最前
+  'shadow-inner': 'inset 0 2px 4px 0 rgba(0,0,0,.05)',
 };
 const GRAD_DIR = {
   'bg-gradient-to-t': 'to top', 'bg-gradient-to-tr': 'to top right', 'bg-gradient-to-r': 'to right',
@@ -103,7 +110,7 @@ const GRAD_DIR = {
   'bg-gradient-to-l': 'to left', 'bg-gradient-to-tl': 'to top left',
 };
 const RADIUS = { '': r(4), sm: r(2), md: r(6), lg: r(8), xl: r(12), '2xl': r(16), '3xl': r(24), full: '9999px' };
-const WEIGHT = { light: 300, normal: 400, medium: 500, semibold: 600, bold: 700 };
+const WEIGHT = { light: 300, normal: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 };
 const SPACE_NAMED = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, '2xl': 48, margin: 16, gutter: 16 };
 const SIDE_PROPS = {
   p: ['padding'], px: ['padding-left', 'padding-right'], py: ['padding-top', 'padding-bottom'],
@@ -114,7 +121,25 @@ const SIDE_PROPS = {
 };
 const BORDER_SIDE = { t: ['border-top-width'], b: ['border-bottom-width'], x: ['border-left-width', 'border-right-width'], y: ['border-top-width', 'border-bottom-width'] };
 
-/** 设计系统排版 token → 完整排版声明（实测从不与 text-[Npx] 同时出现，无覆盖风险） */
+/**
+ * 设计系统排版 token → [字体族, 字号, 行高, 字重, 字距]。
+ *
+ * ## 全站只有两套字体（2026-10 定的口径，见 CLAUDE.md 约束 18）
+ *
+ * | 用在哪 | 族 | SCSS 变量 |
+ * | --- | --- | --- |
+ * | 标题（`headline-*`） | Noto Serif | `$font-serif` |
+ * | **其余一切**（正文、金额、数字、角标、水印、英文标签…） | Plus Jakarta Sans | `$font-body` |
+ *
+ * 设计稿原本还有第三套 —— **Space Grotesk**（`data-metric-*` / `display-kpi-screen` /
+ * `label-badge` / `font-mono`），一套为看板 KPI 准备的几何展示体。但中文界面里它跟汉字
+ * 完全不是一套骨架（「¥60」与旁边的「门票」两个字并排就很跳），而且同一屏上三套字体本来
+ * 也谈不上统一 —— 所以**整个族退役**，全部并到正文族，字号/字重/字距一律保留。
+ * 下面 `font-*` 那张表里 `font-mono` 同样指向正文族：设计稿还在用它（证件号、订单号、
+ * 英文品牌行），但落到产物里就是正文族。
+ *
+ * ⚠️ 加新 token 时**族只能从 `FONT_VAR` 里挑** —— 最后有一段断言守着，写第三个族会直接失败。
+ */
 const TYPO = {
   'caption-sm': ['Plus Jakarta Sans', 12, 16, 400, null],
   'body-sm': ['Plus Jakarta Sans', 13, 18, 400, null],
@@ -124,16 +149,24 @@ const TYPO = {
   'headline-lg': ['Noto Serif', 22, 30, 600, null],
   'headline-xl': ['Noto Serif', 28, 36, 600, null],
   'headline-xl-mobile': ['Noto Serif', 22, 30, 600, null],
-  // ⚠️ data-metric 两个 token 的**字体族**被换成了正文字体（与设计稿的刻意偏离，见 README 已知偏差）：
-  // 设计稿给它们的是 Space Grotesk —— 一套几何风格的展示字体，放在中文界面里，
-  // 「¥60」「12:30-14:30」「二维码验证320」里的数字跟旁边的汉字完全不是一套骨架，很跳。
-  // 字号/字重/字距都保留，只换族。`display-kpi-screen`（水印）与 `label-badge`（角标）不动。
   'data-metric-md': ['Plus Jakarta Sans', 16, 22, 500, null],
   'data-metric-lg': ['Plus Jakarta Sans', 24, 32, 600, '-0.01em'],
-  'display-kpi-screen': ['Space Grotesk', 48, 56, 700, '-0.02em'],
-  'label-badge': ['Space Grotesk', 12, 16, 600, '0.04em'],
+  'display-kpi-screen': ['Plus Jakarta Sans', 48, 56, 700, '-0.02em'],
+  'label-badge': ['Plus Jakarta Sans', 12, 16, 600, '0.04em'],
 };
-const FONT_VAR = { 'Plus Jakarta Sans': '$font-body', 'Noto Serif': '$font-serif', 'Space Grotesk': '$font-mono' };
+const FONT_VAR = { 'Plus Jakarta Sans': '$font-body', 'Noto Serif': '$font-serif' };
+
+// 守规矩：族只能来自 FONT_VAR。写第三个族（比如想把 Space Grotesk 请回来）就在这里失败，
+// 而不是等到产物里出现一套没人认识的字体 —— `FONT_VAR[fam]` 为 undefined 时
+// 生成出来的是 `font-family: undefined;`，浏览器/小程序**静默忽略**，最难查。
+for (const [name, spec] of Object.entries(TYPO)) {
+  if (!FONT_VAR[spec[0]]) {
+    console.error(`✗ TYPO.${name} 用了 FONT_VAR 里没有的字体族「${spec[0]}」`);
+    console.error('  全站只允许两套字体：正文族 Plus Jakarta Sans / 标题宋体 Noto Serif（见 CLAUDE.md 约束 18）。');
+    console.error('  确实要用第三套，请同时更新本文档、FONT_VAR 与 tokens.scss，并想清楚它和汉字并排的样子。');
+    process.exit(1);
+  }
+}
 
 /**
  * 有意丢弃：触屏无 hover/焦点、小程序无鼠标与文本选择。
@@ -189,6 +222,20 @@ function translate(input) {
   if ((m = base.match(/^divide-(.+)$/))) {
     const c = specColor(m[1]);
     if (c) return [`--tw-divide-color: ${c};`];
+  }
+
+  // — space-x-N / space-y-N：**相邻子元素之间**加外边距（订单支付页的预约信息卡、
+  //   费用明细、游客列表都用它，且宿主不是 flex —— 用 gap 表达不了）。
+  //   与 divide 同一套路数：此处只产出一个哨兵，真正的规则在主流程里按 `A + B` 展开，
+  //   模板侧不需要给第一个子元素加任何豁免类。—
+  if ((m = base.match(/^space-([xy])-(.+)$/))) {
+    const v = m[2];
+    let px;
+    if (/^[\d.]+$/.test(v)) px = Number(v) * 4;
+    else if (v.startsWith('space-')) px = SPACE_NAMED[v.slice(6)];
+    else if (SPACE_NAMED[v] !== undefined) px = SPACE_NAMED[v];
+    if (px === undefined || Number.isNaN(px)) return null;
+    return [`@space ${m[1]} ${r(px)}`];
   }
 
   // — 阴影 —
@@ -247,12 +294,22 @@ function translate(input) {
   }
 
   // — 圆角 —
-  if ((m = base.match(/^rounded(-(?:tl|tr|br|bl)-[a-z0-9]+|-none|-2xl|-3xl|-full|-sm|-md|-lg|-xl)?$/))) {
+  // 单边圆角有 8 种写法：四角 tl/tr/br/bl，以及整条边 t/r/b/l（订单支付页的
+  // 「竹青竖装饰条」是 rounded-r-full、明细抽屉是 rounded-t-2xl）。
+  // 整条边的写法**要展开成两条声明**，所以这里 return 的是数组而不是单条。
+  if ((m = base.match(/^rounded(-(?:tl|tr|br|bl|t|r|b|l)-[a-z0-9]+|-none|-2xl|-3xl|-full|-sm|-md|-lg|-xl)?$/))) {
     const suffix = m[1] || '';
-    const side = suffix.match(/^-(tl|tr|br|bl)-(.+)$/);
+    const side = suffix.match(/^-(tl|tr|br|bl|t|r|b|l)-(.+)$/);
     if (side) {
-      const map = { tl: 'border-top-left-radius', tr: 'border-top-right-radius', br: 'border-bottom-right-radius', bl: 'border-bottom-left-radius' };
-      return [`${map[side[1]]}: ${RADIUS[side[2]] ?? RADIUS['']};`];
+      const map = {
+        tl: ['border-top-left-radius'], tr: ['border-top-right-radius'],
+        br: ['border-bottom-right-radius'], bl: ['border-bottom-left-radius'],
+        t: ['border-top-left-radius', 'border-top-right-radius'],
+        b: ['border-bottom-left-radius', 'border-bottom-right-radius'],
+        l: ['border-top-left-radius', 'border-bottom-left-radius'],
+        r: ['border-top-right-radius', 'border-bottom-right-radius'],
+      };
+      return map[side[1]].map((p) => `${p}: ${RADIUS[side[2]] ?? RADIUS['']};`);
     }
     const key = suffix.replace(/^-/, '');
     return [`border-radius: ${key === 'none' ? '0' : RADIUS[key] ?? RADIUS['']};`];
@@ -340,19 +397,23 @@ function translate(input) {
   if (base === 'text-center') return ['text-align: center;'];
   if (base === 'text-left') return ['text-align: left;'];
   if (base === 'text-right') return ['text-align: right;'];
-  if ((m = base.match(/^font-(normal|medium|semibold|bold|light)$/))) return [`font-weight: ${WEIGHT[m[1]]};`];
+  if ((m = base.match(/^font-(normal|medium|semibold|bold|extrabold|light)$/))) return [`font-weight: ${WEIGHT[m[1]]};`];
+  // 字体族：**只有两个去处** —— 标题宋体，其余正文族（见 TYPO 上的那张表）。
+  // 设计稿的 `font-display-kpi-screen` / `font-label-badge` / `font-mono` 是第三套（Space Grotesk），
+  // 已整个并到正文族；`font-mono` 这个名字留着是因为设计稿还在用（证件号、订单号、英文品牌行），
+  // 但落到产物里就是正文族 —— 全站不再有等宽的观感。
   const FONT_TOKENS = {
     'font-body-md': '$font-body', 'font-body-sm': '$font-body', 'font-body-lg': '$font-body', 'font-caption-sm': '$font-body',
     'font-headline-md': '$font-serif', 'font-headline-lg': '$font-serif', 'font-headline-xl': '$font-serif',
-    'font-display-kpi-screen': '$font-mono',
-    // 旧的 `font-data-metric-md` / `font-data-metric-lg` 也一并并到正文族（见 TYPO 里的说明）；
-    // 它们同时被设计稿写成 `font-data-metric-* text-data-metric-*` 两层，两层都指向正文才不会漏。
+    // `font-data-metric-*` 与 `text-data-metric-*` 两层都指向正文族，漏一层就会漏一处
     'font-data-metric-md': '$font-body', 'font-data-metric-lg': '$font-body',
-    'font-label-badge': '$font-mono', 'font-mono': '$font-mono', 'font-serif': '$font-serif',
+    'font-display-kpi-screen': '$font-body', 'font-label-badge': '$font-body',
+    'font-mono': '$font-body', 'font-serif': '$font-serif',
   };
   if (FONT_TOKENS[base]) return [`font-family: ${FONT_TOKENS[base]};`];
   if (base === 'leading-none') return ['line-height: 1;'];
   if (base === 'leading-tight') return ['line-height: 1.25;'];
+  if (base === 'leading-snug') return ['line-height: 1.375;'];
   if (base === 'leading-normal') return ['line-height: 1.5;'];
   if (base === 'leading-relaxed') return ['line-height: 1.625;'];
   if ((m = base.match(/^tracking-(tight|wide|wider|widest)$/))) return [`letter-spacing: ${{ tight: '-0.025em', wide: '0.025em', wider: '0.05em', widest: '0.1em' }[m[1]]};`];
@@ -361,6 +422,14 @@ function translate(input) {
   if (base === 'whitespace-nowrap') return ['white-space: nowrap;'];
   if (base === 'line-through') return ['text-decoration: line-through;'];
   if (base === 'underline') return ['text-decoration: underline;'];
+  // 下划线的「颜色」与「下划位置」—— 设计稿用它给闸机名做了个淡青色的强调下划线。
+  // 两条都必须排在 `underline` 之后无所谓（属性不同，不会互相覆盖），但颜色属性名
+  // 是 text-decoration-color，别写成 text-decoration。
+  if ((m = base.match(/^decoration-(.+)$/))) {
+    const c = specColor(m[1]);
+    if (c) return [`text-decoration-color: ${c};`];
+  }
+  if ((m = base.match(/^underline-offset-(\d+)$/))) return [`text-underline-offset: ${r(Number(m[1]))};`];
   if (base === 'align-middle') return ['vertical-align: middle;'];
 
   // — 布局 —
@@ -393,6 +462,10 @@ function translate(input) {
   // — 过渡 / 动画 —
   if (base.startsWith('transition-')) return ['transition-property: all;', 'transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);', 'transition-duration: 150ms;'];
   if ((m = base.match(/^duration-(\d+)$/))) return [`transition-duration: ${m[1]}ms;`];
+  // 裸 `transform` 在 Tailwind 里只是「打开 transform 通道」的占位类，真正的变换写在
+  // rotate-/scale-/translate- 上。它本身没有任何声明可写，但**不能丢** —— 丢了会被漏网检查
+  // 判为「译不出且没被认领」，而它确实是有意为之的空规则。
+  if (base === 'transform') return ['/* transform 通道由 rotate-/scale-/translate- 类写，本类无需声明 */'];
   if (base === 'animate-spin') return ['animation: pg-spin 1s linear infinite;'];
   if (base === 'animate-pulse') return ['animation: pg-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;'];
   if (base === 'animate-ping') return ['animation: pg-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;'];
@@ -456,6 +529,7 @@ const normalRules = [];
 const activeRules = [];
 const gridRules = [];
 const divideRules = [];
+const spaceRules = [];
 const dropped = [];
 const unmapped = [];
 
@@ -476,6 +550,19 @@ for (const cls of classes) {
     const [, , prop] = decls[0].split(' '); // 已经是 border-left / border-top
     divideRules.push(
       `.${safe} > view + view, .${safe} > text + text { ${prop}-width: 1px; ${prop}-style: solid; ${prop}-color: var(--tw-divide-color, rgba(0,0,0,0.06)); }`,
+    );
+    continue;
+  }
+
+  // 相邻子元素间距：与 divide 同样的 `A + B` 写法（WXSS 不支持 :not(:first-child)）。
+  // 每种标签组合都要列出来 —— 相邻兄弟选择器只在**同标签**之间生效，
+  // 而设计稿里同一个容器下混着 view / text / image 是常态（图标是 view、文字是 text）。
+  if (decls[0]?.startsWith('@space ')) {
+    const [, axis, val] = decls[0].split(' ');
+    const prop = axis === 'x' ? 'margin-left' : 'margin-top';
+    const tags = ['view', 'text', 'image'];
+    spaceRules.push(
+      tags.flatMap((a) => tags.map((b) => `.${safe} > ${a} + ${b}`)).join(', ') + ` { ${prop}: ${val}; }`,
     );
     continue;
   }
@@ -525,6 +612,9 @@ ${gridRules.join('\n')}
 
 // — 分割线：相邻子元素之间加边 —
 ${divideRules.join('\n')}
+
+// — 相邻子元素间距（space-x-N / space-y-N）：A + B 展开 —
+${spaceRules.join('\n')}
 
 // — 动画关键帧 —
 @keyframes pg-spin {

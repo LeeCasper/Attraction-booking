@@ -262,6 +262,14 @@ export interface OrderItem {
 }
 
 export interface OrderDetail extends OrderSummary {
+  /**
+   * 支付截止时间（ISO 绝对时刻，下单 + `sys_config` 的支付超时）。
+   *
+   * 支付页的倒计时**读它**，不在本地另起一个「15 分钟」—— 否则杀掉小程序再进来，
+   * 屏幕上的剩余时间就和库存真正释放的时刻对不上了。
+   * 列表接口不带这个字段（只有详情有）。
+   */
+  payDeadline: string;
   timeSlot: TimeSlot | null;
   items: OrderItem[];
   /** 最新一条退款单，没有则为 null */

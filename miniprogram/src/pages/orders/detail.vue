@@ -144,32 +144,16 @@ function onCancel() {
   });
 }
 
-/** 重新拉起支付（仅待支付）。服务端 pay-params 不校验状态，所以这里自己限定 */
-async function onPay() {
+/**
+ * 「去支付」→ 跳**订单支付页**（与服务端 pay-params 校验无关，状态限定在按钮的 v-if 上）。
+ *
+ * 这里原先自己拉起 `uni.requestPayment`，现在统一交给 `pages/pay/` ——
+ * 那一页有应付总额、倒计时、支付方式与协议勾选，是设计稿专门画的一页；
+ * 两处各写一遍支付逻辑只会让「支付成功后去哪」出现两种行为。
+ */
+function onPay() {
   if (busy.value || !order.value) return;
-  busy.value = true;
-  try {
-    const p = await orderApi.payParams(orderId.value);
-    if (p.mock) {
-      // 本地联调：服务端处于模拟模式，直接触发支付成功回调（与购票页下单后同一做法）
-      await orderApi.mockPay(p.orderNo);
-    } else {
-      await new Promise<void>((resolve, reject) => {
-        uni.requestPayment({
-          ...p.payParams,
-          success: () => resolve(),
-          fail: (e: { errMsg?: string } | undefined) =>
-            reject(new Error(e?.errMsg || '支付未完成')),
-        } as never);
-      });
-    }
-    uni.showToast({ title: '支付成功', icon: 'success' });
-    await load();
-  } catch (err) {
-    uni.showToast({ title: errorText(err), icon: 'none', duration: 2500 });
-  } finally {
-    busy.value = false;
-  }
+  uni.navigateTo({ url: `/pages/pay/index?id=${orderId.value}` });
 }
 
 function openRefund() {

@@ -152,6 +152,21 @@ async function main() {
   check('订单详情状态=待支付(10)', detail1.data?.status === 10, `status=${detail1.data?.status}`);
   check('订单详情返回脱敏证件号', /^\d{3}\*+\d{4}$/.test(detail1.data?.items?.[0]?.visitorIdCard ?? ''), detail1.data?.items?.[0]?.visitorIdCard);
 
+  // 支付页的倒计时**读详情里的 payDeadline**（不是客户端自己起的 15 分钟）——
+  // 少这个字段，小程序那边只能拿 createdAt 猜，杀进程重进就会和库存释放的时刻对不上。
+  // 断言的是「下单时刻 + 支付超时」这个区间，而不是写死 15 分钟：超时值可在后台参数配置里改。
+  const deadlineDelta = (new Date(detail1.data?.payDeadline ?? 0).getTime() - Date.now()) / 1000;
+  check(
+    '订单详情返回 payDeadline 且约等于「现在 + 支付超时」',
+    deadlineDelta > 0 && deadlineDelta <= 15 * 60 + 5,
+    `payDeadline=${detail1.data?.payDeadline} 差 ${Math.round(deadlineDelta)} 秒`,
+  );
+  check(
+    '订单详情带时段起止（支付页要显示「08:00 - 10:00 场次」）',
+    !!detail1.data?.timeSlot?.startTime && !!detail1.data?.timeSlot?.endTime,
+    JSON.stringify(detail1.data?.timeSlot),
+  );
+
   // ---- 4. 支付（幂等）----
   console.log('\n[4] 支付回调幂等');
   const pay1 = await api('POST', `/api/mini/pay/mock-notify?orderNo=${orderNo1}`, { token });

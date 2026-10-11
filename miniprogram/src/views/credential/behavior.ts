@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { areaApi, orderApi, visitorApi, type OrderDetail } from '@/api';
 import { errorText } from '@/api/request';
 import { currentOrderId } from '@/store/order';
@@ -212,6 +212,18 @@ export function useCredentialPage() {
       loading.value = false;
     }
   }
+
+  /**
+   * 「换了一单」→ 强制重取。
+   *
+   * `load()` 是「加载过就不再来」的（`loaded` 守卫），而**支付成功后就地切到这一格**是
+   * 本页最主要的入口之一：刷新早于本视图挂载时（第一次进凭证页）走初始加载就够了，
+   * 但已经挂载过、`loaded` 已是 true 时，光切 tab 会一直显示**上一单**的凭证
+   * （动态码还是旧的、持票人还是上一批人）。
+   */
+  watch(currentOrderId, () => {
+    if (loaded) void load(true);
+  });
 
   // 全程只有**一个**每秒定时器：水印时间一直走；有动态码时同时递减倒计时，到刷新点自动换码。
   // （曾经另起一个定时器，结果两个 interval 互相覆盖引用，漏掉一个清不掉。）
