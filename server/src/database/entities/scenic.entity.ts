@@ -18,10 +18,6 @@ export class ScenicArea {
   @Column({ name: 'cover_url', type: 'varchar', length: 512, nullable: true })
   coverUrl: string | null;
 
-  /** 首页轮播图（相对路径，建议宽图）；空则回落到 `coverUrl` */
-  @Column({ name: 'banner_url', type: 'varchar', length: 512, nullable: true })
-  bannerUrl: string | null;
-
   /** 缩略图（相对路径，建议方图）：购票页头卡用；空则回落到 `coverUrl` */
   @Column({ name: 'thumbnail_url', type: 'varchar', length: 512, nullable: true })
   thumbnailUrl: string | null;
@@ -40,6 +36,47 @@ export class ScenicArea {
   @Column({ name: 'category', type: 'varchar', length: 16, nullable: true })
   category: string | null;
 
+  @Column({ type: 'tinyint', default: 1 })
+  status: number;
+
+  @Column({ name: 'created_at', type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @Column({ name: 'updated_at', type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
+}
+
+/**
+ * 首页轮播图。
+ *
+ * **与景点解耦**：后台「内容管理 → 首页轮播图」单独维护一组（增删/排序/启停），
+ * 每张可选跳转到某个景点 —— 有跳转时，小程序那屏显示该景点的名字与在园率、点了进它的购票页；
+ * 没有跳转时显示这张图自己的标题/副标题，且**不可点**（它只是一张公告图）。
+ */
+@Entity('banner')
+export class Banner {
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: number;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  title: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  subtitle: string | null;
+
+  /** 轮播图（相对路径 `/uploads/x.jpg`） */
+  @Column({ name: 'image_url', type: 'varchar', length: 512 })
+  imageUrl: string;
+
+  /** 跳转景点；NULL = 不跳转 */
+  @Column({ name: 'scenic_area_id', type: 'bigint', nullable: true })
+  scenicAreaId: number | null;
+
+  /** 排序：小的在前 */
+  @Column({ type: 'int', default: 0 })
+  sort: number;
+
+  /** 1 启用 / 2 停用 */
   @Column({ type: 'tinyint', default: 1 })
   status: number;
 

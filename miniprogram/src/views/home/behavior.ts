@@ -1,8 +1,8 @@
 import { ref, watch } from 'vue';
-import { areaApi, type AreaOverview } from '@/api';
+import { areaApi, bannerApi, mediaUrl, type AreaOverview, type MiniBanner } from '@/api';
 import { errorText } from '@/api/request';
 import { currentAreaId, setCurrentArea, switchTab } from '@/store/shell';
-import { CAPACITY_BANNER_LABEL, areaBannerOf, areaStockStatus, capacityTone } from '@/utils/area';
+import { CAPACITY_BANNER_LABEL, areaCoverOf, areaStockStatus, capacityTone } from '@/utils/area';
 
 /**
  * 首页（景区预约首页）。
@@ -20,7 +20,11 @@ import { CAPACITY_BANNER_LABEL, areaBannerOf, areaStockStatus, capacityTone } fr
  *   唯一还跟着当前景点走的只有公告（它不是全局公告，所以文案里带上景点名，见下）。
  *
  * 接的是这几样：
- *   - 轮播 + 推荐  `GET /areas/overview`（一次取回每个景点的封面/分类/起价/今日余票/在园）
+ *   - 轮播         `GET /banners`（后台「内容管理 → 首页轮播图」单独维护的一组，
+ *                  **与景点解耦**：绑了景点的那屏显示景点名与在园率、点了进购票页；
+ *                  没绑的显示这张图自己的标题、且不可点。一张都没配时**回落到按景点生成**，
+ *                  免得新部署的首页顶上一条空白）
+ *   - 推荐景点      `GET /areas/overview`（一次取回每个景点的封面/分类/起价/今日余票/在园）
  *   - 公告         `GET /areas/:id` 的 announcements（U-001）
  *   - 两张快捷卡    切 tab（U-002：一键进入预约页）
  *
@@ -35,15 +39,24 @@ export const HOME_RECOMMEND_SLOTS = 3;
 
 /** banner 轮播的一屏 */
 export interface BannerSlide {
-  id: number;
+  /** 唯一 key（轮播图 `b-<id>` / 按景点兜底时 `a-<id>`） */
+  key: string;
+  /** 主标题：绑了景点 = 景点名；没绑 = 轮播图标题 */
   name: string;
-  /** 完整地址（后台上传的是相对路径，`areaCoverOf` 会拼前缀） */
+  /** 副标题：没填且绑了景点时用设计稿那句 */
+  subtitle: string;
+  /** 完整地址（后台上传的是相对路径，这里已拼好前缀） */
   cover: string;
-  /** 状态胶囊左半：「开园中 · 舒适畅通」 */
+  /** 状态胶囊左半：「开园中 · 舒适畅通」。**没绑景点的屏不显示**（它说的就是在园状态） */
   statusLabel: string;
-  /** 状态胶囊右半：「在园率 38%」 */
+  /** 状态胶囊右半：「在园率 38%」。同上 */
   presenceLabel: string;
+  /** 点了去哪：绑了景点 = 该景点 id；没绑 = null（**不可点**，它只是一张公告图） */
+  areaId: number | null;
 }
+
+/** 绑了景点的那屏，副标题没填时的兜底（设计稿原文，后端没有对应字段） */
+const BANNER_SUBTITLE_FALLBACK = '国家生态自然公园 · 5A级风景名胜区';
 
 export function useHomePage() {
   const loading = ref(false);
@@ -83,6 +96,61 @@ export function useHomePage() {
       : '';
   }
 
+  /** 绑了景点的那屏：景点名 + 在园状态（数据都来自 `/areas/overview`，不额外打接口） */
+  function areaSlide(slide: BannerSlide, area: AreaOverview) {
+    slide.name = area.name;
+    slide.subtitle = slide.subtitle || BANNER_SUBTITLE_FALLBACK;
+    slide.statusLabel = `开园中 · ${CAPACITY_BANNER_LABEL[capacityTone(area.presence.capacityRate)]}`;
+    slide.presenceLabel = `在园率 ${Math.round(area.presence.capacityRate * 100)}%`;
+    slide.areaId = area.id;
+  }
+
+  /**
+   * banner 的一屏 → 轮播的一屏。
+   *
+   * 三种情况：① 绑了景点且景点还在开放列表里 → 显示景点名/在园率、点了进购票页；
+   * ② 绑了景点但那个景点**已经不开放**（下架/删除）→ 退化成「只展示图」，
+   *    绝不能显示一个不存在的景点名、更不能点了跳到一个 404 的购票页；
+   * ③ 没绑景点 → 显示这张图自己的标题/副标题，且不可点。
+   */
+  function bannerSlide(b: MiniBanner, areas: AreaOverview[]): BannerSlide {
+    const slide: BannerSlide = {
+      key: `b-${b.id}`,
+      name: b.title ?? '',
+      subtitle: b.subtitle ?? '',
+      cover: mediaUrl(b.imageUrl),
+      statusLabel: '',
+      presenceLabel: '',
+      areaId: null,
+    };
+    const area = b.scenicAreaId ? areas.find((a) => a.id === b.scenicAreaId) : undefined;
+    if (area) areaSlide(slide, area);
+    return slide;
+  }
+
+  /**
+   * 一组轮播图 → 轮播的每一屏；**一张都没配时回落到「按景点生成」**。
+   *
+   * 兜底不是可选项：新部署的库里没有轮播图，没有兜底首页顶上就是一条空白；
+   * 而「首页轮播 = 各景点封面」本来就是这套设计稿的原始形态（后台配了就按后台的来）。
+   */
+  function buildSlides(banners: MiniBanner[], areas: AreaOverview[]): BannerSlide[] {
+    if (banners.length) return banners.map((b) => bannerSlide(b, areas));
+    return areas.slice(0, HOME_SLIDE_SLOTS).map((a, i) => {
+      const slide: BannerSlide = {
+        key: `a-${a.id}`,
+        name: a.name,
+        subtitle: BANNER_SUBTITLE_FALLBACK,
+        cover: areaCoverOf(a, i),
+        statusLabel: '',
+        presenceLabel: '',
+        areaId: null,
+      };
+      areaSlide(slide, a);
+      return slide;
+    });
+  }
+
   /** 首次可见时加载；`force` 用于重试 */
   async function load(force = false) {
     if (!force && loaded) return;
@@ -91,19 +159,16 @@ export function useHomePage() {
     try {
       // 一个请求就够：`/areas/overview` 每张卡要的封面/分类/起价/今日余票/在园全在里面
       // （以前是 `list` + 逐景点 `presence` + `tickets` 三个请求，且只服务一个景点）
-      const res = await areaApi.overview();
+      // 轮播图与景点一览并发；轮播图失败不该让整页报错（它是锦上添花，兜底还有按景点生成的）
+      const [banners, res] = await Promise.all([
+        bannerApi.list().catch(() => [] as MiniBanner[]),
+        areaApi.overview(),
+      ]);
       const areas = res.areas;
       if (!areas.length) throw new Error('没有开放中的景点');
 
       allAreas.value = areas;
-      slides.value = areas.slice(0, HOME_SLIDE_SLOTS).map((a, i) => ({
-        id: a.id,
-        name: a.name,
-        // 轮播位优先用「轮播图」，没配回落到封面
-        cover: areaBannerOf(a, i),
-        statusLabel: `开园中 · ${CAPACITY_BANNER_LABEL[capacityTone(a.presence.capacityRate)]}`,
-        presenceLabel: `在园率 ${Math.round(a.presence.capacityRate * 100)}%`,
-      }));
+      slides.value = buildSlides(banners, areas);
       // 「推荐」= 后端的默认顺序（`status = 1` 按 id 升序，即登记先后）。
       // 后端没有「推荐位/热度」这类字段，所以不假装有排序规则 —— 就是前 N 个。
       recommended.value = areas.slice(0, HOME_RECOMMEND_SLOTS);

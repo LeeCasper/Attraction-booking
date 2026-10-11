@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Announcement, ScenicArea } from '../../database/entities/scenic.entity';
+import { Announcement, Banner, ScenicArea } from '../../database/entities/scenic.entity';
 import {
   PriceCalendar,
   TicketStock,
@@ -17,6 +17,7 @@ export class MiniTicketService {
   constructor(
     @InjectRepository(ScenicArea) private readonly areaRepo: Repository<ScenicArea>,
     @InjectRepository(Announcement) private readonly annoRepo: Repository<Announcement>,
+    @InjectRepository(Banner) private readonly bannerRepo: Repository<Banner>,
     @InjectRepository(TicketType) private readonly typeRepo: Repository<TicketType>,
     @InjectRepository(TimeSlot) private readonly slotRepo: Repository<TimeSlot>,
     @InjectRepository(TicketStock) private readonly stockRepo: Repository<TicketStock>,
@@ -25,6 +26,17 @@ export class MiniTicketService {
     private readonly presence: PresenceService,
   ) {}
 
+  /**
+   * 首页轮播图（只给启用中的，按 sort 升序）。
+   *
+   * 后台「内容管理 → 首页轮播图」单独维护的一组，与景点**解耦**：
+   * `scenicAreaId` 原样带出去 —— 客户端拿它去 `/areas/overview` 的结果里找那个景点
+   * （名字、在园率），有跳转的那屏因此不用多打一次接口。
+   */
+  async listBanners() {
+    return this.bannerRepo.find({ where: { status: 1 }, order: { sort: 'ASC', id: 'ASC' } });
+  }
+
   /** 景区列表（仅开放中） */
   async listAreas() {
     const areas = await this.areaRepo.find({ where: { status: 1 }, order: { id: 'ASC' } });
@@ -32,8 +44,7 @@ export class MiniTicketService {
       id: a.id,
       name: a.name,
       coverUrl: a.coverUrl,
-      // 轮播图 / 缩略图：没配就留空，由客户端逐级回落到封面（见 miniprogram 的 utils/area.ts）
-      bannerUrl: a.bannerUrl,
+      // 缩略图：没配就留空，由客户端回落到封面（见 miniprogram 的 utils/area.ts）
       thumbnailUrl: a.thumbnailUrl,
       openTime: a.openTime,
       intro: a.intro,
@@ -102,7 +113,6 @@ export class MiniTicketService {
         id: area.id,
         name: area.name,
         coverUrl: area.coverUrl,
-        bannerUrl: area.bannerUrl,
         thumbnailUrl: area.thumbnailUrl,
         openTime: area.openTime,
         intro: area.intro,

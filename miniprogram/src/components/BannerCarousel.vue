@@ -19,7 +19,9 @@
  *   ② 指示点：设计稿没有。**每一屏各自渲染一份**（其中当前那一屏的点是高亮的）——
  *      看着与一个静态指示器一样，但不用把点放到 swiper 外面去算绝对定位，
  *      也不会盖住景点名（名字长了会撞）
- *   ③ 封面按 `areaCoverOf()` 兜底：后台上传过封面就用上传的，没传的按序号轮换示意图
+ *   ③ 每屏的内容来自 `GET /banners`（后台单独维护的一组）：绑了景点的那屏显示景点名与在园状态，
+ *      没绑的显示这张图自己的标题/副标题，**状态胶囊与「在园率」也一并隐藏**（它们说的就是在园状态），
+ *      且那屏**不可点**（它只是一张公告图）
  *
  * ⚠️ 天气（晴 21°C）是设计稿的**写死文案**，后端没有天气数据 —— 每一屏都渲染同一句，
  *    所以看起来是静止的。见 README 的「仍是静态」清单。
@@ -28,6 +30,11 @@ import type { BannerSlide } from '@/views/home/behavior';
 
 const props = defineProps<{ slides: BannerSlide[] }>();
 const emit = defineEmits<{ pick: [id: number] }>();
+
+/** 只有绑了景点的屏才可点（没绑的屏点了没事干，别给用户一个「点了没反应」的坑） */
+function onTap(s: BannerSlide) {
+  if (s.areaId !== null) emit('pick', s.areaId);
+}
 
 // —— 以下 class 串与设计稿逐字对应（已消毒），勿手改措辞 ——
 const WRAP = 'relative w-full h-56 overflow-hidden bg-surface-container';
@@ -68,20 +75,22 @@ const DOT_OFF = 'w-1_5 h-1_5 rounded-full bg-white_20';
       :interval="4200"
       :duration="450"
     >
-      <swiper-item v-for="(s, i) in props.slides" :key="s.id">
+      <swiper-item v-for="(s, i) in props.slides" :key="s.key">
         <!-- 整屏可点：这一屏写着是哪个景点，点它就是「我要这个景点」→ 进它的购票页 -->
-        <view :class="SLIDE" @tap="emit('pick', s.id)">
+        <view :class="SLIDE" @tap="onTap(s)">
           <image class="w-full h-full object-cover" :src="s.cover" mode="aspectFill" />
           <view :class="GRADIENT" />
           <view :class="OVERLAY">
             <view :class="STACK">
               <view :class="ROW">
-                <view :class="STATUS_PILL">
+                <!-- 没绑景点的屏不显示这枚胶囊：它说的是「开园中 + 在园率」，那是一屏一景点的说法 -->
+                <view v-if="s.statusLabel" :class="STATUS_PILL">
                   <text :class="DOT_LIVE" />
                   <text :class="STATUS_TEXT">{{ s.statusLabel }}</text>
                   <text :class="SEP">|</text>
                   <text :class="PRESENCE">{{ s.presenceLabel }}</text>
                 </view>
+                <view v-else />
                 <view :class="WEATHER">
                   <view class="msi icon-wb_sunny text-13px text-screen-gilt-gold" />
                   <text>晴 21°C</text>
@@ -89,12 +98,12 @@ const DOT_OFF = 'w-1_5 h-1_5 rounded-full bg-white_20';
               </view>
               <view :class="BOTTOM_ROW">
                 <view class="min-w-0">
-                  <text :class="SUBTITLE">国家生态自然公园 · 5A级风景名胜区</text>
+                  <text v-if="s.subtitle" :class="SUBTITLE">{{ s.subtitle }}</text>
                   <view :class="TITLE">{{ s.name }}</view>
                 </view>
                 <!-- 指示点：每个景点一个，当前这屏的那个高亮 -->
                 <view v-if="props.slides.length > 1" :class="DOTS">
-                  <text v-for="(x, j) in props.slides" :key="x.id" :class="j === i ? DOT_ON : DOT_OFF" />
+                  <text v-for="(x, j) in props.slides" :key="x.key" :class="j === i ? DOT_ON : DOT_OFF" />
                 </view>
               </view>
             </view>

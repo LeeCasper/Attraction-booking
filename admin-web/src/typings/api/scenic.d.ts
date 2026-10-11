@@ -110,5 +110,40 @@ declare namespace Api {
       content?: string;
       status?: number;
     }
+
+    /**
+     * 首页轮播图。
+     *
+     * 与景点**解耦**：后台「内容管理 → 首页轮播图」单独维护一组（增删/排序/启停）。
+     * 每张可选跳转到某个景点 —— 有跳转时小程序那屏显示该景点的名字与在园率、点了进它的购票页；
+     * 没有跳转时显示这张图自己的标题/副标题，且**不可点**。
+     */
+    interface Banner {
+      id: number;
+      /** 标题：**没有跳转景点时**显示在图上 */
+      title: string | null;
+      subtitle: string | null;
+      /** 轮播图（相对路径 `/uploads/x.jpg`） */
+      imageUrl: string;
+      /** 跳转景点；null = 不跳转，只展示图 */
+      scenicAreaId: number | null;
+      /** 排序：小的在前 */
+      sort: number;
+      /** 1 启用 / 2 停用 */
+      status: number;
+      createdAt: string;
+      updatedAt: string;
+    }
+
+    /** 新建/修改轮播图提交体 */
+    interface BannerPayload {
+      imageUrl: string;
+      title?: string;
+      subtitle?: string;
+      /** 传 `null` = 清空跳转（`undefined` 会被后端当成「不改动」） */
+      scenicAreaId?: number | null;
+      sort?: number;
+      status?: number;
+    }
   }
 }

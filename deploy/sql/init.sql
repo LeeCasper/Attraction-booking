@@ -52,7 +52,6 @@ CREATE TABLE IF NOT EXISTS scenic_area (
   address      VARCHAR(255) NULL,
   intro        TEXT         NULL COMMENT '简介',
   cover_url    VARCHAR(512) NULL COMMENT '封面(相对路径):景点列表卡/推荐景点卡用',
-  banner_url   VARCHAR(512) NULL COMMENT '首页轮播图(相对路径,建议宽图);空则回落到封面',
   thumbnail_url VARCHAR(512) NULL COMMENT '缩略图(相对路径,建议方图):购票页头卡用;空则回落到封面',
   open_time    VARCHAR(64)  NULL COMMENT '开放时间描述 08:00-17:00',
   max_capacity INT          NOT NULL DEFAULT 10000 COMMENT '最大瞬时承载量',
@@ -61,6 +60,19 @@ CREATE TABLE IF NOT EXISTS scenic_area (
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB COMMENT='景区';
+
+CREATE TABLE IF NOT EXISTS banner (
+  id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title          VARCHAR(64)  NULL COMMENT '标题:无跳转景点时显示在图上',
+  subtitle       VARCHAR(64)  NULL COMMENT '副标题:同上',
+  image_url      VARCHAR(512) NOT NULL COMMENT '轮播图(相对路径)',
+  scenic_area_id BIGINT UNSIGNED NULL COMMENT '跳转景点;NULL=不跳转,只展示图(屏上显示标题/副标题,不可点)',
+  sort           INT NOT NULL DEFAULT 0 COMMENT '排序:小的在前',
+  status         TINYINT NOT NULL DEFAULT 1 COMMENT '1启用 2停用',
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_sort_status (sort, status)
+) ENGINE=InnoDB COMMENT='首页轮播图(后台单独维护,与景点解耦)';
 
 CREATE TABLE IF NOT EXISTS announcement (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

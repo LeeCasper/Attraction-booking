@@ -3,16 +3,16 @@ import { computed, ref } from 'vue';
 import { fetchUploadImage } from '@/service/api';
 
 /**
- * 景区的**一张图**（上传 / 预览 / 清除）。
+ * 「一张图」的表单字段（标题 + 预览 + 上传 + 清除 + 说明）。
  *
- * 抽成组件是因为景区现在有三张图（封面 / 首页轮播图 / 购票页缩略图）——
- * 三处内联就是同一套 ElUpload + 预览 + 校验写三遍，改一处必然漏两处。
+ * 抽成组件是因为它要用的地方不止一处：景区的封面与缩略图、首页轮播图的图片 ——
+ * 每处内联就是同一套 ElUpload + 预览 + 校验写一遍，改一处必然漏两处。
  *
  * ⚠️ 上传走 `fetchUploadImage`，那里已经**显式把 Content-Type 置空** ——
  * 否则 axios 的 transformRequest 会把 FormData 转成 JSON 字符串发出去，
  * 服务端收不到任何 multipart 字段（见 admin-web/README 与本仓库 CLAUDE.md 第 19 条）。
  */
-defineOptions({ name: 'AreaImageField' });
+defineOptions({ name: 'ImageField' });
 
 interface Props {
   /** 表单项标题 */

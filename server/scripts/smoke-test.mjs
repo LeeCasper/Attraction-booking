@@ -280,23 +280,19 @@ async function main() {
         `status=${back.status} bytes=${buf.length}`,
       );
 
-      // 传给景区，再从小程序接口读回来（三张图的链路端到端）。
-      // 景区有三张图：封面（列表卡/推荐卡）、轮播图（首页）、缩略图（购票页头卡）——
-      // 三处画幅不同，所以拆成三个字段；**都不传也能跑**（客户端逐级回落，见 utils/area.ts）。
+      // 传给景区，再从小程序接口读回来（图片链路端到端）。
+      // 景区有两张**自己的**图：封面（列表卡/推荐卡）与缩略图（购票页头卡）；
+      // 首页轮播图是另一张表、后台单独维护（见 [9.5]）。都不传也能跑（客户端回落，见 utils/area.ts）。
       const withCover = await api('POST', '/api/admin/scenic/areas', {
         token,
-        body: { name: `冒烟封面景区${RUN}`, maxCapacity: 100, coverUrl: url, bannerUrl: url, thumbnailUrl: url },
+        body: { name: `冒烟封面景区${RUN}`, maxCapacity: 100, coverUrl: url, thumbnailUrl: url },
       });
       const coverId = withCover.json?.data?.id;
       const overview = await api('GET', '/api/mini/areas/overview');
       const row = overview.json?.data?.areas?.find((a) => a.id === coverId);
       check('封面能存进景区并从小程序接口读回', row?.coverUrl === url, JSON.stringify(row));
-      check(
-        '轮播图 / 缩略图也能存进景区并从小程序接口读回',
-        row?.bannerUrl === url && row?.thumbnailUrl === url,
-        JSON.stringify({ bannerUrl: row?.bannerUrl, thumbnailUrl: row?.thumbnailUrl }),
-      );
-      // 只传封面时另两张应为 null —— 回落到封面这件事在**客户端**做（`utils/area.ts`），
+      check('缩略图也能存进景区并从小程序接口读回', row?.thumbnailUrl === url, JSON.stringify({ t: row?.thumbnailUrl }));
+      // 只传封面时缩略图应为 null —— 「回落到封面」这件事在**客户端**做（`utils/area.ts`），
       // 服务端不替它补值：补了就看不出「运营到底配了几张」
       const onlyCover = await api('POST', '/api/admin/scenic/areas', {
         token,
@@ -304,8 +300,8 @@ async function main() {
       });
       const onlyCoverRow = (await api('GET', '/api/mini/areas')).json?.data?.find((a) => a.id === onlyCover.json?.data?.id);
       check(
-        '只传封面时轮播图/缩略图为 null（回落由客户端做）',
-        onlyCoverRow?.coverUrl === url && onlyCoverRow?.bannerUrl === null && onlyCoverRow?.thumbnailUrl === null,
+        '只传封面时缩略图为 null（回落由客户端做）',
+        onlyCoverRow?.coverUrl === url && onlyCoverRow?.thumbnailUrl === null,
         JSON.stringify(onlyCoverRow),
       );
       if (onlyCover.json?.data?.id) await api('DELETE', `/api/admin/scenic/areas/${onlyCover.json.data.id}`, { token });
@@ -327,6 +323,53 @@ async function main() {
       const r = await fetch(`${BASE}/api/uploads/${evil}`);
       check(`路径穿越被拒（${evil}）`, r.status === 404, r.status);
     }
+  }
+
+  // ---- 首页轮播图（后台单独维护的一组，与景点解耦）----
+  console.log('\n[9.5] 首页轮播图');
+  {
+    const mk = (body) => api('POST', '/api/admin/scenic/banners', { token, body });
+    const b1 = await mk({ imageUrl: '/uploads/smoke-a.jpg', title: '冒烟轮播A', sort: 20, scenicAreaId: areaId });
+    const b2 = await mk({ imageUrl: '/uploads/smoke-b.jpg', title: '冒烟轮播B', sort: 10 });
+    check('新增两张轮播图（一张带跳转景点、一张不带）', !!b1.json?.data?.id && !!b2.json?.data?.id, JSON.stringify(b1.json));
+
+    const adminList = await api('GET', '/api/admin/scenic/banners', { token });
+    check(
+      '后台列表按 sort 升序',
+      adminList.json?.data?.length >= 2 &&
+        adminList.json.data.findIndex((b) => b.id === b2.json.data.id) <
+          adminList.json.data.findIndex((b) => b.id === b1.json.data.id),
+      JSON.stringify(adminList.json?.data?.map((b) => `${b.title}:${b.sort}`)),
+    );
+
+    const miniList = await api('GET', '/api/mini/banners');
+    const mine = miniList.json?.data?.filter((b) => [b1.json.data.id, b2.json.data.id].includes(b.id)) ?? [];
+    check('小程序接口免登录、只给启用中的', miniList.status === 200 && mine.length === 2, `status=${miniList.status} n=${mine.length}`);
+    check(
+      '小程序接口带出跳转景点 id（客户端据此取景点名与在园率）',
+      mine.find((b) => b.id === b1.json.data.id)?.scenicAreaId === areaId &&
+        mine.find((b) => b.id === b2.json.data.id)?.scenicAreaId === null,
+      JSON.stringify(mine.map((b) => ({ id: b.id, area: b.scenicAreaId }))),
+    );
+
+    // 停用 → 小程序端消失（后台仍看得见）
+    await api('PUT', `/api/admin/scenic/banners/${b2.json.data.id}`, { token, body: { imageUrl: '/uploads/smoke-b.jpg', status: 2 } });
+    const afterDisable = await api('GET', '/api/mini/banners');
+    check(
+      '停用后小程序端不再返回，后台仍可见',
+      !afterDisable.json?.data?.some((b) => b.id === b2.json.data.id) &&
+        (await api('GET', '/api/admin/scenic/banners', { token })).json?.data?.some((b) => b.id === b2.json.data.id),
+      JSON.stringify(afterDisable.json?.data?.map((b) => b.id)),
+    );
+
+    for (const id of [b1.json.data.id, b2.json.data.id]) {
+      await api('DELETE', `/api/admin/scenic/banners/${id}`, { token });
+    }
+    const afterDelete = await api('GET', '/api/admin/scenic/banners', { token });
+    check(
+      '删除后两张都不在列表里',
+      !afterDelete.json?.data?.some((b) => [b1.json.data.id, b2.json.data.id].includes(b.id)),
+    );
   }
 
   // ---- 删除景区的「引用保护」----

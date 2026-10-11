@@ -92,6 +92,20 @@ export class MiniController {
     return this.ticketService.listAreasOverview();
   }
 
+  /**
+   * 首页轮播图（免登录）。
+   *
+   * 后台「内容管理 → 首页轮播图」单独维护的一组；`scenicAreaId` 有值时客户端拿它去
+   * `/areas/overview` 的结果里取景点名与在园率（不再多打一次接口），点了进该景点购票页。
+   * ⚠️ 一组都没配时**返回空数组** —— 客户端会回落到「按景点生成轮播」，
+   * 免得新部署的首页顶上一个空白的 banner。
+   */
+  @Get('banners')
+  @ApiOperation({ summary: '首页轮播图（免登录，仅启用中的）' })
+  listBanners() {
+    return this.ticketService.listBanners();
+  }
+
   @Get('areas/:id')
   @ApiOperation({ summary: '景区详情（含时段）' })
   async areaDetail(@Param('id', ParseIntPipe) id: number) {

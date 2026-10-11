@@ -6,7 +6,7 @@ import { MiniTicketService } from './mini-ticket.service';
 import { MiniVisitorService } from './mini-visitor.service';
 import { Blacklist, User, Visitor } from '../../database/entities/user.entity';
 import { OrderItem } from '../../database/entities/order.entity';
-import { Announcement, ScenicArea } from '../../database/entities/scenic.entity';
+import { Announcement, Banner, ScenicArea } from '../../database/entities/scenic.entity';
 import {
   PriceCalendar,
   TicketStock,
@@ -25,6 +25,8 @@ import { VerifyModule } from '../verify/verify.module';
       ScenicArea,
       // 景区详情要带公告（技术方案 §3.2）
       Announcement,
+      // 首页轮播图（后台单独维护的一组）
+      Banner,
       TicketType,
       TimeSlot,
       TicketStock,

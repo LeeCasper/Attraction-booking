@@ -49,7 +49,6 @@ const FALLBACK_COVERS = [
 /** 景区三张图的最小形状（后端 `MiniArea` 的子集，便于单测/组件按结构传入） */
 export interface AreaImages {
   coverUrl: string | null;
-  bannerUrl?: string | null;
   thumbnailUrl?: string | null;
 }
 
@@ -61,15 +60,11 @@ export function areaCoverOf(area: AreaImages, index: number): string {
   return mediaUrl(area.coverUrl) || FALLBACK_COVERS[index % FALLBACK_COVERS.length]!;
 }
 
-/**
- * 首页**轮播图**；没配就回落到封面（封面也没有才用兜底图轮换）。
- *
- * 三个字段的由来：三处画幅不同 —— 列表卡要横图、轮播要宽图、购票页头卡是 64×64 的方图。
- * 用一个字段包打三处，必然有两处被裁；但**只传封面也能跑**，运营不必一上来就传三张。
+/*
+ * ⚠️ 这里**没有** `areaBannerOf`：首页轮播图曾经是景区上的一个字段（`banner_url`），
+ * 现已改成后台单独维护的一组（`banner` 表，见 `views/home/behavior.ts` 的 `buildSlides`）——
+ * 轮播是一组图、还要排序与启停，挂在景区实体上并不合适。
  */
-export function areaBannerOf(area: AreaImages, index: number): string {
-  return mediaUrl(area.bannerUrl) || areaCoverOf(area, index);
-}
 
 /**
  * 购票页头卡的**缩略图**；没配就回落到封面。

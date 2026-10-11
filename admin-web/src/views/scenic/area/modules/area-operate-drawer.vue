@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { fetchCreateScenicArea, fetchUpdateScenicArea } from '@/service/api';
 import { useForm, useFormRules } from '@/hooks/common/form';
-import AreaImageField from './area-image-field.vue';
+import ImageField from '../../components/image-field.vue';
 
 defineOptions({ name: 'ScenicAreaOperateDrawer' });
 
@@ -210,18 +210,18 @@ watch(visible, () => {
  三张图各有各的画幅：列表卡要横图、轮播要宽图、购票页头卡是方图。
            只传封面也能跑，另两张都回落到封面（回落规则写在各字段的说明里）。 
 -->
-      <AreaImageField
+      <ImageField
         v-model="model.coverUrl"
         label="景区封面"
         hint="小程序里的景点列表卡与首页「推荐景点」卡用这张图；不传则用内置占位图"
       />
-      <AreaImageField
+      <ImageField
         v-model="model.bannerUrl"
         label="首页轮播图"
         hint="小程序首页顶部轮播用这张图；不传则回落到封面"
         ratio-hint="建议 21:9 宽图（轮播会被裁成宽幅）；5MB 内，支持 jpeg / png / webp"
       />
-      <AreaImageField
+      <ImageField
         v-model="model.thumbnailUrl"
         label="购票页缩略图"
         hint="小程序购票页头卡那张 64×64 小图；不传则回落到封面"

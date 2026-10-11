@@ -144,6 +144,28 @@ export interface AreaOverviewResult {
   summary: AreaOverviewSummary;
 }
 
+/**
+ * 首页轮播图（后台「内容管理 → 首页轮播图」单独维护的一组）。
+ *
+ * ⚠️ 它**与景点解耦**：`scenicAreaId` 有值时那屏显示该景点的名字与在园率、点了进它的购票页；
+ * 为空时显示这张图自己的标题/副标题，且**不可点**（它只是一张公告图）。
+ */
+export interface MiniBanner {
+  id: number;
+  title: string | null;
+  subtitle: string | null;
+  /** 相对路径，用 `mediaUrl()` 拼完整地址 */
+  imageUrl: string;
+  /** 跳转景点；null = 不跳转 */
+  scenicAreaId: number | null;
+  sort: number;
+}
+
+export const bannerApi = {
+  /** 免登录；只返回启用中的（按 sort 升序）。一张都没配时返回空数组 */
+  list: () => get<MiniBanner[]>('/banners', undefined, { anonymous: true }),
+};
+
 export const areaApi = {
   /** 免登录 */
   list: () => get<MiniArea[]>('/areas', undefined, { anonymous: true }),

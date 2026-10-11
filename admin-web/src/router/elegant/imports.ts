@@ -32,6 +32,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   order_refund: () => import("@/views/order/refund/index.vue"),
   scenic_announcement: () => import("@/views/scenic/announcement/index.vue"),
   scenic_area: () => import("@/views/scenic/area/index.vue"),
+  scenic_banner: () => import("@/views/scenic/banner/index.vue"),
   "system_admin-user": () => import("@/views/system/admin-user/index.vue"),
   system_config: () => import("@/views/system/config/index.vue"),
   "system_operation-log": () => import("@/views/system/operation-log/index.vue"),

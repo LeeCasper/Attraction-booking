@@ -184,6 +184,7 @@ const local: App.I18n.Schema = {
     ticket_stock: 'Stock',
     scenic: 'Scenic Area',
     scenic_area: 'Area Info',
+    scenic_banner: 'Home Banners',
     scenic_announcement: 'Announcements',
     system: 'System',
     system_role: 'Roles',

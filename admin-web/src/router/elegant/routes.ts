@@ -237,6 +237,15 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'scenic_area',
           i18nKey: 'route.scenic_area'
         }
+      },
+      {
+        name: 'scenic_banner',
+        path: '/scenic/banner',
+        component: 'view.scenic_banner',
+        meta: {
+          title: 'scenic_banner',
+          i18nKey: 'route.scenic_banner'
+        }
       }
     ]
   },

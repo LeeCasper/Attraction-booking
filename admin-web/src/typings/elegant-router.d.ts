@@ -54,6 +54,7 @@ declare module "@elegant-router/types" {
     "scenic": "/scenic";
     "scenic_announcement": "/scenic/announcement";
     "scenic_area": "/scenic/area";
+    "scenic_banner": "/scenic/banner";
     "system": "/system";
     "system_admin-user": "/system/admin-user";
     "system_config": "/system/config";
@@ -164,6 +165,7 @@ declare module "@elegant-router/types" {
     | "order_refund"
     | "scenic_announcement"
     | "scenic_area"
+    | "scenic_banner"
     | "system_admin-user"
     | "system_config"
     | "system_operation-log"

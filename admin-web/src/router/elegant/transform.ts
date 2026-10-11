@@ -200,6 +200,7 @@ const routeMap: RouteMap = {
   "scenic": "/scenic",
   "scenic_announcement": "/scenic/announcement",
   "scenic_area": "/scenic/area",
+  "scenic_banner": "/scenic/banner",
   "system": "/system",
   "system_admin-user": "/system/admin-user",
   "system_config": "/system/config",

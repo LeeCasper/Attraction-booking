@@ -119,3 +119,42 @@ export function fetchDeleteAnnouncement(id: number) {
     method: 'delete'
   });
 }
+
+// ============ 首页轮播图 ============
+//
+// 与景区**解耦**的一组图（见 `typings/api/scenic.d.ts` 的 Banner 注释）：
+// 后台单独维护、可排序可启停，每张可选跳转到某个景点。
+
+/** 轮播图列表（含停用，按 sort 升序） */
+export function fetchGetBanners() {
+  return request<Api.Scenic.Banner[]>({
+    url: '/admin/scenic/banners',
+    method: 'get'
+  });
+}
+
+/** 新增轮播图 */
+export function fetchCreateBanner(data: Api.Scenic.BannerPayload) {
+  return request<{ id: number }>({
+    url: '/admin/scenic/banners',
+    method: 'post',
+    data
+  });
+}
+
+/** 修改/启停轮播图 */
+export function fetchUpdateBanner(id: number, data: Api.Scenic.BannerPayload) {
+  return request<null>({
+    url: `/admin/scenic/banners/${id}`,
+    method: 'put',
+    data
+  });
+}
+
+/** 删除轮播图 */
+export function fetchDeleteBanner(id: number) {
+  return request<null>({
+    url: `/admin/scenic/banners/${id}`,
+    method: 'delete'
+  });
+}

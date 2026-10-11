@@ -1,13 +1,14 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Announcement, ScenicArea } from '../../database/entities/scenic.entity';
+import { Announcement, Banner, ScenicArea } from '../../database/entities/scenic.entity';
 
 @Injectable()
 export class ScenicService {
   constructor(
     @InjectRepository(ScenicArea) private readonly areaRepo: Repository<ScenicArea>,
     @InjectRepository(Announcement) private readonly annoRepo: Repository<Announcement>,
+    @InjectRepository(Banner) private readonly bannerRepo: Repository<Banner>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -103,6 +104,33 @@ export class ScenicService {
     const a = await this.annoRepo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('公告不存在');
     await this.annoRepo.update(id, body);
+    return null;
+  }
+
+  // ---------------------------------------------------------------- 首页轮播图
+
+  /** 后台列表：全部（含停用），按 sort 升序 */
+  listBanners() {
+    return this.bannerRepo.find({ order: { sort: 'ASC', id: 'ASC' } });
+  }
+
+  async createBanner(body: Partial<Banner>) {
+    const b = await this.bannerRepo.save(this.bannerRepo.create({ ...body, status: body.status ?? 1 }));
+    return { id: Number(b.id) };
+  }
+
+  async updateBanner(id: number, body: Partial<Banner>) {
+    const b = await this.bannerRepo.findOne({ where: { id } });
+    if (!b) throw new NotFoundException('轮播图不存在');
+    // ⚠️ `update` 会忽略 undefined 的字段（= 不改动），所以**清空跳转景点要传 null**
+    await this.bannerRepo.update(id, body);
+    return null;
+  }
+
+  async removeBanner(id: number) {
+    const b = await this.bannerRepo.findOne({ where: { id } });
+    if (!b) throw new NotFoundException('轮播图不存在');
+    await this.bannerRepo.delete(id);
     return null;
   }
 

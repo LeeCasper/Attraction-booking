@@ -22,12 +22,9 @@ class CreateAreaDto {
   // `repo.update(id, body)` 会忽略 undefined 的字段，不传等于保持原值（「清除」按钮会变成没反应）。
   @IsOptional() @IsString() @MaxLength(255) coverUrl?: string | null;
   /**
-   * 首页轮播图。与封面同一套口径（存相对路径）；不传 = 回落到封面。
-   * 之所以分三个字段：三处的画幅不同 —— 列表卡/推荐卡要横图、轮播要宽图、
-   * 购票页头卡是 64×64 的方图，一张图在三处里必然有两处是被裁的。
+   * 购票页头卡缩略图（建议方图）；不传 = 回落到封面。
+   * 首页轮播图**不在这里** —— 它是独立的一组（`banner` 表，后台「首页轮播图」页面维护）。
    */
-  @IsOptional() @IsString() @MaxLength(255) bannerUrl?: string | null;
-  /** 缩略图（购票页头卡，建议方图）；不传 = 回落到封面 */
   @IsOptional() @IsString() @MaxLength(255) thumbnailUrl?: string | null;
   /** 景点分类，决定小程序「景点选择」页归到哪个 tab；不传 = 未分类（只在「全部景点」出现） */
   @IsOptional() @IsIn(AREA_CATEGORIES as unknown as string[]) @IsString() category?: string;
@@ -50,6 +47,20 @@ class CreateAreaWithDefaultsDto extends CreateAreaDto {
 class GenerateAreaDefaultsDto {
   @IsOptional() @IsInt() @Min(1) @Max(30) defaultStockDays?: number;
   @IsOptional() @IsInt() @Min(1) @Max(100000) defaultSlotStock?: number;
+}
+
+class CreateBannerDto {
+  /** 图片（相对路径）；必填 —— 一张没有图的轮播没有意义 */
+  @IsString() @MinLength(1) @MaxLength(255) imageUrl: string;
+  /** 标题：**没有跳转景点时**显示在图上（有跳转时显示的是景点名） */
+  @IsOptional() @IsString() @MaxLength(64) title?: string;
+  @IsOptional() @IsString() @MaxLength(64) subtitle?: string;
+  /** 跳转景点；不传/null = 不跳转，只展示图（那屏不可点） */
+  @IsOptional() @IsInt() @Min(1) scenicAreaId?: number | null;
+  /** 排序：小的在前 */
+  @IsOptional() @IsInt() @Min(0) @Max(9999) sort?: number;
+  /** 1 启用 / 2 停用 */
+  @IsOptional() @IsIn([1, 2]) status?: number;
 }
 
 class CreateAnnouncementDto {
@@ -131,6 +142,46 @@ export class ScenicController {
   async removeArea(@Param('id', ParseIntPipe) id: number, @Req() req: Express.Request) {
     const r = await this.scenicService.removeArea(id);
     await this.authService.writeLog(this.adminId(req), 'scenic:delete', 'scenic_area', id, null);
+    return r;
+  }
+
+  // ---------------------------------------------------------------- 首页轮播图
+  //
+  // 与景点**解耦**：后台单独维护一组（增删/排序/启停），每张可选跳转到某个景点。
+  // 之所以不放在景区表单里：轮播是一组图、还有顺序与启停，而景区是实体 ——
+  // 而且「哪个景点上首页」是运营每周都会调的事，不该去改景区档案。
+
+  @Get('banners')
+  @Permissions('scenic:read')
+  @ApiOperation({ summary: '首页轮播图列表（含停用）' })
+  listBanners() {
+    return this.scenicService.listBanners();
+  }
+
+  @Post('banners')
+  @Permissions('scenic:create')
+  @ApiOperation({ summary: '新增轮播图' })
+  async createBanner(@Body() dto: CreateBannerDto, @Req() req: Express.Request) {
+    const r = await this.scenicService.createBanner(dto);
+    await this.authService.writeLog(this.adminId(req), 'banner:create', 'banner', r.id, dto);
+    return r;
+  }
+
+  @Put('banners/:id')
+  @Permissions('scenic:update')
+  @ApiOperation({ summary: '修改/启停轮播图' })
+  async updateBanner(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateBannerDto, @Req() req: Express.Request) {
+    const r = await this.scenicService.updateBanner(id, dto);
+    await this.authService.writeLog(this.adminId(req), 'banner:update', 'banner', id, dto);
+    return r;
+  }
+
+  @Delete('banners/:id')
+  @Permissions('scenic:delete')
+  @ApiOperation({ summary: '删除轮播图' })
+  async removeBanner(@Param('id', ParseIntPipe) id: number, @Req() req: Express.Request) {
+    const r = await this.scenicService.removeBanner(id);
+    await this.authService.writeLog(this.adminId(req), 'banner:delete', 'banner', id, null);
     return r;
   }
 
