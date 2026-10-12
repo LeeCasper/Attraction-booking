@@ -329,6 +329,27 @@ export function useBookingPage() {
     }
   }
 
+  /**
+   * 从二级页返回时的重取（挂在本页的 `onShow` 上）。
+   *
+   * 「新增出行人」是 `navigateTo` 出去的二级页，本页被压在栈里**实例还在** ——
+   * 返回时 `onLoad` **不会再触发**（它一个页面实例只跑一次），只有 `onShow` 会。
+   * 不在这里重取，刚添加/删除的出行人就得切一次页面
+   * （= 让 `load()` 那个「按景点加载过就不再拉」的守卫失效）才出现 —— 用户报的就是这个。
+   *
+   * **只重取出行人**：票种/日期/余票在这几十秒里不会变，而重跑 `load()` 会按天重打一整轮
+   * 余票接口（8 天）。首屏那一次交给 `load()` —— `onShow` 紧跟在 `onLoad` 后面同步触发，
+   * 那时 `loadedForArea` 还没落值（`load()` 是异步的），这一句直接退出，不会打两遍。
+   */
+  async function onShowRefresh() {
+    if (loadedForArea === undefined) return;
+    try {
+      await refreshVisitors();
+    } catch {
+      // 出行人拉不到不该把整页变成错误态：列表保持原样，用户再进一次管理页即可重试
+    }
+  }
+
   const onPickDate = (value: string) => void pickDate(value);
   const onPickSlot = (id: number) => {
     slot.value = id;
@@ -429,6 +450,7 @@ export function useBookingPage() {
     visitors,
     pickedIds,
     selectionLabel,
+    onShowRefresh,
     pageTitle,
     areaCover,
     ticketName,

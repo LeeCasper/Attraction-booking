@@ -1,4 +1,4 @@
-import { registerDecorator, ValidationArguments, ValidationOptions } from 'class-validator';
+import { registerDecorator, ValidationOptions } from 'class-validator';
 
 /**
  * 身份证号「校验位验真」（GB 11643-1999，ISO 7064:1983 MOD 11-2）。
@@ -60,7 +60,9 @@ export function IsIdCard(validationOptions?: ValidationOptions): PropertyDecorat
       options: validationOptions,
       validator: {
         validate: (value: unknown) => typeof value === 'string' && isValidIdCard(value),
-        defaultMessage: (args: ValidationArguments) => `${String(args.property)} 不是合法的身份证号`,
+        // ⚠️ 这条消息会**原样进小程序的 toast**（客户端 `errorText()` 直接取 `msg`），
+        //    所以不能拿 `args.property` 拼 —— 那会甩给用户一句「idCard 不是合法的身份证号」。
+        defaultMessage: () => '身份证号不正确，请核对 18 位号码后重填',
       },
     });
   };

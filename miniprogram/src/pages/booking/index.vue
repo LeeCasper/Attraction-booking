@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import DateCards from '@/components/DateCards.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import VisitorPicker from '@/components/VisitorPicker.vue';
@@ -30,7 +30,7 @@ const {
   dateFade, onDateScroll, loading, error,
   dates, date, onPickDate,
   slots, slot, onPickSlot,
-  visitors, pickedIds, selectionLabel, onToggleVisitor, onAddVisitor,
+  visitors, pickedIds, selectionLabel, onShowRefresh, onToggleVisitor, onAddVisitor,
   pageTitle, areaCover, ticketName, ticketAudience, ticketPrice, unitLabel,
   ticketTypeId, ticketOptions, onPickTicketType,
   totalAmount, headcount, canSubmit, onSubmit, load,
@@ -39,6 +39,9 @@ const {
 // 每次进入都是新页面实例，所以 behavior 里那些「加载过没」的守卫自然重置，数据一定是最新的。
 // 用箭头包一层：onLoad 会传 query 对象进来，直接写 onLoad(load) 类型对不上（load 收的是 force:boolean）
 onLoad(() => { void load(); });
+// ⚠️ 进「常用出行人」页再返回时，本页实例被复用、**onLoad 不会再触发**，只有 onShow 会 ——
+//    不在这里重取出行人，刚添加完的那位要切一次页面才出现在「出行游客登记」里（用户报过）。
+onShow(() => { void onShowRefresh(); });
 </script>
 
 <!-- 由 scripts/gen-pages.mjs 从 design/reference/booking.html 生成，手工改动会被覆盖 -->
