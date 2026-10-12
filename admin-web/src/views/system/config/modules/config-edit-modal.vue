@@ -207,8 +207,25 @@ watch(visible, () => {
               @update:model-value="(v: number | undefined) => (form[field.key] = v ?? 0)"
             />
 
+            <ElSelect
+              v-else-if="field.type === 'select'"
+              :model-value="form[field.key] as string"
+              class="w-full"
+              @update:model-value="(v: string) => (form[field.key] = v)"
+            >
+              <ElOption v-for="opt in field.options ?? []" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </ElSelect>
+
+            <!-- ⚠️ 两条规矩，都实测过：
+                 ① **select 那段必须在下面这个分支之前**。新分支顺手追加到链尾是最自然的写法，
+                    但 `v-else` 后面跟 `v-else-if` 是非法链 —— vite 直接编译失败并弹错误遮罩
+                    （`v-else/v-else-if has no adjacent v-if or v-else-if`），**整页打不开**，
+                    而不是只有那一个字段没渲染。
+                 ② 这里写显式的 `v-else-if="field.type === 'switch'"` 而不是裸 `v-else`，把链走完：
+                    以后往 `ConfigFieldType` 加类型却忘了加渲染，那个字段会渲染成空白，
+                    不会静默地当成开关提交一个布尔值。 -->
             <ElSwitch
-              v-else
+              v-else-if="field.type === 'switch'"
               :model-value="form[field.key] as boolean"
               @update:model-value="(v: string | number | boolean) => (form[field.key] = !!v)"
             />

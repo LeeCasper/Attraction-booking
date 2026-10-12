@@ -70,3 +70,8 @@ directions_walk
 meeting_room
 airline_stops
 nightlight
+wb_cloudy
+rainy
+ac_unit
+thunderstorm
+foggy

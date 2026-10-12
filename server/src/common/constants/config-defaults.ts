@@ -30,3 +30,28 @@ export const DEFAULT_REFUND_RULE = {
   feeRate: 0.2,
   expiredNoRefund: true,
 };
+
+/**
+ * 天气（首页 banner 那一行，`modules/system/weather.service.ts`）。
+ *
+ * ⚠️ **默认 `provider: 'off'`（关闭）**，这是刻意的：新部署不该在运营配好密钥与地点之前
+ * 就往上游打请求，更不该在首页显示一份不知道哪个城市的天气。
+ * 开关就是下拉的第三个选项 —— **不另设 `enabled` 布尔量**，免得出现
+ * 「provider=off 但 enabled=true」这种自相矛盾、还得猜谁赢的配置。
+ *
+ * 密钥（`QWEATHER_KEY` / `AMAP_KEY`）**不在库里、只在服务器 .env** ——
+ * 与微信支付凭据同一套理由：进库 = 明文落库 + 进备份 + 任何有 `config:read` 的角色都能读到。
+ * 两份 key 都留着，所以在后台切换数据源不用登服务器改配置。
+ */
+export const DEFAULT_WEATHER_CONFIG = {
+  /** `off` = 不显示 | `qweather` = 和风天气 | `amap` = 高德开放平台 */
+  provider: 'off',
+  /**
+   * 地点，两种数据源填法不同：
+   *   - 和风：`经度,纬度`（如 `113.60,33.00`）
+   *   - 高德：行政区编码 adcode（驻马店市 = `411700`）
+   */
+  location: '',
+  /** 缓存分钟数（上游本身十几分钟才更新一次） */
+  cacheMinutes: 10,
+};

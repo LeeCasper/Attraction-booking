@@ -28,6 +28,7 @@ import { CreateOrderDto } from '../order/dto/create-order.dto';
 import { CredentialService } from '../verify/credential.service';
 import { RefundStatus } from '../../common/enums/status.enum';
 import { SysConfigService } from '../system/sys-config.service';
+import { WeatherService } from '../system/weather.service';
 import { DEFAULT_PLATFORM_SETTINGS } from '../../common/constants/platform-defaults';
 
 class MiniLoginDto {
@@ -51,6 +52,7 @@ export class MiniController {
     private readonly wxpay: WxPayService,
     private readonly credentialService: CredentialService,
     private readonly sysConfig: SysConfigService,
+    private readonly weather: WeatherService,
   ) {}
 
   // ==================== 登录 ====================
@@ -64,18 +66,28 @@ export class MiniController {
   // ==================== 景区与票务（无需登录）====================
 
   /**
-   * 平台品牌与联系方式（顶栏名称/英文名/副标题、客服电话、版本号…）。
+   * 平台品牌与联系方式（顶栏名称/英文名/副标题、客服电话、版本号…），外加**首页那一行天气**。
    *
-   * 只返回 `platform` 这一包，不返回合并后的全量配置 —— 小程序用不到退款费率、
-   * 告警阈值这些内部口径，暴露面越窄越不容易被动。
+   * 只返回 `platform` 这一包（外加算出来的 `weather`），不返回合并后的全量配置 ——
+   * 小程序用不到退款费率、告警阈值这些内部口径，暴露面越窄越不容易被动。
+   *
+   * `weather` 是**算出来的、不是存出来的**：`{ text, temp, category }`，拉不到/关闭/没配全都是
+   * `null`（客户端对三种情况一视同仁：不显示那一行）。**它必须永远是 null 兜底，
+   * 不能在 `DEFAULT_PLATFORM_SETTINGS` 里放一个假的默认天气** —— 那会把「拉不到」伪装成有值。
+   * 两个 `await` 并发：天气超时 1.5 秒也不该叠在配置读取后面（`WeatherService` 自己吞掉异常，
+   * 不会把本接口打挂，见其类注释 ①）。
    *
    * 匿名可达：`MiniAuthGuard` 是**逐路由** `@UseGuards` 挂的，这里不写就放行
    * （与上面几个 `areas` 接口同款）。小程序那边用 `{ anonymous: true }` 调。
    */
   @Get('platform/settings')
-  @ApiOperation({ summary: '平台信息（免登录）' })
-  platformSettings() {
-    return this.sysConfig.get('platform', DEFAULT_PLATFORM_SETTINGS);
+  @ApiOperation({ summary: '平台信息（含天气实况，免登录）' })
+  async platformSettings() {
+    const [platform, weather] = await Promise.all([
+      this.sysConfig.get('platform', DEFAULT_PLATFORM_SETTINGS),
+      this.weather.current(),
+    ]);
+    return { ...platform, weather };
   }
 
   @Get('areas')

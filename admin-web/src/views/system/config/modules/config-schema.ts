@@ -8,7 +8,7 @@
  * ⚠️ `percent` 类型的 `min`/`max`/`value` 都是**显示口径（0~100）**，
  * 提交时会 ÷100 存回 `sys_config`（后端存的是 0~1 的比率，如 0.8）。
  */
-export type ConfigFieldType = 'text' | 'number' | 'percent' | 'switch' | 'image';
+export type ConfigFieldType = 'text' | 'number' | 'percent' | 'switch' | 'image' | 'select';
 
 export interface ConfigField {
   key: string;
@@ -20,6 +20,12 @@ export interface ConfigField {
   step?: number;
   /** 字段下方的说明文字 */
   help?: string;
+  /**
+   * `select` 的候选项。⚠️ `value` 只用**字符串** ——
+   * `toFormValue`/`toStoredValue` 的字符串兜底分支就是靠这一条才不用改；
+   * 哪天要用数字值，那两个函数必须同时加 `select` 分支。
+   */
+  options?: { label: string; value: string }[];
 }
 
 export interface ConfigSchema {
@@ -119,6 +125,39 @@ export const CONFIG_SCHEMA: Record<string, ConfigSchema> = {
         help: '预约日已过之后是否一律不予退款'
       }
     ]
+  },
+  weather: {
+    title: '首页天气',
+    fields: [
+      {
+        key: 'provider',
+        label: '数据源',
+        type: 'select',
+        options: [
+          { label: '关闭（首页不显示天气）', value: 'off' },
+          { label: '和风天气', value: 'qweather' },
+          { label: '高德开放平台', value: 'amap' }
+        ],
+        help: '选「关闭」就不显示那一行，也不会去请求上游（默认就是关闭）'
+      },
+      {
+        key: 'location',
+        label: '地点',
+        type: 'text',
+        help:
+          '和风填「经度,纬度」（如 113.60,33.00，景区坐标比行政区更准）；' +
+          '高德填行政区编码 adcode（驻马店市是 411700）。填错或填空都不会显示天气，不会报错'
+      },
+      {
+        key: 'cacheMinutes',
+        label: '缓存时间（分钟）',
+        type: 'number',
+        min: 5,
+        max: 60,
+        step: 1,
+        help: '上游本身十几分钟才更新一次，缓存久一点不影响准确度；拉取失败时 60 秒内不重试'
+      }
+    ]
   }
 };
 
@@ -126,6 +165,9 @@ export const CONFIG_SCHEMA: Record<string, ConfigSchema> = {
 export function fieldDefault(field: ConfigField): string | number | boolean {
   if (field.type === 'switch') return true;
   if (field.type === 'text') return '';
+  // ⚠️ select 必须在 `field.min ?? 0` **之前**返回：落到那一条会给下拉一个数字 0，
+  //    匹配不上任何选项，保存时还会把 "0" 静默写回库里（下拉看着是空的，值却变了）
+  if (field.type === 'select') return field.options?.[0]?.value ?? '';
   return field.min ?? 0;
 }
 

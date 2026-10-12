@@ -23,9 +23,15 @@
  *      没绑的显示这张图自己的标题/副标题，**状态胶囊与「在园率」也一并隐藏**（它们说的就是在园状态），
  *      且那屏**不可点**（它只是一张公告图）
  *
- * ⚠️ 天气（晴 21°C）是设计稿的**写死文案**，后端没有天气数据 —— 每一屏都渲染同一句，
- *    所以看起来是静止的。见 README 的「仍是静态」清单。
+ * ④ 天气那一行读 `store/settings` 的 `weather`（后端 `platform/settings` 里算出来的实况）。
+ *    **拉不到就是 `null`，整块不渲染** —— 设计稿画的是「晴 21°C」，但上游挂了、
+ *    或者运营还没配数据源时，宁可这一行少一块，也不能显示一份不知道哪来的天气。
+ *    这里**直接读 store、不做成 prop**：首页 `views/home/index.vue` 是生成物，
+ *    加 prop 会逼着改 `scripts/page-bindings.mjs` 再重跑 `gen:pages`，而 store 是模块级 ref、
+ *    `App.vue` 启动时已经拉过（与 `PageHeader.vue` 同一套做法）。
  */
+import { computed } from 'vue';
+import { platformSettings } from '@/store/settings';
 import type { BannerSlide } from '@/views/home/behavior';
 
 const props = defineProps<{ slides: BannerSlide[] }>();
@@ -35,6 +41,40 @@ const emit = defineEmits<{ pick: [id: number] }>();
 function onTap(s: BannerSlide) {
   if (s.areaId !== null) emit('pick', s.areaId);
 }
+
+/** 「小雨 18°C」——上游原文 + 温度，不自己拼词 */
+const weatherText = computed(() => {
+  const w = platformSettings.value.weather;
+  return w ? `${w.text} ${w.temp}°C` : '';
+});
+
+/**
+ * 类别 → 图标。**服务端只给归一化类别，不认识图标名**（换图标库不该动后端）。
+ * 认不出的类别（`unknown`，如「冰雹」「浮尘」）**不画图标**、只显示文字 ——
+ * 宁缺毋错：把沙尘暴画成太阳比少一个图标糟得多。
+ *
+ * ⚠️ 图标名写成 **SCREAMING_CASE 常量**而不是 `icon-${name}` 拼出来的：
+ * `check:classes` 只扫**字面量** class 串（本文件下面那些 SCREAMING_CASE 常量的值，
+ * 以及模板里的静态 class），拼出来的名字它看不见 —— 而**引用一个不存在的图标名不会报错**，
+ * `.msi` 会退化成「1em 的 currentColor 实心方块」，看起来像个深色图标（踩过一次）。
+ */
+const WX_SUNNY = 'msi icon-wb_sunny text-13px text-screen-gilt-gold';
+const WX_CLOUDY = 'msi icon-wb_cloudy text-13px text-screen-gilt-gold';
+const WX_RAIN = 'msi icon-rainy text-13px text-screen-gilt-gold';
+const WX_SNOW = 'msi icon-ac_unit text-13px text-screen-gilt-gold';
+const WX_THUNDER = 'msi icon-thunderstorm text-13px text-screen-gilt-gold';
+const WX_FOG = 'msi icon-foggy text-13px text-screen-gilt-gold';
+
+const WEATHER_ICON_CLASS: Record<string, string> = {
+  sunny: WX_SUNNY,
+  cloudy: WX_CLOUDY,
+  overcast: WX_CLOUDY,
+  rain: WX_RAIN,
+  snow: WX_SNOW,
+  thunder: WX_THUNDER,
+  fog: WX_FOG,
+};
+const weatherIconClass = computed(() => WEATHER_ICON_CLASS[platformSettings.value.weather?.category ?? ''] ?? '');
 
 // —— 以下 class 串与设计稿逐字对应（已消毒），勿手改措辞 ——
 const WRAP = 'relative w-full h-56 overflow-hidden bg-surface-container';
@@ -91,9 +131,10 @@ const DOT_OFF = 'w-1_5 h-1_5 rounded-full bg-white_20';
                   <text :class="PRESENCE">{{ s.presenceLabel }}</text>
                 </view>
                 <view v-else />
-                <view :class="WEATHER">
-                  <view class="msi icon-wb_sunny text-13px text-screen-gilt-gold" />
-                  <text>晴 21°C</text>
+                <!-- 天气拉不到 / 运营没配 → 整块不渲染（不留空胶囊） -->
+                <view v-if="weatherText" :class="WEATHER">
+                  <view v-if="weatherIconClass" :class="weatherIconClass" />
+                  <text>{{ weatherText }}</text>
                 </view>
               </view>
               <view :class="BOTTOM_ROW">

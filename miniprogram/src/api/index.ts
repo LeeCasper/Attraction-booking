@@ -103,6 +103,17 @@ export interface PlatformSettings {
   productName?: string;
   /** 版本号，自带 V 前缀 */
   version?: string;
+  /**
+   * 首页 banner 那一行的天气实况，**服务端算出来的、不是配置项**。
+   *
+   * 三种情况都是 `null`（客户端一视同仁：**那一行不渲染**）：
+   * 运营把数据源关掉了、密钥/地点没配、上游拉不到。
+   * ⚠️ 别给它兜一个默认值 —— 那等于在首页显示一份不知道从哪来的天气。
+   *
+   * `category` 是归一化的 8 个值（sunny/cloudy/overcast/rain/snow/thunder/fog/unknown），
+   * 图标由小程序自己按类别选（服务端不认识 Material 图标名）。
+   */
+  weather?: { text: string; temp: number; category: string } | null;
 }
 
 export const platformApi = {

@@ -28,8 +28,12 @@ import { CAPACITY_BANNER_LABEL, areaCoverOf, areaStockStatus, capacityTone } fro
  *   - 公告         `GET /areas/:id` 的 announcements（U-001）
  *   - 两张快捷卡    切 tab（U-002：一键进入预约页）
  *
- * **仍不接**（设计稿首页没有展示位，或后端没有数据源）：开园状态与天气、便民服务四宫格、
+ * **仍不接**（设计稿首页没有展示位，或后端没有数据源）：开园状态、便民服务四宫格、
  * 景区简介与开放时间。见 README 的「仍是静态」清单。
+ *
+ * ⚠️ **天气不在这里**：它读的是 `store/settings` 的 `weather`（后端 `platform/settings` 里算出来的），
+ * 由 `components/BannerCarousel.vue` 直接消费 —— 本文件的 `BannerSlide` 里**没有**天气字段，
+ * 也不用为了它多打一个请求。
  */
 
 /** 轮播位最多几个景点（再多就不是「轮播」而是「翻页」了；全部景点在「景点选择」页里） */

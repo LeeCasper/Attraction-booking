@@ -81,4 +81,23 @@ export default () => ({
     /** 支付超时（分钟），与 order 模块一致 */
     payTimeoutMinutes: Number(process.env.PAY_TIMEOUT_MINUTES ?? 15),
   },
+  /**
+   * 天气（首页 banner 那一行）。
+   *
+   * ⚠️ 这里只有**密钥与上游地址**；「用哪家、哪个城市、缓存多久」在后台
+   * 「系统管理 → 参数配置 → weather」里改（`sys_config.weather`），运营的事不下发到 env。
+   * 两份 key 都留着 ⇒ 后台切换数据源不用登服务器改配置、更不用重启。
+   */
+  weather: {
+    qweatherKey: process.env.QWEATHER_KEY ?? '',
+    amapKey: process.env.AMAP_KEY ?? '',
+    /**
+     * 覆盖上游域名（留空 = 用代码里的默认值）。
+     * 两个用途：① 和风新版账号给的是**专属域名**（形如 `xxx.re.qweatherapi.com`）；
+     * ② 自测/离线跑冒烟时指向本地 stub，不依赖公网与真实 key。
+     */
+    apiBase: process.env.WEATHER_API_BASE ?? '',
+    /** 上游超时（毫秒）。它是串在 platform/settings 上的，别调大 */
+    timeoutMs: Number(process.env.WEATHER_TIMEOUT_MS ?? 2500),
+  },
 });

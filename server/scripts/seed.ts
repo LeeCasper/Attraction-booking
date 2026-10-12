@@ -16,6 +16,7 @@ import {
   DEFAULT_TICKET_TYPES,
   DEFAULT_TIME_SLOTS,
 } from '../src/common/constants/scenic-defaults';
+import { DEFAULT_WEATHER_CONFIG } from '../src/common/constants/config-defaults';
 import { DEFAULT_PLATFORM_SETTINGS } from '../src/common/constants/platform-defaults';
 import {
   DEFAULT_CAPACITY_ALARM,
@@ -198,16 +199,19 @@ async function main() {
   }
 
   // ---- 参数配置 ----
-  // 这四行的 `config_value` 现在**真的会被读取**（`SysConfigService`）：
+  // 这五行的 `config_value` 现在**真的会被读取**（`SysConfigService`）：
   //   reservation    → 下单时的支付超时（order.service.ts）
   //   capacity_alarm → 承载量分级告警阈值（jobs/stats.job.ts）
   //   refund         → 退款手续费全局兜底，票种自身规则按字段覆盖（pay.service.ts）
   //   platform       → 小程序顶栏品牌/联系方式（GET /api/mini/platform/settings）
+  //   weather        → 首页那一行天气：数据源/地点/缓存时长（modules/system/weather.service.ts）
+  //                    ⚠️ 默认 `provider: 'off'`（不显示），密钥在 .env 里，两者都配好才出天气
   const configs: [string, object, string][] = [
     ['reservation', DEFAULT_RESERVATION, '预约规则：支付超时时间'],
     ['capacity_alarm', DEFAULT_CAPACITY_ALARM, '承载量分级预警阈值(在园率)'],
     ['refund', DEFAULT_REFUND_RULE, '全局退改规则(票种可覆盖)'],
     ['platform', DEFAULT_PLATFORM_SETTINGS, '平台信息(名称/联系方式/版本)'],
+    ['weather', DEFAULT_WEATHER_CONFIG, '天气数据源/地点/缓存(密钥在.env，默认关闭)'],
   ];
   for (const [key, value, remark] of configs) {
     await conn.query(

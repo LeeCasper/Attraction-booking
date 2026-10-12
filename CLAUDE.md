@@ -35,8 +35,12 @@ npm run smoke:gate          # M3：37 项断言（凭证/闸机核验/核销/通
 npm run smoke:m4            # M4：25 项断言（运营分析/导出/对账/备份/承载预警，约 1.5 分钟）
 npm run smoke:visitor       # 常用出行人：40 项断言（CRUD/身份证校验位验真/脱敏/越权/删除保护）
 npm run smoke:date          # 业务日期工具：19 项断言（固定时刻 + 跨时区一致性，不依赖墙上时钟）
-npm run smoke:config        # 参数配置：31 项断言（平台信息端点/配置往返/退款费率真的按配置走/
-                            #              支付超时真的按配置走/新建景区一键生成默认时段票种库存且幂等）
+npm run smoke:config        # 参数配置：45 项断言（平台信息端点/配置往返/退款费率真的按配置走/
+                            #              支付超时真的按配置走/新建景区一键生成默认时段票种库存且幂等/
+                            #              首页天气：关闭·没配·上游报错一律 null 且接口不 500）
+                            #   其中 3 条「上游联通与缓存」要本机 stub：server/.env 里同时设
+                            #   WEATHER_API_BASE=http://127.0.0.1:<端口> 与一个非空的 QWEATHER_KEY
+                            #   并重启服务；没配则**打印原因跳过**（42 项），不静默
 npm run lint                # tsc --noEmit
 npm run build && npm start  # 生产构建
 
@@ -328,7 +332,11 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
     - ⚠️ **不能只在 `active` 变 true 时重取**：本格里「进二级页再返回」`active` 压根不变。
       也不能不看 `shellShowTick` 就在每次 `active` 变 true 时无条件重取 —— 那会让「点一下 tab 打三个接口」，
       与「首次可见才拉数据」的初衷相反。
-    - 二级页自己**不受影响**（它们是真实页面，`onShow(load)` 就够，见 `pages/orders/index.vue`）。
+    - 二级页自己**不受影响** —— 但**前提是它真的注册了 `onShow`**：二级页之间互相压栈时，
+      被压住那一页的实例**是活的**（H5 侧 Vue 的 KeepAlive 把它挪进游离容器、小程序侧本来就是栈里保活），
+      返回时 **`onLoad` 不会再触发**（一个实例只跑一次），只有 `onShow` 会。
+      `pages/orders/index.vue` 是 `onShow(load)`（对的）；`pages/booking/index.vue` **只写了 `onLoad`**，
+      于是「进『常用出行人』页加完人再返回」购票页还是旧列表，要切一次页面才刷新（用户报过，已修）。
     - 同类问题还会出现在「服务端自己改了状态」的场景（支付超时任务自动取消某一单）——
       返回外壳时的这一次重取正好把它一起兜住。
 
@@ -848,3 +856,67 @@ Redis 不可用时降级为纯 MySQL 乐观锁（性能下降但不超卖），�
   H5 里量节点身份，切 tab 回来与从二级页返回**前后都不是同一个节点**（= 确实重建了），
   且重建后仍是 6 个芯片、首片宽 82px。真机上没恢复的话，下一步看开发者工具的 Wxml 面板里
   `<category-tabs>` 在不在（在 = 渲染了但没量到尺寸；不在 = 压根没渲染）。详见「关键约束」第 22 条。
+- **修掉「新增出行人后返回，购票页不显示刚加的那位」**（用户报的）：`pages/booking/index.vue`
+  只把首次加载挂在 `onLoad` 上，而「新增出行人」是 `navigateTo` 出去的二级页 —— 返回时页面实例
+  是活的、`onLoad` **不会再触发**，于是「出行游客登记」还挂着离开前的列表
+  （`load()` 那条「按景点加载过就不再拉」的守卫也让手动重进无效）。现在本页补挂 `onShow`
+  → behavior 的 `onShowRefresh()`，**只重取出行人**（票种/日期/余票在这几十秒里不会变，
+  重跑 `load()` 要按天重打 8 次余票接口）；首屏那一次仍归 `load()`
+  —— `onShow` 紧跟 `onLoad` 同步触发，那时 `loadedForArea` 还没落值，这一句直接退出，不打两遍。
+  **验证是 H5 真点击端到端 + 反向对照**：进「常用出行人」→ 开表单填姓名/身份证（校验位合法的号）→
+  保存 → 真触摸点返回，断言购票页的「出行游客登记」里出现新名字；把 `onShow(...)` 注掉再跑一遍，
+  脚本**必须失败** —— 实测复现了用户报的现象（返回后列表一动不动）。详见「关键约束」第 20 条。
+- **首页天气接真数据 + 参数配置新增 `select` 字段类型**（用户提的是「后台好像还没有可以配置参数的地方 ——
+  比如微信支付的配置、首页的天气显示」）：
+  - **先澄清**：参数配置页**早就在**（「系统管理 → 参数配置」，四组：`platform` / `reservation` /
+    `capacity_alarm` / `refund`，改完真生效）。用户会以为没有，最可能的原因是**非超管账号进去只看到「只读」**
+    ——「编辑」按钮由 `config:update` 门控，而它只有超管有（`config:read` 给了 admin/finance）
+  - **微信支付凭据不进后台（用户已确认口径：只读自检）**，三条理由：商户私钥/APIv3 密钥进库 =
+    明文落库 + 进备份 + 任何 `config:read` 的角色都能读到，而后台只有密码一层；这些值进程启动时就要装好，
+    放进后台会给人「改一下就生效」的错觉；回调地址要与微信商户后台登记的一字不差，改错是**收单不生效**。
+    「后台该显示的是状态不是密钥」——只读自检面板是**下一轮**的事
+  - **天气**：设计稿首页 banner 有展示位，而后端一个数据源都没有（那句「晴 21°C」是写死的，每屏同一句）。
+    新增 `modules/system/weather.service.ts` + `weather.parse.ts`：
+    - **两家上游都支持**（和风 `devapi.qweather.com` / 高德 `restapi.amap.com`），后台下拉切换；
+      **两份 key 都在 `.env`**（`QWEATHER_KEY` / `AMAP_KEY`）⇒ 后台换数据源不用登服务器改配置
+    - 形状固定在 `GET /api/mini/platform/settings` 的 `weather: { text, temp, category } | null`：
+      `category` 是归一化的 8 类（`sunny/cloudy/overcast/rain/snow/thunder/fog/unknown`），
+      **图标由小程序按类别选**（服务端不认识 Material 图标名）。⚠️ 归一化输出**绝不能**在
+      `DEFAULT_PLATFORM_SETTINGS` 里放默认值 —— 那会把「拉不到」伪装成有值，而客户端正是靠
+      「键在 + 值为 null」决定不渲染那一行
+    - **它是可选依赖**：上游超时 2.5 秒、失败写 **60 秒负缓存**（否则上游挂掉时首页每次冷启动都等一次超时）、
+      **任何异常都吞掉返回 `null`** —— 它串在首屏要读的 `platform/settings` 上，这里一抛顶栏/页脚/凭证水印全塌
+    - **服务启动时预热一次**（`onModuleInit`，照 `wxpay`/`mini-auth` 的启动自检）：实测过「进程起来后第一次出网」
+      的冷启动代价（DNS+TLS+代理）能把超时用满，而那一次失败会被写进 60 秒负缓存 ——
+      于是**首页那 60 秒都没有天气，明明上游是好的**。预热把这笔钱挪到启动时（没人在等），
+      首位访客拿到的就是缓存值（实测：预热后首个请求 **5.5ms** 返回真数据）。
+      ⚠️ 同时把默认超时定成 **2500ms** 而不是 1500：本机走代理 curl 一次要 1.43–1.49 秒，
+      1500 正好卡在线上（Node 的 fetch 不走 `*_proxy` 环境变量，所以本机是直连、更快，
+      但换个环境就可能整条链路都失败）
+    - `fetch` 失败时 `err.message` **永远只有一句 `fetch failed`**，真原因在 `err.cause`（可能还嵌一层
+      `AggregateError.errors[].code`）—— 服务里专门有个 `describeFetchError()` 把这条链拼成人话
+      （`UND_ERR_CONNECT_TIMEOUT` / `ENOTFOUND` / 证书错误…）。不拼的话运维只能看到「没显示天气」
+    - 平台级（一个城市一份）：现有景点全在驻马店市，且 `scenic_area` **没有经纬度字段**（要按景点得先加两列）
+    - 解析写成**纯函数**（`weather.parse.ts`）就是为了能离线断言：冒烟里打**样本**而不是打公网，
+      既不依赖 key 也不依赖额度；上游联通/缓存/负缓存 3 条用**脚本自己起的 stub**（`WEATHER_API_BASE` 指向本机），
+      没配就**打印原因跳过**（照 `smoke:gate` 那条条件断言的先例）。⚠️ 只配 `WEATHER_API_BASE` 不够 ——
+      **没配 key 时 `WeatherService` 根本不打上游**，那 3 条会以「上游没答」的形式失败（卡在门口而非卡在上游），
+      所以判据里把 key 也一起查
+    - 小程序侧只动 `components/BannerCarousel.vue`：**直接读 `store/settings`**、不做成 prop
+      （首页 `views/home/index.vue` 是生成物，加 prop 会逼着改 `page-bindings.mjs` 再重跑 `gen:pages`）；
+      `store/settings.ts` 的 `DEFAULT` **刻意不给 `weather` 兜默认值**（同一条理由：兜了就是永远显示假天气）。
+      图标名写成 **SCREAMING_CASE 常量**而不是 `icon-${name}` 拼的 —— `check:classes` 只扫字面量，
+      拼出来的名字它看不见，而**引用一个不存在的图标名不报错**，`.msi` 会退化成实心深色方块（约束 9 那个坑）。
+      新增 5 个图标（`wb_cloudy`/`rainy`/`ac_unit`/`thunderstorm`/`foggy`，共 77 个）
+  - **参数配置新增 `select` 字段类型**（天气数据源是第一个使用者）：`ConfigFieldType` 加 `'select'` +
+    `options`；⚠️ **`fieldDefault()` 必须补 select 分支**，否则落到 `field.min ?? 0` 会给下拉一个数字 `0`，
+    匹配不上任何选项、保存时还会把 `"0"` 静默写回库；`config-edit-modal.vue` 里要插在 **`ElSwitch` 之前**，
+    并把那个**裸 `v-else`** 改成 `v-else-if="field.type === 'switch'"` 把链走完。⚠️ 真正的坑是**顺序**：
+    select 那段必须在裸 `v-else` **之前**，追加到链尾（最自然的写法）会让 vite 编译失败、**整页弹错误遮罩**
+    （`v-else/v-else-if has no adjacent v-if or v-else-if`）—— 两条都实测过，反向对照见下面「验证」那句
+  - 验证：`smoke:config` 31 → **45**（`finally` 还原配置，可重复跑）；H5 + CDP 端到端看到 banner 上
+    「小雨 18°C」+ `icon-rainy`；后台开真弹窗点过一遍（`编辑配置：weather` → 数据源是**下拉**、三个选项、
+    当前选中「关闭」）。**三条反向对照**都做了 —— ①把数据源改回 `off`，那一块**从 DOM 里消失**
+    （不是变空字符串）；②把 `rain` 故意映射成太阳图标，图标断言**确实会失败**；
+    ③把 select 分支挪到裸 `v-else` 之后，vite **当场编译失败**（整页遮罩）—— 前两条证明测试有牙，
+    第三条证明那个顺序规矩不是我想当然的（只会通过的测试等于没写）

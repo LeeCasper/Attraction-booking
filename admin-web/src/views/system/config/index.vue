@@ -79,8 +79,16 @@ function openEditModal(row: Api.System.Config) {
           <span class="font-medium">refund</span>
           ：全局退改规则，如免手续费天数、手续费率、过期是否可退。
         </li>
+        <li>
+          <span class="font-medium">weather</span>
+          ：首页那一行天气的数据源（关闭 / 和风 / 高德）、地点与缓存时长。
+          <span class="text-gray-400">
+            密钥不在这一页 —— 它放在服务器的 .env 里（<code>QWEATHER_KEY</code> / <code>AMAP_KEY</code>），
+            理由与微信支付一致：密钥进库等于明文落库、进备份，任何能看配置的角色都能读到。
+          </span>
+        </li>
       </ul>
-      <p class="mt-4px">以上四项有专用表单；其它配置键回落到 JSON 编辑器。</p>
+      <p class="mt-4px">以上五项有专用表单；其它配置键回落到 JSON 编辑器。</p>
     </ElAlert>
     <ElCard class="card-wrapper sm:flex-1-hidden">
       <template #header>

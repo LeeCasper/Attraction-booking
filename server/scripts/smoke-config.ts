@@ -13,17 +13,29 @@
  *   4. 承载量阈值 → 等级表的纯函数映射
  *   5. 支付超时**真的**按 `sys_config.reservation.payTimeoutMinutes` 走
  *   6. 一键生成默认时段/票种/库存，且**第二次调用是幂等的**
+ *   7. 首页天气：关闭/没配/配错**一律返回 `null` 且接口不 500**（它是可选依赖），
+ *      上游解析是纯函数（打样本断言，不依赖公网与真实 key）；
+ *      另有 3 条**上游相关**的断言需要把 `WEATHER_API_BASE` 指向本机再启动服务
+ *      （那样脚本能自己起一个 stub 当上游），没配就**打印原因跳过**，不静默
  *
  * 用法：`npm run smoke:config`（需要 ts-node，与 seed 同款：`--transpile-only`）
  * 可重复执行：脚本自己创建票种/景区/出行人，所有被改过的配置在结束前还原。
  */
+import { createServer } from 'node:http';
+import { config as loadEnv } from 'dotenv';
 import { businessToday, addDaysStr } from '../src/common/utils/date.util';
 import { buildCapacityLevels } from '../src/common/utils/capacity.util';
+import { categoryOf, parseAmap, parseQweather } from '../src/modules/system/weather.parse';
 import {
   DEFAULT_CAPACITY_ALARM,
   DEFAULT_REFUND_RULE,
   DEFAULT_RESERVATION,
+  DEFAULT_WEATHER_CONFIG,
 } from '../src/common/constants/config-defaults';
+
+// 天气那 3 条上游断言要读 `WEATHER_API_BASE`，值就在服务端用的这份 `.env` 里
+// （照 seed.ts 的做法自己 load，省得在命令行上再传一遍、也不会与服务进程看到的值不一致）
+loadEnv();
 
 const BASE = process.argv[2] ?? 'http://localhost:3000';
 
@@ -118,7 +130,7 @@ async function main() {
   console.log('\n[2] 参数配置读写往返');
   const configs = await api('GET', '/api/admin/configs', { token: adminToken });
   const keys = (configs.data ?? []).map((c: any) => c.configKey);
-  for (const k of ['platform', 'reservation', 'capacity_alarm', 'refund']) {
+  for (const k of ['platform', 'reservation', 'capacity_alarm', 'refund', 'weather']) {
     check(`配置项 ${k} 存在`, keys.includes(k), keys);
   }
   check(
@@ -296,6 +308,170 @@ async function main() {
   check('重跑 generateDefaults 幂等：新建库存为 0', again.data?.stockCreated === 0, again.data);
   check('重跑后时段数仍为 4', again.data?.slots === 4, again.data);
   check('重跑后票种数仍为 3', again.data?.ticketTypes === 3, again.data);
+
+  // ---- 7. 首页天气 ----
+  console.log('\n[7] 首页天气');
+  const weatherRow = (await api('GET', '/api/admin/configs', { token: adminToken })).data?.find(
+    (c: any) => c.configKey === 'weather',
+  )?.configValue;
+  const originalWeather = weatherRow ?? DEFAULT_WEATHER_CONFIG;
+  const putWeather = (value: object) =>
+    api('PUT', '/api/admin/configs/weather', { token: adminToken, body: { configValue: value } });
+  const miniSettings = async () => api('GET', '/api/mini/platform/settings');
+
+  try {
+    // (1) 关闭：字段**必须在**、值是 null —— 客户端就是靠「键在 + 值为 null」决定不渲染那一行的
+    await putWeather({ ...DEFAULT_WEATHER_CONFIG, provider: 'off' });
+    const offRes = await miniSettings();
+    check(
+      '关闭时 weather 字段仍在且为 null（客户端靠它决定不显示，而不是靠字段缺失）',
+      offRes.status === 200 && offRes.data && 'weather' in offRes.data && offRes.data.weather === null,
+      { status: offRes.status, weather: offRes.data?.weather },
+    );
+
+    // (2) 配置读写往返（provider/location/cacheMinutes 三项都要真的存进去）
+    await putWeather({ provider: 'qweather', location: '113.60,33.00', cacheMinutes: 5 });
+    const saved = (await api('GET', '/api/admin/configs', { token: adminToken })).data?.find(
+      (c: any) => c.configKey === 'weather',
+    )?.configValue;
+    check(
+      'weather 配置读写往返',
+      saved?.provider === 'qweather' && saved?.location === '113.60,33.00' && saved?.cacheMinutes === 5,
+      saved,
+    );
+
+    // (3) 数据源填了不认识的值：**不许抛**（抛了整个 platform/settings 就 500，首页顶栏跟着塌）
+    await putWeather({ provider: 'nope', location: '113.60,33.00', cacheMinutes: 5 });
+    const badRes = await miniSettings();
+    check(
+      '数据源不认识 → weather=null 且接口仍 200（可选依赖不许把首屏接口打挂）',
+      badRes.status === 200 && badRes.json?.code === 0 && badRes.data?.weather === null,
+      { status: badRes.status, code: badRes.json?.code, weather: badRes.data?.weather },
+    );
+
+    // (4) 数据源选对了但地点空着 → 同样是 null（这条不会去打上游）
+    await putWeather({ provider: 'qweather', location: '', cacheMinutes: 5 });
+    const noLoc = await miniSettings();
+    check('选了数据源但没填地点 → weather=null', noLoc.data?.weather === null, noLoc.data?.weather);
+  } finally {
+    // 无论成败都还原（同 [3]/[5] 的规矩：冒烟不许留下改过的配置）
+    await putWeather(originalWeather);
+  }
+
+  // ---- 7b. 上游解析与类别映射（纯函数，离线可跑）----
+  // 上游返回体的形状差异全在 weather.parse.ts 里收口，所以这里打样本比打公网值当：
+  // 不依赖 key、不消耗额度、也不会因为上游改文案而红。
+  const qOk = parseQweather({ code: '200', now: { text: '晴', temp: '21' } });
+  check(
+    '和风样本 → 归一化（原文 + 温度 + 类别）',
+    qOk?.text === '晴' && qOk?.temp === 21 && qOk?.category === 'sunny',
+    qOk,
+  );
+  check('和风上游报错码（key 无效/额度用尽）→ null', parseQweather({ code: '401', now: {} }) === null);
+  check('温度离谱值（上游改了口径）→ null，不把脏值渲染给游客', parseQweather({ code: '200', now: { text: '晴', temp: '999' } }) === null);
+
+  const aOk = parseAmap({ status: '1', lives: [{ weather: '雷阵雨', temperature: '26' }] });
+  check(
+    '高德样本 → 归一化（雷阵雨落在 thunder 而不是 rain）',
+    aOk?.text === '雷阵雨' && aOk?.temp === 26 && aOk?.category === 'thunder',
+    aOk,
+  );
+  check('高德 status != 1 → null', parseAmap({ status: '0', info: 'INVALID_USER_KEY', lives: [] }) === null);
+
+  // 类别映射用**一张全等表**钉死：新加天气文案时如果落错桶，这条会立刻指出是哪个词
+  const CATEGORY_CASES: [string, string][] = [
+    ['晴', 'sunny'],
+    ['多云', 'cloudy'],
+    ['阴', 'overcast'],
+    ['小雨', 'rain'],
+    ['雷阵雨', 'thunder'],
+    ['雨夹雪', 'snow'],
+    ['小雪', 'snow'],
+    ['雾', 'fog'],
+    ['霾', 'fog'],
+    ['浮尘', 'fog'],
+    ['冰雹', 'unknown'],
+    ['', 'unknown'],
+  ];
+  const mismatched = CATEGORY_CASES.filter(([text, want]) => categoryOf(text) !== want).map(
+    ([text, want]) => `${text}→${categoryOf(text)}(期望 ${want})`,
+  );
+  check('天气文案 → 类别映射整表一致（含「不认识就 unknown」）', mismatched.length === 0, mismatched);
+
+  // ---- 7c. 上游联通与缓存（需要自己起 stub：见文件头的用法说明）----
+  // `WEATHER_API_BASE` 从**服务端那份 .env** 读（与 seed 同款：脚本自己 load dotenv），
+  // 这样脚本里的判断与服务进程看到的是同一个值，不用在命令行上再传一遍。
+  // ⚠️ **密钥也得有**：`WeatherService` 在「选了数据源但没配 key」时会直接返回 null、根本不打上游，
+  //    所以少配一个的话这 3 条会以「上游没答」的形式失败 —— 卡在门口而不是卡在上游，
+  //    判据里把这一点说清楚（下面那句跳过原因就是这么来的）。
+  const apiBase = process.env.WEATHER_API_BASE ?? '';
+  const stubPort = /^https?:\/\/(127\.0\.0\.1|localhost):(\d+)/.exec(apiBase)?.[2];
+  const stubKey = (process.env.QWEATHER_KEY ?? '').trim();
+  if (!stubPort || !stubKey) {
+    console.log(
+      `  ⊘ 跳过 3 条上游断言：${!stubPort ? 'WEATHER_API_BASE 没指向本机' : 'QWEATHER_KEY 是空的'}；\n` +
+        '    要跑全：在 server/.env 里设 WEATHER_API_BASE=http://127.0.0.1:<端口> 与一个非空的\n' +
+        '    QWEATHER_KEY，重启服务，再执行 npm run smoke:config',
+    );
+  } else {
+    // stub 就是「一家上游」：按 mode 决定答什么，并记命中次数
+    let mode: 'ok' | 'fail' = 'ok';
+    let hits = 0;
+    const stub = createServer((req, res) => {
+      hits++;
+      if (mode === 'fail') {
+        res.writeHead(500).end('upstream boom');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      // 和风与高德各答各的形状
+      res.end(
+        req.url?.includes('/v3/weather/')
+          ? JSON.stringify({ status: '1', lives: [{ weather: '小雨', temperature: '18' }] })
+          : JSON.stringify({ code: '200', now: { text: '小雨', temp: '18' } }),
+      );
+    });
+    await new Promise<void>((resolve) => stub.listen(Number(stubPort), '127.0.0.1', resolve));
+
+    try {
+      // (a) 换一个**新的地点** = 新的缓存 key，保证这次一定回源
+      await putWeather({ provider: 'qweather', location: `113.${RUN % 90 + 10},33.00`, cacheMinutes: 5 });
+      const liveHitsBefore = hits;
+      const live = await miniSettings();
+      check(
+        '上游可用 → 真实拉到并归一化（走的是 fetch + 缓存那条路，不是纯函数）',
+        live.data?.weather?.text === '小雨' &&
+          live.data?.weather?.temp === 18 &&
+          live.data?.weather?.category === 'rain' &&
+          hits > liveHitsBefore,
+        { weather: live.data?.weather, hits: hits - liveHitsBefore },
+      );
+
+      // (b) 再取一次（同 location）→ 命中缓存，不该再打上游
+      const afterFirst = hits;
+      const cached = await miniSettings();
+      check(
+        '同一地点再取 → 命中缓存，上游命中数不增加',
+        cached.data?.weather?.text === '小雨' && hits === afterFirst,
+        { weather: cached.data?.weather, 上游新增命中: hits - afterFirst },
+      );
+
+      // (c) 上游挂掉（500）+ 新地点 → null 且接口仍 200；紧接着再取一次不该重试（60 秒负缓存）
+      mode = 'fail';
+      await putWeather({ provider: 'qweather', location: `113.${(RUN % 90) + 11},33.00`, cacheMinutes: 5 });
+      const boom = await miniSettings();
+      const afterBoom = hits;
+      const boomAgain = await miniSettings();
+      check(
+        '上游 500 → weather=null 且接口仍 200；60 秒负缓存内不再重试',
+        boom.status === 200 && boom.data?.weather === null && boomAgain.data?.weather === null && hits === afterBoom,
+        { status: boom.status, weather: boom.data?.weather, 复取时上游新增命中: hits - afterBoom },
+      );
+    } finally {
+      stub.close();
+      await putWeather(originalWeather);
+    }
+  }
 
   console.log(`\n结果：${pass} 通过 / ${fail} 失败\n`);
   process.exit(fail === 0 ? 0 : 1);

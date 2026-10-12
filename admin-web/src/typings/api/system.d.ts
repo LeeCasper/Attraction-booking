@@ -96,7 +96,7 @@ declare namespace Api {
      * 有专用表单的配置键（见 `views/system/config/modules/config-schema.ts`）。
      * 不在这张表里的键会回落到 JSON 编辑器。
      */
-    type ConfigKey = 'platform' | 'reservation' | 'capacity_alarm' | 'refund';
+    type ConfigKey = 'platform' | 'reservation' | 'capacity_alarm' | 'refund' | 'weather';
 
     /** 平台品牌与联系方式（与 `GET /api/mini/platform/settings` 同形状） */
     interface PlatformSettings {

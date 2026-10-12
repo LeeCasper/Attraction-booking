@@ -22,6 +22,9 @@ const DEFAULT: PlatformSettings = {
   subtitle: '国家生态自然公园 · 智慧文旅',
   productName: '智慧文旅',
   version: 'V1.2.0',
+  // ⚠️ **刻意不给 `weather` 兜默认值**：`{ ...DEFAULT, ...s }` 里显式 `null` 会覆盖默认值，
+  //    而字段缺失（后端还没升级）落到这里 —— 两种都必须是「没有天气、那一行不渲染」。
+  //    在这儿填一个「晴 21°C」，就等于首页永远显示一份假天气（那正是改这个特性的起因）。
 };
 
 function readCache(): PlatformSettings {
