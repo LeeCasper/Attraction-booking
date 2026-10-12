@@ -6,6 +6,9 @@ dist/
 unpackage/
 *.local
 
+# 手工部署时留下的打包产物（docker save / tar 出来的镜像或整包），不要进仓库
+server/*.tar
+
 # env & secrets
 .env
 *.pem
