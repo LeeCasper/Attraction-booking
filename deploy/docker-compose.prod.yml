@@ -71,9 +71,12 @@ services:
       REDIS_HOST: redis
       UPLOAD_DIR: /app/uploads
       NODE_ENV: production
-    # 只绑本机：外网必须走 nginx（HTTPS + 证书 + 上传直出都在那边）
+    # 只绑本机：外网必须走 nginx（HTTPS + 证书 + 上传直出都在那边）。
+    # ⚠️ 后半段**跟着 .env 的 `PORT` 走**，不要写死 3000：`PORT` 是容器内应用的监听端口，
+    #    写死过之后踩过一次「PORT=3001 而映射到容器 3000」—— 映射打了个空端口，
+    #    外面 curl 直接 000，容器日志里却一切正常（最容易被误判成「服务没起来」）。
     ports:
-      - "127.0.0.1:${API_PORT:-3000}:3000"
+      - "127.0.0.1:${API_PORT:-3000}:${PORT:-3000}"
     volumes:
       # 上传的图**必须落在宿主机目录**：一是重部署不丢，二是 nginx 要直接读它
       - ${UPLOADS_DIR:-/srv/attraction/uploads}:/app/uploads
