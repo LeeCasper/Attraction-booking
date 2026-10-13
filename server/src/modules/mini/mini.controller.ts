@@ -90,6 +90,18 @@ export class MiniController {
     return { ...platform, weather };
   }
 
+  /**
+   * 公告（**免登录**）：提示公告与弹窗公告分开返回，只给「正在生效」的。
+   *
+   * `scenicAreaId` 不传 = 只要**全平台**公告（任何景点都该看到的那些）；
+   * 传了就返回「该景点 + 全平台」。生效区间与 status 的判定在 service 里（查询期谓词）。
+   */
+  @Get('announcements')
+  @ApiOperation({ summary: '公告（提示/弹窗，免登录）' })
+  listAnnouncements(@Query('scenicAreaId', new ParseIntPipe({ optional: true })) scenicAreaId?: number) {
+    return this.ticketService.listActiveAnnouncements(scenicAreaId);
+  }
+
   @Get('areas')
   @ApiOperation({ summary: '景区列表' })
   listAreas() {

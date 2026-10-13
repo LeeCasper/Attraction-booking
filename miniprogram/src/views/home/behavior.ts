@@ -2,6 +2,7 @@ import { ref, watch } from 'vue';
 import { areaApi, bannerApi, mediaUrl, type AreaOverview, type MiniBanner } from '@/api';
 import { errorText } from '@/api/request';
 import { currentAreaId, setCurrentArea, switchTab } from '@/store/shell';
+import { loadAnnouncements, tips } from '@/store/announcement';
 import { CAPACITY_BANNER_LABEL, areaCoverOf, areaStockStatus, capacityTone } from '@/utils/area';
 
 /**
@@ -66,7 +67,6 @@ export function useHomePage() {
   const loading = ref(false);
   const error = ref('');
   /** 公告行：「【景点名】标题：正文」 */
-  const announcement = ref('');
   /** banner 轮播的每一屏 */
   const slides = ref<BannerSlide[]>([]);
   /** 「推荐景点」卡片（`AreaOverview`，`AreaRecommendCard` 自己算余票与起价） */
@@ -87,17 +87,19 @@ export function useHomePage() {
    */
   let annFor: number | undefined;
 
+  /**
+   * 公告交给 `store/announcement` 拉（**不再单独打景区详情接口**）。
+   *
+   * 为什么放 store：公告有**弹窗**这一形态，而弹窗必须由**外壳**渲染
+   * （视图在 `scroll-view` 里，`position: fixed` 会跟着内容滚走 —— CLAUDE.md 第 14 条），
+   * 外壳又拿不到视图的 composable。所以「谁拉」在这里、「谁显示」在外壳。
+   * 拉失败的降级也留在 store 里（公告拉不到不该拖垮首页）。
+   */
   async function loadAnnouncement(force = false) {
     const target = allAreas.value.find((a) => a.id === currentAreaId.value) ?? allAreas.value[0];
-    if (!target) return;
-    if (!force && annFor === target.id) return;
-    annFor = target.id;
-    // 公告失败不该拖垮整页（首页最不能缺的是「有哪些景点、能不能买票」）
-    const detail = await areaApi.detail(target.id).catch(() => null);
-    const first = detail?.announcements?.[0];
-    announcement.value = first
-      ? `【${target.name}】${first.title}${first.content ? `：${first.content}` : ''}`
-      : '';
+    if (!force && annFor === (target?.id ?? null)) return;
+    annFor = target?.id;
+    await loadAnnouncements(target?.id ?? null);
   }
 
   /** 绑了景点的那屏：景点名 + 在园状态（数据都来自 `/areas/overview`，不额外打接口） */
@@ -235,8 +237,17 @@ export function useHomePage() {
   /** 快捷卡：出示入园码 */
   const onQuickPass = () => switchTab('credential');
 
-  /** 公告条右侧的「须知」——后端没有单独的须知页，先如实说明 */
-  const onNotice = () => uni.showToast({ title: '入园须知待接入', icon: 'none' });
+  /**
+   * 公告条右侧的「详情」——**打开弹窗看全文**。
+   *
+   * 以前这里只弹一句「入园须知待接入」的 toast：那条公告是一行 `truncate` 的文本，
+   * 正文根本看不全，点它却没有下文。现在提示条与弹窗共用 `store/announcement`，
+   * 点了就把那一条**完整**（含配图与跳转按钮）展示出来。
+   * ⚠️ `AnnouncementTips` 组件内部已经调了 `openPopup`，这里只是留个事件钩子（可做埋点/统计）。
+   */
+  const onNotice = (_id: number) => {
+    /* 展示由 `components/AnnouncementTips.vue` 调 store 完成（见该组件注解） */
+  };
 
   /**
    * 便民服务「景区地图」→ 景区地图与景点（二级页 `pages/map/`）。
@@ -251,7 +262,8 @@ export function useHomePage() {
   return {
     loading,
     error,
-    announcement,
+    /** 提示公告（多条轮播，由 `AnnouncementTips` 组件显示） */
+    tips,
     slides,
     recommended,
     stockStatus: areaStockStatus,

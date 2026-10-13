@@ -25,11 +25,33 @@ export interface MiniArea {
   intro: string | null;
 }
 
-export interface Announcement {
+/**
+ * 公告（两种形态共用一条记录）。
+ *
+ * - `type`：1 提示公告（首页顶部一行，多条轮播）/ 2 弹窗公告（进首页弹一次，同一条每天最多一次）
+ * - `areaName`：归属景点名，**全平台公告为 null**（此时不显示「【景点名】」前缀）
+ * - `linkType`：只给类型，**跳哪个页面由客户端映射**（服务端不认识小程序路由）
+ */
+export interface MiniAnnouncement {
   id: number;
+  /** 1 提示公告 / 2 弹窗公告 */
+  type: number;
   title: string;
   content: string | null;
-  publishedAt: string | null;
+  /** 弹窗配图（相对路径）；仅弹窗公告用 */
+  imageUrl: string | null;
+  /** 0 不跳转 / 1 购票页 / 2 订单列表 / 3 电子凭证 / 4 景区地图 */
+  linkType: number;
+  sort: number;
+  areaName: string | null;
+  startAt: string | null;
+  endAt: string | null;
+}
+
+/** 生效中的公告，服务端已按类型分好桶、按 `sort` 排好序 */
+export interface MiniAnnouncementBundle {
+  tips: MiniAnnouncement[];
+  popups: MiniAnnouncement[];
 }
 
 export interface TimeSlot {
@@ -39,12 +61,15 @@ export interface TimeSlot {
   endTime: string;
 }
 
+/**
+ * 景区详情。⚠️ **不再带公告**：公告独立成 `GET /mini/announcements`（要按全平台/类型/时效过滤，
+ * 塞在「某景点的详情」里表达不了 —— 全平台公告没有景点）。
+ */
 export interface AreaDetail extends MiniArea {
   address: string | null;
   maxCapacity: number;
   status: number;
   timeSlots: TimeSlot[];
-  announcements: Announcement[];
 }
 
 export interface MiniTicket {
@@ -175,6 +200,18 @@ export interface MiniBanner {
 export const bannerApi = {
   /** 免登录；只返回启用中的（按 sort 升序）。一张都没配时返回空数组 */
   list: () => get<MiniBanner[]>('/banners', undefined, { anonymous: true }),
+};
+
+export const announcementApi = {
+  /**
+   * 免登录；只返回**正在生效**的（status=1 且落在生效区间内）。
+   *
+   * `scenicAreaId` 不传 = 只要**全平台**公告；传了就返回「该景点 + 全平台」。
+   */
+  list: (scenicAreaId?: number) =>
+    get<MiniAnnouncementBundle>('/announcements', scenicAreaId ? { scenicAreaId } : undefined, {
+      anonymous: true,
+    }),
 };
 
 export const areaApi = {

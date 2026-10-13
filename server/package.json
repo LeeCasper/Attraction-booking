@@ -19,7 +19,8 @@
     "smoke:visitor": "node scripts/smoke-visitor.mjs",
     "smoke:date": "ts-node --transpile-only scripts/smoke-date.ts",
     "smoke:config": "ts-node --transpile-only scripts/smoke-config.ts",
-    "backfill:credential-no": "ts-node --transpile-only scripts/backfill-credential-no.ts"
+    "backfill:credential-no": "ts-node --transpile-only scripts/backfill-credential-no.ts",
+    "smoke:announcement": "node scripts/smoke-announcement.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

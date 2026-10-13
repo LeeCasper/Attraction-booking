@@ -41,23 +41,23 @@ export const PAGE_BINDINGS = {
       "import { watch } from 'vue';",
       "import BannerCarousel from '@/components/BannerCarousel.vue';",
       "import AreaRecommendCard from '@/components/AreaRecommendCard.vue';",
+      "import AnnouncementTips from '@/components/AnnouncementTips.vue';",
       "import { useHomePage } from './behavior';",
     ],
     setup: `const {
-  announcement, slides, recommended, stockStatus,
+  tips, slides, recommended, stockStatus,
   onPickSlide, onPickArea, onQuickBooking, onQuickPass, onOpenMap, onNotice, load,
 } = useHomePage();
 // 首页是启动时的默认 tab，immediate 让它一挂载就拉数据
 watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     bindings: {
-      // 公告文字（U-001）。后端没有公告时不显示整条 —— 留个空壳比不显示更像坏了
-      'flex items-center justify-between px-3 py-2 rounded-xl bg-[#fffcf5] border border-amber-gold/25 text-tertiary shadow-[0_2px_8px_rgba(217,119,6,0.06)]': {
-        class: { 'is-hidden': '!announcement' },
-      },
-      'font-body-sm text-[12px] truncate text-ink-charcoal-text font-medium': { text: 'announcement' },
-      // 公告条右侧的「须知」：后端没有独立的须知接口，如实提示而不是假装能跳
-      'font-caption-sm text-[11px] font-semibold text-tertiary-container hover:text-amber-gold transition-colors flex-shrink-0 flex items-center gap-0.5':
-        { attrs: { '@tap': 'onNotice' } },
+      // 公告条（U-001）——**整条 replace 成组件**：多条提示公告要每 5 秒轮播，
+      // 静态模板做不到；而且点它要打开弹窗看全文（原来只弹一句 toast，正文根本看不全）。
+      // 组件里的 class 与设计稿这一行**逐字一致**（从生成产物搬过去的消毒名）。
+      // ⚠️ 原先那三条绑定（`is-hidden` / 文本 / 「须知」的 @tap）**一并删掉** ——
+      //    它们要匹配的那几个元素已经不在产物里了，留着会让 `gen:pages` 报「匹配到 0 个」。
+      'flex items-center justify-between px-3 py-2 rounded-xl bg-[#fffcf5] border border-amber-gold/25 text-tertiary shadow-[0_2px_8px_rgba(217,119,6,0.06)]':
+        { replace: '<AnnouncementTips :tips="tips" :active="props.active" @notice="onNotice" />' },
       // banner：**整个换成轮播组件**（`#homeBanner` 是本轮补的 id，见 README）。
       // 设计稿是按**单景区**画的 —— 一张封面 + 写死「枫林谷森林公园」+ 写死的「在园率 38%」；
       // 多景区下这一块改成自动轮播的景点图，每屏的景点名/在园率/指示点都是那一屏自己的数据。
@@ -848,16 +848,15 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
       "import PoiCard from '@/components/PoiCard.vue';",
     ],
     setup: `const {
-  statusBarHeight, capsuleInset, headerHeight, chipsTop, goBack,
-  categories, category, onPickCategory, chipClass,
-  shownPois, onGuide, onPin,
+  statusBarHeight, capsuleInset, headerHeight, goBack,
+  pois, onGuide, onPin,
 } = useMapPage();`,
     // 标题栏：状态栏占位块 + 48px 一行（返回键 + 居中标题），与设计稿的 `h-12` 一致。
-    // ⚠️ 画在**文档流**里而不是 `fixed`：二级页是真实页面、不套 scroll-view，
-    //    这样下面那条 `sticky` 的筛选条才有得可依（design 稿是 fixed 页头，见文件头说明）。
+    // ⚠️ 画在**文档流**里还是 `fixed`：设计稿这条页头是 fixed，本页保持 same（下面那个等高占位块
+    //    就是给它的）。原先它下面还有一条 `sticky` 的分类胶囊（吸在页头下沿），**已按用户要求整条删掉**，
+    //    所以 `headerHeight` 现在只服务占位块。
     before: `<!-- 标题栏：**固定条**（自带状态栏内边距）+ 一个等高的占位块 ——
-      与外壳的 PageHeader 同一个结构。设计稿这一条就是 fixed（下面那条筛选胶囊是 sticky，
-      吸在它下沿）；若把标题栏画在文档流里，滚下去以后吸顶的胶囊上方会空出一条。
+      与外壳的 PageHeader 同一个结构（设计稿这一条就是 fixed）。
       ⚠️ 固定定位在**二级页**没问题（不是 scroll-view 里的视图，见 CLAUDE.md 第 14 条）。 -->
     <view class="pg-map-header" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="flex items-center px-4 relative h-12" :style="{ paddingRight: capsuleInset + 'px' }">
@@ -869,44 +868,49 @@ watch(() => props.active, (on) => { if (on) load(); }, { immediate: true });`,
     </view>
     <view :style="{ height: headerHeight + 'px' }" />`,
     bindings: {
-      // —— 顶部筛选胶囊 ——
-      // 设计稿是普通 `<div class="… overflow-x-auto">`，而**小程序里普通 view 的 overflow-x
-      // 不能可靠滚动**（最后一个胶囊会被切掉且滑不动），所以换成 `<scroll-view scroll-x>`
-      // —— 与购票页日期条、凭证切换条同一个理由。
-      // 吸顶的偏移量由 behavior 的 `chipsTop` 给：设计稿那句 `top-[calc(3rem+env(safe-area-inset-top))]`
-      // 在本工程里已被有意丢弃（小程序 WXSS 没有 `env(safe-area-inset-top)`）。
-      'flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5': {
-        replace:
-          '<scroll-view class="w-full" scroll-x="true" :show-scrollbar="false">' +
-          '<view class="flex items-center gap-2 py-0_5">' +
-          '<view v-for="c in categories" :key="c.id" :class="chipClass(c.id)" hover-class="pg-hover" @tap="onPickCategory(c.id)">' +
-          '<text>{{ c.label }}</text>' +
-          '</view>' +
-          '</view>' +
-          '</scroll-view>',
-      },
-      // 筛选条吸顶的 `top`（覆盖设计稿那个已被丢弃的 calc 类）——
-      // 静态 `style` 与 `:style` 在 Vue 里会合并，绑定侧优先。
-      'sticky top-[calc(3rem+env(safe-area-inset-top,0px))] z-40 bg-paper-base/95 backdrop-blur-md pt-2 pb-3 px-4 border-b border-silk-border/40': {
-        attrs: { ':style': '{ top: chipsTop }' },
-      },
+      // —— 顶部筛选胶囊：**整条删掉**（用户要求：「把这个分类栏给删掉」）——
+      // 原来这里是设计稿那排 `全部景点 / 核心栈道 / …`（我们把它换成了可滚动的 `<scroll-view>`，
+      // 因为普通 view 的 overflow-x 在小程序里不能可靠滚动）。删掉之后本页**没有任何交互**
+      // —— 点位内容本来就是静态的（后端没有点位模型，见 `pages/map/behavior.ts` 文件头），
+      // 那个筛选是页面上唯一真的会动的东西。
+      // ⚠️ 删的是**外层那条 sticky 容器**（内层那排胶囊是它的子节点，一起没）：
+      //    只删内层的话会留下一条带 padding/border/背景的空白横条。
+      //    内层那条绑定同时删掉 —— 残留的绑定键会因为「匹配到 0 个元素」让 `gen:pages` 直接报错（这是好事）。
+      'sticky top-[calc(3rem+env(safe-area-inset-top,0px))] z-40 bg-paper-base/95 backdrop-blur-md pt-2 pb-3 px-4 border-b border-silk-border/40':
+        { remove: true },
       // —— 点位列表 ——
-      // 设计稿的 4 张卡整块换成组件：卡片版式是照稿子逐字搬进 `PoiCard.vue` 的，
-      // 而列表要跟着上面的筛选动，静态模板做不到（也顺带把那 4 张远程位图挪进包里）。
-      // 点位列表（外面那层容器的内边距/间距必须一起搬过来，见下面的注解）
+      // 设计稿的 4 张卡整块换成组件：卡片版式搬进 `PoiCard.vue`（并按要求放松了一档），
+      // 那 4 张远程位图也就此挪进包里。
+      // 容器的类从 `px-4 py-3.5` 改成 `p-4`：分类栏没了以后列表紧贴页头，上下各留 16px 更匀；
+      // `p-4` 在 classmap 里有（`py-4` 反而没有 —— 别按 Tailwind 习惯写）。
+      // **卡片间距**从 `space-y-4`(16px) 换成了页面 style 里的 `.pg-poi-list > * + *`(24px，用户嫌挤) ——
+      // classmap 里 `space-y` 最大就到 4 档，没有更大的。
       'px-4 py-3.5 space-y-4': {
-        // ⚠️ 外面这层 `<view class="px-4 py-3_5 space-y-4">` 不能省：`replace` 会把**元素自己**
-        // 连同它的 class 一起换掉，而左右内边距（px-4）、上下留白（py-3.5）与卡片间距（space-y-4）
-        // 全写在这个容器上 —— 直接换成 v-for 的话卡片会**贴到屏幕两侧**（实测就是这么发现的）。
+        // ⚠️ 外面这层容器不能省：`replace` 会把**元素自己**连同它的 class 一起换掉，
+        // 而内边距（p-4）与卡片间距（space-y-4）全写在这个容器上 —— 直接换成 v-for 的话
+        // 卡片会**贴到屏幕两侧**（实测就是这么发现的）。
         replace:
-          '<view class="px-4 py-3_5 space-y-4">' +
-          '<PoiCard v-for="p in shownPois" :key="p.id" :poi="p" @guide="onGuide(p)" @pin="onPin" />' +
+          '<view class="p-4 pg-poi-list">' +
+          '<PoiCard v-for="p in pois" :key="p.id" :poi="p" @guide="onGuide(p)" @pin="onPin" />' +
           '</view>',
       },
     },
     // 固定标题栏的样式（设计稿页头：半透明底 + 模糊 + 一条细下边框）。
     // `rgba($c-..., 0.95)` 而不是写死 hex —— 底色跟着 token 走。
-    style: `.pg-page .pg-map-header {
+    style: `/* 点位卡之间的间距：设计稿是 \`space-y-4\`（16px），用户反馈太挤，这里给 24px。
+   ⚠️ **classmap 里 \`space-y\` 最大只有 4 档（16px）**，没有 space-y-5/6，所以要写在页面 style 里
+   （与 \`.pg-cred-card\` 的宽度、日期条的 padding 同一个理由）。
+   ⚠️⚠️ **这里必须用 flex + gap，不能写 \`> * + *\`**（虽然 utilities.scss 里 space-y 就是这么实现的）：
+   页面 style 是 **scoped** 的，Vue 的 scoped 编译会把 \`data-v-xxx\` 贴到**最后一个选择器元素**上 ——
+   以 \`*\` 结尾就变成 \`>*+*.data-v-xxx\`，**小程序 WXSS 编译器直接失败**
+   （工具里报「WXSS 文件编译错误 / error file count: 1」，整页白屏）。全局的 utilities.scss 不受影响
+   是因为它**不 scoped**。同理：scoped 里别写任何以 \`*\` 结尾的选择器。 */
+.pg-page .pg-poi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.pg-page .pg-map-header {
   position: fixed;
   top: 0;
   left: 0;

@@ -13,7 +13,8 @@ import { computed, ref } from 'vue';
  * 见 README 的「仍是静态」清单）。
  *
  * 真接数据要等后端有：点位表（名称 / 分类 / 缩略图 / 指标）+ 点位级实时客流。
- * 在那之前，本页唯一**真的有行为**的是顶部的分类筛选（纯前端过滤）与两个如实提示的按钮。
+ * 在那之前，本页**没有任何交互** —— 顶部的分类筛选按用户要求删掉了（它原先也只是纯前端过滤），
+ * 剩下两个按钮（手绘标点 / 查看导览）如实提示「待接入」。
  *
  * 这一版的族名（`font-serif-cn` / `font-sans-cn` / `font-num`）与配色
  * （`bamboo-teal` / `paper-pure` / `ink-subtle`…）来自「青绿简约版」那套设计系统，
@@ -53,23 +54,7 @@ export interface Poi {
   status: string;
   statusTone: 'ok' | 'warn';
   metrics: PoiMetric[];
-  /** 属于哪个筛选分类（`all` 不参与） */
-  category: string;
 }
-
-/** 顶部分类胶囊 —— 设计稿是 5 个，「全部景点」+ 4 个分类各对应下面的一张卡 */
-export interface PoiCategory {
-  id: string;
-  label: string;
-}
-
-export const POI_CATEGORIES: PoiCategory[] = [
-  { id: 'all', label: '全部景点' },
-  { id: 'core', label: '核心栈道' },
-  { id: 'water', label: '清凉亲水' },
-  { id: 'cable', label: '索道缆车' },
-  { id: 'night', label: '夜游演艺' },
-];
 
 /** 设计稿的 4 张点位卡，逐字照抄（文案、数字、图标都是稿子里的） */
 export const POIS: Poi[] = [
@@ -82,7 +67,6 @@ export const POIS: Poi[] = [
     badgeTone: 'ink',
     status: '客流 42% · 舒适',
     statusTone: 'ok',
-    category: 'core',
     metrics: [
       { icon: 'hourglass_top', pre: '索道排队约 ', strong: '8', post: ' 分钟' },
       { icon: 'sensor_door', pre: '北门01-08号翼闸 (0.3s极速过闸)' },
@@ -97,7 +81,6 @@ export const POIS: Poi[] = [
     badgeTone: 'ink',
     status: '客流 28% · 畅通',
     statusTone: 'ok',
-    category: 'water',
     metrics: [
       { icon: 'directions_walk', pre: '核心观瀑点步行约 ', strong: '15', post: ' 分钟' },
       { icon: 'meeting_room', pre: '西峡谷闸机群直接刷码入园' },
@@ -112,7 +95,6 @@ export const POIS: Poi[] = [
     badgeTone: 'warn',
     status: '限流管控中',
     statusTone: 'warn',
-    category: 'cable',
     metrics: [
       { icon: 'confirmation_number', pre: '今日索道余票 ', strong: '45', post: ' 张', tone: 'warn' },
       { icon: 'airline_stops', pre: '就近索道下站闸机联动核验' },
@@ -127,7 +109,6 @@ export const POIS: Poi[] = [
     badgeTone: 'ink',
     status: '18:30开放',
     statusTone: 'ok',
-    category: 'night',
     metrics: [
       { icon: 'schedule', pre: '入园时间 ', strong: '18:30 - 21:30' },
       { icon: 'nightlight', pre: '南门夜游专道闸机检验通关' },
@@ -135,7 +116,7 @@ export const POIS: Poi[] = [
   },
 ];
 
-/** 自绘标题栏那一行的高度（与设计稿的 `h-12` 一致）——筛选条的 sticky 偏移要减它 */
+/** 自绘标题栏那一行的高度（与设计稿的 `h-12` 一致）；固定页头下方的占位块按它算 */
 const HEADER_BAR_HEIGHT = 48;
 
 export function useMapPage() {
@@ -163,30 +144,6 @@ export function useMapPage() {
    */
   const headerHeight = computed(() => statusBarHeight.value + HEADER_BAR_HEIGHT);
 
-  /**
-   * 筛选条吸顶时的 `top`。
-   *
-   * 设计稿写的是 `top-[calc(3rem+env(safe-area-inset-top,0px))]` —— 那个类在本工程里被**有意丢弃**
-   * （见 `gen-utilities.mjs` 的 INTENTIONAL_DROP：`env(safe-area-inset-top)` 在小程序 WXSS 里没有），
-   * 所以偏移量在这里按真实状态栏高度算：标题栏多高，就吸在它下面。
-   */
-  const chipsTop = computed(() => `${headerHeight.value}px`);
-
-  const category = ref('all');
-  const onPickCategory = (id: string) => {
-    category.value = id;
-  };
-
-  const shownPois = computed(() =>
-    category.value === 'all' ? POIS : POIS.filter((p) => p.category === category.value),
-  );
-
-  /** 胶囊样式：选中 = 实心竹青，未选中 = 白底描边（逐字取自设计稿那段内联 JS 的两个 className） */
-  const CHIP_BASE = 'px-3_5 py-1_5 rounded-pill text-13px font-medium shrink-0 transition-all';
-  const CHIP_ON = `${CHIP_BASE} bg-bamboo-teal text-white shadow-xs`;
-  const CHIP_OFF = `${CHIP_BASE} bg-paper-pure text-ink-subtle border border-silk-border`;
-  const chipClass = (id: string) => (id === category.value ? CHIP_ON : CHIP_OFF);
-
   /** 「查看导览」——本工程没有地图服务（没有地图底图、也没有点位编号），如实说一句 */
   function onGuide(poi: Poi) {
     uni.showToast({ title: `「${poi.name}」导览地图待接入`, icon: 'none', duration: 2000 });
@@ -203,13 +160,9 @@ export function useMapPage() {
     statusBarHeight,
     capsuleInset,
     headerHeight,
-    chipsTop,
     goBack,
-    categories: POI_CATEGORIES,
-    category,
-    onPickCategory,
-    chipClass,
-    shownPois,
+    /** 列表直接渲染全部点位 —— 分类筛选已删（见文件头），不再有 `shownPois` 这一层 */
+    pois: POIS,
     onGuide,
     onPin,
   };

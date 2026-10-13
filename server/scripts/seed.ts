@@ -157,10 +157,11 @@ async function main() {
     }
     console.log(`✓ 已创建 ${DEFAULT_TICKET_TYPES.length} 个示例票种（成人全票 120 / 优待票 60 / 家庭年卡 388）与限购规则`);
 
-    // 公告 —— 小程序首页的公告条直接读它（`GET /api/mini/areas/:id` 的 announcements）
+    // 公告 —— 小程序首页的**提示公告**条读它（`GET /api/mini/announcements?scenicAreaId=`，
+    // 不再挂在景区详情里：公告可以全平台投放、还有弹窗形态与生效区间）
     await conn.query(
-      `INSERT INTO announcement (scenic_area_id, title, content, status, published_at)
-       VALUES (?, '入园分时预约须知', '请持有效身份证件有序核验入园', 1, NOW())`,
+      `INSERT INTO announcement (scenic_area_id, type, title, content, status, sort, published_at)
+       VALUES (?, 1, '入园分时预约须知', '请持有效身份证件有序核验入园', 1, 10, NOW())`,
       [areaId],
     );
     console.log('✓ 已创建示例公告「入园分时预约须知」');

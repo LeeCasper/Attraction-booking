@@ -91,23 +91,54 @@ declare namespace Api {
       defaults?: AreaDefaultsResult;
     }
 
-    /** 公告 */
+    /** 公告（提示/弹窗两种形态） */
     interface Announcement {
       id: number;
-      scenicAreaId: number;
+      /** 归属景点；null = 全平台投放 */
+      scenicAreaId: number | null;
+      /** 1 提示公告 / 2 弹窗公告 */
+      type: number;
       title: string;
       content: string | null;
+      /** 弹窗配图（相对路径）；仅弹窗公告用 */
+      imageUrl: string | null;
+      /** 跳转：0 不跳转 / 1 购票页 / 2 订单列表 / 3 电子凭证 / 4 景区地图 */
+      linkType: number;
       /** 1 已发布 / 2 下架 */
       status: number;
+      /** 排序：小的在前 */
+      sort: number;
+      /** 生效开始/结束；null = 不限 */
+      startAt: string | null;
+      endAt: string | null;
       publishedAt: string | null;
       createdAt: string;
       updatedAt: string;
     }
 
-    /** 新建/修改公告提交体 */
+    /** 公告列表查询（`scope` 三态：全部 / 只看全平台 / 某个景点） */
+    interface AnnouncementQuery {
+      scope?: 'all' | 'platform' | 'scenic';
+      scenicAreaId?: number | null;
+      type?: number | null;
+      status?: number | null;
+    }
+
+    /**
+     * 新建/修改公告提交体。
+     * ⚠️ 要**清空**某个字段（改成全平台、去掉配图、去掉生效时间）必须传 `null`：
+     * 后端 `repo.update` 忽略 `undefined`，省略等于保持原值。
+     */
     interface AnnouncementPayload {
-      title: string;
-      content?: string;
+      scenicAreaId?: number | null;
+      type?: number;
+      title?: string;
+      content?: string | null;
+      imageUrl?: string | null;
+      linkType?: number;
+      sort?: number;
+      startAt?: string | null;
+      endAt?: string | null;
       status?: number;
     }
 

@@ -87,13 +87,26 @@ export class Banner {
   updatedAt: Date;
 }
 
+/**
+ * 公告（两种形态）。
+ *
+ * - `type`：1 提示公告（首页顶部那一行，多条轮播）/ 2 弹窗公告（进首页弹一次，同一条每天最多一次）
+ * - `scenicAreaId` **可空**：NULL = 全平台投放（任何景点都能看到），与 `banner.scenicAreaId` 同一套语义
+ * - `startAt`/`endAt` 是**查询时的谓词**（NULL = 不限），不是定时任务翻转 `status` —— 见 `scenic.service`
+ *   里 `activeWindowSql()` 的说明
+ * - `linkType` 只给类型，具体跳到哪个页面由小程序映射（服务端不该知道页面路径）
+ */
 @Entity('announcement')
 export class Announcement {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
-  @Column({ name: 'scenic_area_id', type: 'bigint' })
-  scenicAreaId: number;
+  @Column({ name: 'scenic_area_id', type: 'bigint', nullable: true })
+  scenicAreaId: number | null;
+
+  /** 1 提示公告 / 2 弹窗公告 */
+  @Column({ type: 'tinyint', default: 1 })
+  type: number;
 
   @Column({ length: 128 })
   title: string;
@@ -101,8 +114,28 @@ export class Announcement {
   @Column({ type: 'text', nullable: true })
   content: string | null;
 
+  /** 弹窗配图（相对路径）；仅弹窗公告用 */
+  // ⚠️ 可空列 = 联合类型 `string | null`，**必须显式写 `type`**：不写会被推断成 Object，
+  //    TypeORM 直接抛 DataTypeNotSupportedError（连启动都起不来）—— 见 CLAUDE.md 约束 2
+  @Column({ name: 'image_url', type: 'varchar', length: 512, nullable: true })
+  imageUrl: string | null;
+
+  /** 跳转：0 不跳转 / 1 购票页 / 2 订单列表 / 3 电子凭证 / 4 景区地图 */
+  @Column({ name: 'link_type', type: 'tinyint', default: 0 })
+  linkType: number;
+
   @Column({ type: 'tinyint', default: 1 })
   status: number;
+
+  /** 排序，小的在前 */
+  @Column({ type: 'int', default: 0 })
+  sort: number;
+
+  @Column({ name: 'start_at', type: 'datetime', nullable: true })
+  startAt: Date | null;
+
+  @Column({ name: 'end_at', type: 'datetime', nullable: true })
+  endAt: Date | null;
 
   @Column({ name: 'published_at', type: 'datetime', nullable: true })
   publishedAt: Date | null;

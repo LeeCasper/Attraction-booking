@@ -28,6 +28,37 @@ export const announcementStatusRecord: Record<number, string> = {
   2: '下架'
 };
 
+/**
+ * 公告类型：1 提示公告（首页顶部那一行，多条轮播）/ 2 弹窗公告（进首页弹一次，同一条每天最多一次）
+ * ⚠️ 值域与「上下架状态」是两码事，别复用 `enableStatusRecord` 的文案。
+ */
+export const announcementTypeRecord: Record<number, string> = {
+  1: '提示公告',
+  2: '弹窗公告'
+};
+
+export const announcementTypeOptions = [
+  { value: 1, label: '提示公告（首页顶部一行）' },
+  { value: 2, label: '弹窗公告（进首页弹一次）' }
+];
+
+/** 弹窗公告的跳转目标（0 = 不跳转）；具体页面路径在小程序侧映射，后台只管类型 */
+export const announcementLinkRecord: Record<number, string> = {
+  0: '不跳转',
+  1: '购票页',
+  2: '订单列表',
+  3: '电子凭证',
+  4: '景区地图'
+};
+
+export const announcementLinkOptions = [
+  { value: 0, label: '不跳转' },
+  { value: 1, label: '购票页' },
+  { value: 2, label: '订单列表' },
+  { value: 3, label: '电子凭证' },
+  { value: 4, label: '景区地图' }
+];
+
 /** 是否实名 */
 export const needRealnameRecord: Record<number, string> = {
   0: '否',

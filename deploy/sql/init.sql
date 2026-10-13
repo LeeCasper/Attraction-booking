@@ -76,15 +76,25 @@ CREATE TABLE IF NOT EXISTS banner (
 
 CREATE TABLE IF NOT EXISTS announcement (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  scenic_area_id BIGINT UNSIGNED NOT NULL,
+  -- NULL = 全平台投放（任何景点的小程序都能看到）；与 banner.scenic_area_id 同一套语义
+  scenic_area_id BIGINT UNSIGNED NULL COMMENT '归属景点;NULL=全平台投放',
+  -- 两种形态：提示公告 = 首页顶部那一行（多条轮播）；弹窗公告 = 进首页弹一次（同一条每天最多一次）
+  type          TINYINT      NOT NULL DEFAULT 1 COMMENT '1提示公告 2弹窗公告',
   title         VARCHAR(128) NOT NULL,
   content       TEXT         NULL,
+  image_url     VARCHAR(512) NULL COMMENT '弹窗配图(相对路径);仅弹窗公告用',
+  link_type     TINYINT      NOT NULL DEFAULT 0 COMMENT '跳转:0不跳转 1购票页 2订单列表 3电子凭证 4景区地图',
   status        TINYINT      NOT NULL DEFAULT 1 COMMENT '1已发布 2下架',
+  sort          INT          NOT NULL DEFAULT 0 COMMENT '排序:小的在前(后台按整组重排 10/20/30)',
+  -- 生效区间是**查询时的谓词**，不是定时任务翻转 status —— 见 docs/操作手册.md
+  start_at      DATETIME     NULL COMMENT '生效开始;NULL=立即生效',
+  end_at        DATETIME     NULL COMMENT '生效结束;NULL=长期有效',
   published_at  DATETIME     NULL,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY idx_area_status (scenic_area_id, status)
-) ENGINE=InnoDB COMMENT='公告';
+  KEY idx_area_status (scenic_area_id, status),
+  KEY idx_status_type_sort (status, type, sort)
+) ENGINE=InnoDB COMMENT='公告(提示/弹窗两种形态)';
 
 -- ------------------------------------------------------------
 -- 票种 / 时段 / 价格日历 / 库存

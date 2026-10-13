@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { Announcement, Banner, ScenicArea } from '../../database/entities/scenic.entity';
 
 @Injectable()
@@ -86,24 +86,92 @@ export class ScenicService {
     return null;
   }
 
-  async listAnnouncements(areaId: number, status?: number) {
-    return this.annoRepo.find({
-      where: { scenicAreaId: areaId, ...(status ? { status } : {}) },
-      order: { createdAt: 'DESC' },
-    });
+  /**
+   * 公告列表（管理端，**扁平**：不再按景区分路由）。
+   *
+   * `scope` 三态而不是拿 `0` 当「全平台」的魔数 —— 后台别处用 `0 = 全部景区`，
+   * 公告这里「全部 / 全平台 / 某景点」是三态，混用同一个数字必然出错。
+   *
+   * ⚠️ **不做「到点自动上下架」的定时任务**：生效区间是**查询时的谓词**
+   * （见下面的 `scopeCondition` 与 `mini` 侧的 `activeWindow`）。定时翻转 status 会把
+   * 「运营手动下架」与「过期」混成一个状态、还要写反向逻辑把它翻回来，且引入 cron 漂移；
+   * 查询期判定是无状态的，任何时刻算出来都对，也便于冒烟断言。
+   */
+  async listAnnouncements(filter: { scope?: string; scenicAreaId?: number; type?: number; status?: number }) {
+    const where: Record<string, unknown>[] | Record<string, unknown> = {};
+    if (filter.scope === 'platform') Object.assign(where, { scenicAreaId: IsNull() });
+    else if (filter.scope === 'scenic' && filter.scenicAreaId) Object.assign(where, { scenicAreaId: filter.scenicAreaId });
+    if (filter.type) Object.assign(where, { type: filter.type });
+    if (filter.status) Object.assign(where, { status: filter.status });
+
+    return this.annoRepo.find({ where, order: { type: 'ASC', sort: 'ASC', id: 'DESC' } });
   }
 
-  async createAnnouncement(areaId: number, body: { title: string; content?: string }) {
+  /**
+   * 新建公告。`scenicAreaId` 给 `null` = 全平台投放。
+   *
+   * `publishedAt` 仍写「首次发布时间」（审计用），**不参与生效判定** —— 生效看 `startAt`/`endAt`。
+   */
+  async createAnnouncement(body: {
+    scenicAreaId?: number | null;
+    type: number;
+    title: string;
+    content?: string | null;
+    imageUrl?: string | null;
+    linkType?: number;
+    sort?: number;
+    startAt?: string | null;
+    endAt?: string | null;
+  }) {
     const a = await this.annoRepo.save(
-      this.annoRepo.create({ scenicAreaId: areaId, title: body.title, content: body.content, status: 1, publishedAt: new Date() }),
+      this.annoRepo.create({
+        scenicAreaId: body.scenicAreaId ?? null,
+        type: body.type,
+        title: body.title,
+        content: body.content ?? null,
+        imageUrl: body.imageUrl ?? null,
+        linkType: body.linkType ?? 0,
+        sort: body.sort ?? 0,
+        startAt: body.startAt ?? null,
+        endAt: body.endAt ?? null,
+        status: 1,
+        publishedAt: new Date(),
+      }),
     );
     return { id: Number(a.id) };
   }
 
-  async updateAnnouncement(id: number, body: { title?: string; content?: string; status?: number }) {
+  /**
+   * 修改公告（含上下架、清空字段）。
+   *
+   * ⚠️ **清空必须传 `null`，不能省略**：TypeORM 的 `update` 会忽略 `undefined` 的字段，
+   * 省略等于「保持原值」—— 老封面那个「清除」按钮就是这么失效的（banner 那次踩过）。
+   */
+  async updateAnnouncement(
+    id: number,
+    body: {
+      scenicAreaId?: number | null;
+      type?: number;
+      title?: string;
+      content?: string | null;
+      imageUrl?: string | null;
+      linkType?: number;
+      sort?: number;
+      startAt?: string | null;
+      endAt?: string | null;
+      status?: number;
+    },
+  ) {
     const a = await this.annoRepo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('公告不存在');
     await this.annoRepo.update(id, body);
+    return null;
+  }
+
+  async removeAnnouncement(id: number) {
+    const a = await this.annoRepo.findOne({ where: { id } });
+    if (!a) throw new NotFoundException('公告不存在');
+    await this.annoRepo.delete(id);
     return null;
   }
 
@@ -134,10 +202,4 @@ export class ScenicService {
     return null;
   }
 
-  async removeAnnouncement(id: number) {
-    const a = await this.annoRepo.findOne({ where: { id } });
-    if (!a) throw new NotFoundException('公告不存在');
-    await this.annoRepo.delete(id);
-    return null;
-  }
 }

@@ -26,6 +26,7 @@ import { onShow } from '@dcloudio/uni-app';
 import PageHeader from '@/components/PageHeader.vue';
 import AreaTopBar from '@/components/AreaTopBar.vue';
 import TabBar from '@/components/TabBar.vue';
+import AnnouncementPopup from '@/components/AnnouncementPopup.vue';
 import HomeView from '@/views/home/index.vue';
 import AreaView from '@/views/area/index.vue';
 import CredentialView from '@/views/credential/index.vue';
@@ -122,6 +123,16 @@ onShow(markShellShown);
     </view>
 
     <TabBar :active="tab" @change="onTabChange" />
+
+    <!--
+      弹窗公告 —— **必须由外壳渲染**，不能放进首页视图里：视图挂在 `<scroll-view>` 中，
+      而微信的 `scroll-view` 会形成自己的包含块，里面的 `position: fixed` 不再相对视口固定、
+      会跟着内容滚走（CLAUDE.md 第 14 条）。这个错 **H5 复现不出来**，只在工具/真机暴露。
+      放在 `<TabBar>` 之后 = 盖在顶栏与底栏之上（z-50），且与它们同层、都在 scroll-view 之外。
+
+      状态在 `store/announcement`（外壳拿不到视图的 composable）；数据由首页拉 —— 见那边 `loadAnnouncement`。
+    -->
+    <AnnouncementPopup />
   </view>
 </template>
 

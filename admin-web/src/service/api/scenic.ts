@@ -86,18 +86,24 @@ export function fetchDeleteScenicArea(id: number) {
 
 // ============ 公告 ============
 
-/** 公告列表 */
-export function fetchGetAnnouncements(areaId: number) {
+/**
+ * 公告列表。
+ *
+ * 扁平路由（不再按景区分段）：公告**可以不挂景点**（全平台投放），塞在 `areas/:id/...` 下表达不了。
+ * `scope` 三态：all（默认）/ platform（只看全平台）/ scenic（要配 scenicAreaId）。
+ */
+export function fetchGetAnnouncements(params: Api.Scenic.AnnouncementQuery = {}) {
   return request<Api.Scenic.Announcement[]>({
-    url: `/admin/scenic/areas/${areaId}/announcements`,
-    method: 'get'
+    url: '/admin/scenic/announcements',
+    method: 'get',
+    params
   });
 }
 
-/** 发布公告 */
-export function fetchCreateAnnouncement(areaId: number, data: Api.Scenic.AnnouncementPayload) {
+/** 发布公告（`scenicAreaId` 传 null 或不传 = 全平台） */
+export function fetchCreateAnnouncement(data: Api.Scenic.AnnouncementPayload) {
   return request<{ id: number }>({
-    url: `/admin/scenic/areas/${areaId}/announcements`,
+    url: '/admin/scenic/announcements',
     method: 'post',
     data
   });

@@ -143,22 +143,75 @@ export class MiniTicketService {
     };
   }
 
-  /** 景区详情（含时段与公告 —— 技术方案 §3.2 的口径是「景区详情 + 公告 + 开放时间」） */
+  /**
+   * 景区详情（含时段的开放时间）。
+   *
+   * ⚠️ **不再带 `announcements`** —— 公告已经独立成 `GET /api/mini/announcements`：
+   * 它要按「全平台 + 当前景点」「提示/弹窗」「生效区间」过滤，塞在「某景点的详情」里表达不了
+   * （全平台公告没有景点）。首页是它原来的唯一消费者，已改调新接口（技术方案 §3.2 同步更新）。
+   */
   async areaDetail(id: number) {
     const area = await this.areaRepo.findOne({ where: { id, status: 1 } });
     if (!area) return null;
-    const [slots, announcements] = await Promise.all([
-      this.slotRepo.find({
-        where: { scenicAreaId: id, status: 1 },
-        order: { sortOrder: 'ASC' },
-      }),
-      // 只给已发布的（status=1），按发布时间倒序，口径与管理端 listAnnouncements 一致
-      this.annoRepo.find({
-        where: { scenicAreaId: id, status: 1 },
-        order: { publishedAt: 'DESC', id: 'DESC' },
-      }),
-    ]);
-    return { ...area, timeSlots: slots, announcements };
+    const slots = await this.slotRepo.find({
+      where: { scenicAreaId: id, status: 1 },
+      order: { sortOrder: 'ASC' },
+    });
+    return { ...area, timeSlots: slots };
+  }
+
+  /**
+   * 小程序端公告：**提示公告**与**弹窗公告**分开返回，只给「正在生效」的。
+   *
+   * 生效判定是**查询时的谓词**（不是定时任务翻转 status，理由见 `ScenicService.listAnnouncements`）：
+   * `status = 1` 且 `(start_at IS NULL OR start_at <= NOW())` 且 `(end_at IS NULL OR end_at >= NOW())`。
+   * 时间用 SQL 的 `NOW()`：DB 会话时区就是 +08:00，与运营在后台填的本地时间同一把尺子。
+   *
+   * 范围：给了 `scenicAreaId` 就返回「该景点 + 全平台」，不给（或传 0）只返回全平台。
+   * 排序：`sort ASC, id DESC` —— 小的在前（同 sort 时新建的靠前）。
+   *
+   * `areaName` 由服务端补上（客户端要拼「【景点名】」前缀，不想为此再拉一次景点表；全平台公告为 null）。
+   */
+  async listActiveAnnouncements(scenicAreaId?: number) {
+    const qb = this.annoRepo
+      .createQueryBuilder('a')
+      .where('a.status = 1')
+      .andWhere('(a.startAt IS NULL OR a.startAt <= NOW())')
+      .andWhere('(a.endAt IS NULL OR a.endAt >= NOW())')
+      .orderBy('a.sort', 'ASC')
+      .addOrderBy('a.id', 'DESC');
+
+    if (scenicAreaId) {
+      qb.andWhere('(a.scenicAreaId = :areaId OR a.scenicAreaId IS NULL)', { areaId: scenicAreaId });
+    } else {
+      qb.andWhere('a.scenicAreaId IS NULL');
+    }
+    const rows = await qb.getMany();
+
+    // 补景点名：一次查回用到的景点，避免 N+1
+    const ids = [...new Set(rows.map((r) => r.scenicAreaId).filter((v): v is number => v !== null))];
+    const areas = ids.length ? await this.areaRepo.find({ where: { id: In(ids) } }) : [];
+    const nameOf = new Map(areas.map((a) => [Number(a.id), a.name]));
+
+    const toItem = (a: Announcement) => ({
+      id: Number(a.id),
+      type: a.type,
+      title: a.title,
+      content: a.content,
+      imageUrl: a.imageUrl,
+      /** 只给类型，**跳哪个页面由客户端映射**（服务端不该知道小程序页面路径） */
+      linkType: a.linkType,
+      sort: a.sort,
+      /** 归属景点名；全平台公告为 null */
+      areaName: a.scenicAreaId === null ? null : (nameOf.get(Number(a.scenicAreaId)) ?? null),
+      startAt: a.startAt,
+      endAt: a.endAt,
+    });
+
+    return {
+      tips: rows.filter((r) => r.type === 1).map(toItem),
+      popups: rows.filter((r) => r.type === 2).map(toItem),
+    };
   }
 
   /**

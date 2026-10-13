@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ScenicService } from './scenic.service';
 import { ScenicDefaultsService } from '../ticket/scenic-defaults.service';
 import { AuthService } from '../auth/auth.service';
@@ -63,12 +63,47 @@ class CreateBannerDto {
   @IsOptional() @IsIn([1, 2]) status?: number;
 }
 
+/**
+ * 公告 DTO。
+ *
+ * ⚠️ 全局 `ValidationPipe({ whitelist: true })` 会**剥掉没声明装饰器的字段** ——
+ * 下面每个字段都必须显式写出来，少写一个就是「PUT 回 200 但那个字段没存进去」（本项目栽过）。
+ *
+ * ⚠️ 清空型字段（`scenicAreaId` 改成全平台、`imageUrl` / `startAt` / `endAt` 清空）**要传 `null`**：
+ * `repo.update` 忽略 `undefined`，省略等于保持原值。`@IsOptional()` 对 `null` 是放行的。
+ */
 class CreateAnnouncementDto {
+  /** 归属景点；`null` = 全平台投放（任何景点的小程序都能看到） */
+  @IsOptional() @IsInt() scenicAreaId?: number | null;
+  /** 1 提示公告（首页顶部一行，多条轮播）/ 2 弹窗公告（进首页弹一次） */
+  @IsIn([1, 2]) type: number;
   @IsString() @MinLength(2) @MaxLength(128) title: string;
-  @IsOptional() @IsString() content?: string;
+  @IsOptional() @IsString() content?: string | null;
+  /** 弹窗配图（相对路径）；仅弹窗公告用 */
+  @IsOptional() @IsString() @MaxLength(512) imageUrl?: string | null;
+  /** 0 不跳转 / 1 购票页 / 2 订单列表 / 3 电子凭证 / 4 景区地图 */
+  @IsOptional() @IsInt() @IsIn([0, 1, 2, 3, 4]) linkType?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(9999) sort?: number;
+  /**
+   * 生效区间。`@IsDateString()`（= IsISO8601）收 `YYYY-MM-DD HH:mm:ss`（后台日期选择器的 value-format）
+   * 与 ISO 两种写法；NULL/省略 = 不限。⚠️ 服务端**原样入库**，不要 `new Date()` 再存 ——
+   * 那会按服务器时区平移一次（绝对时间点就该让 DB 按自己的时区解释）。
+   */
+  @IsOptional() @IsDateString() startAt?: string | null;
+  @IsOptional() @IsDateString() endAt?: string | null;
 }
 
-class UpdateAnnouncementDto extends CreateAnnouncementDto {
+/** 修改：**全部字段可选**（上下架只传 status、清字段只传那个 null） */
+class UpdateAnnouncementDto {
+  @IsOptional() @IsInt() scenicAreaId?: number | null;
+  @IsOptional() @IsIn([1, 2]) type?: number;
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(128) title?: string;
+  @IsOptional() @IsString() content?: string | null;
+  @IsOptional() @IsString() @MaxLength(512) imageUrl?: string | null;
+  @IsOptional() @IsInt() @IsIn([0, 1, 2, 3, 4]) linkType?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(9999) sort?: number;
+  @IsOptional() @IsDateString() startAt?: string | null;
+  @IsOptional() @IsDateString() endAt?: string | null;
   @IsOptional() @IsIn([1, 2]) status?: number;
 }
 
@@ -185,18 +220,27 @@ export class ScenicController {
     return r;
   }
 
-  @Get('areas/:id/announcements')
+  // ---------------------------------------------------------------- 公告
+  // 扁平路由（不再按景区分）：公告可以**不挂景点**（全平台投放），塞在 `areas/:id/...` 下表达不了。
+  // `scope` 三态：all（默认）/ platform（只看全平台）/ scenic（要配 scenicAreaId）。
+
+  @Get('announcements')
   @Permissions('scenic:read')
-  @ApiOperation({ summary: '公告列表' })
-  listAnnouncements(@Param('id', ParseIntPipe) areaId: number, @Query('status') status?: number) {
-    return this.scenicService.listAnnouncements(areaId, status);
+  @ApiOperation({ summary: '公告列表（扁平，可按范围/类型/状态筛）' })
+  listAnnouncements(
+    @Query('scope') scope?: string,
+    @Query('scenicAreaId', new ParseIntPipe({ optional: true })) scenicAreaId?: number,
+    @Query('type', new ParseIntPipe({ optional: true })) type?: number,
+    @Query('status', new ParseIntPipe({ optional: true })) status?: number,
+  ) {
+    return this.scenicService.listAnnouncements({ scope, scenicAreaId, type, status });
   }
 
-  @Post('areas/:id/announcements')
+  @Post('announcements')
   @Permissions('scenic:create')
   @ApiOperation({ summary: '发布公告' })
-  async createAnnouncement(@Param('id', ParseIntPipe) areaId: number, @Body() dto: CreateAnnouncementDto, @Req() req: Express.Request) {
-    const r = await this.scenicService.createAnnouncement(areaId, dto);
+  async createAnnouncement(@Body() dto: CreateAnnouncementDto, @Req() req: Express.Request) {
+    const r = await this.scenicService.createAnnouncement(dto);
     await this.authService.writeLog(this.adminId(req), 'announcement:create', 'announcement', r.id, dto);
     return r;
   }
